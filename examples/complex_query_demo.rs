@@ -288,6 +288,126 @@ async fn main() -> QuickDbResult<()> {
         Err(e) => println!("   查询失败: {}", e),
     }
 
+    println!();
+
+    // 示例5: 组合模糊查询 - 使用包含、开始于、结束于和正则表达式
+    println!("5. 组合模糊查询示例: (name 包含 '张' OR job 以 '开发' 开始) AND (city 包含 '京' OR city 以 '海' 结束)");
+
+    let fuzzy_condition = QueryConditionGroup::Group {
+        operator: LogicalOperator::And,
+        conditions: vec![
+            // 姓名和职业条件组 (OR)
+            QueryConditionGroup::Group {
+                operator: LogicalOperator::Or,
+                conditions: vec![
+                    QueryConditionGroup::Single(QueryCondition {
+                        field: "name".to_string(),
+                        operator: QueryOperator::Contains,
+                        value: DataValue::String("张".to_string()),
+                    }),
+                    QueryConditionGroup::Single(QueryCondition {
+                        field: "job".to_string(),
+                        operator: QueryOperator::StartsWith,
+                        value: DataValue::String("开发".to_string()),
+                    }),
+                ],
+            },
+            // 城市模糊条件组 (OR)
+            QueryConditionGroup::Group {
+                operator: LogicalOperator::Or,
+                conditions: vec![
+                    QueryConditionGroup::Single(QueryCondition {
+                        field: "city".to_string(),
+                        operator: QueryOperator::Contains,
+                        value: DataValue::String("京".to_string()),
+                    }),
+                    QueryConditionGroup::Single(QueryCondition {
+                        field: "city".to_string(),
+                        operator: QueryOperator::EndsWith,
+                        value: DataValue::String("海".to_string()),
+                    }),
+                ],
+            },
+        ],
+    };
+
+    let fuzzy_result = find_with_groups(
+        "users",
+        vec![fuzzy_condition],
+        None,
+        None,
+    ).await;
+
+    match fuzzy_result {
+        Ok(users) => {
+            println!("   找到 {} 个用户", users.len());
+            for user in &users {
+                if let DataValue::Object(map) = user {
+                    println!("   - {:?}", map);
+                }
+            }
+        },
+        Err(e) => println!("   查询失败: {}", e),
+    }
+
+    println!();
+
+    // 示例6: 复杂的组合模糊查询 - 混合精确和模糊匹配
+    println!("6. 复杂组合模糊查询: (status = 'active' AND (name 包含 '张' OR job 包含 '设计')) AND age >= 25");
+
+    let complex_fuzzy_condition = QueryConditionGroup::Group {
+        operator: LogicalOperator::And,
+        conditions: vec![
+            // 精确条件：status = 'active'
+            QueryConditionGroup::Single(QueryCondition {
+                field: "status".to_string(),
+                operator: QueryOperator::Eq,
+                value: DataValue::String("active".to_string()),
+            }),
+            // 模糊条件组：name 包含 '张' OR job 包含 '设计'
+            QueryConditionGroup::Group {
+                operator: LogicalOperator::Or,
+                conditions: vec![
+                    QueryConditionGroup::Single(QueryCondition {
+                        field: "name".to_string(),
+                        operator: QueryOperator::Contains,
+                        value: DataValue::String("张".to_string()),
+                    }),
+                    QueryConditionGroup::Single(QueryCondition {
+                        field: "job".to_string(),
+                        operator: QueryOperator::Contains,
+                        value: DataValue::String("设计".to_string()),
+                    }),
+                ],
+            },
+            // 精确条件：age >= 25
+            QueryConditionGroup::Single(QueryCondition {
+                field: "age".to_string(),
+                operator: QueryOperator::Gte,
+                value: DataValue::Int(25),
+            }),
+        ],
+    };
+
+    let complex_fuzzy_result = find_with_groups(
+        "users",
+        vec![complex_fuzzy_condition],
+        None,
+        None,
+    ).await;
+
+    match complex_fuzzy_result {
+        Ok(users) => {
+            println!("   找到 {} 个用户", users.len());
+            for user in &users {
+                if let DataValue::Object(map) = user {
+                    println!("   - {:?}", map);
+                }
+            }
+        },
+        Err(e) => println!("   查询失败: {}", e),
+    }
+
     println!("\n=== 复杂查询示例完成 ===");
 
     // 关闭连接池
