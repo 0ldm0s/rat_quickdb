@@ -30,7 +30,7 @@ Add dependency in `Cargo.toml`:
 
 ```toml
 [dependencies]
-rat_quickdb = "0.2.0"
+rat_quickdb = "0.2.3"
 ```
 
 ## 🚀 Quick Start
