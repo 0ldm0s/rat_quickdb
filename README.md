@@ -15,6 +15,7 @@
 - **🎯 自动索引创建**: 基于模型定义自动创建表和索引，无需手动干预
 - **🗄️ 多数据库支持**: SQLite、PostgreSQL、MySQL、MongoDB
 - **🔗 统一API**: 一致的接口操作不同数据库
+- **🔒 SQLite布尔值兼容**: 自动处理SQLite布尔值存储差异，零配置兼容
 - **🏊 连接池管理**: 高效的连接池和无锁队列架构
 - **⚡ 异步支持**: 基于Tokio的异步运行时
 - **🧠 智能缓存**: 内置缓存支持（基于rat_memcache），支持TTL过期和回退机制
@@ -158,6 +159,113 @@ async fn main() -> QuickDbResult<()> {
 
     Ok(())
 }
+```
+
+## 🔒 SQLite布尔值兼容性
+
+SQLite数据库将布尔值存储为整数（0和1），这可能导致serde反序列化错误。rat_quickdb提供了多种解决方案：
+
+### 方案1: sqlite_bool_field() - 推荐（零配置）
+
+```rust
+use rat_quickdb::*;
+
+rat_quickdb::define_model! {
+    struct User {
+        id: Option<i32>,
+        username: String,
+        is_active: bool,        // 自动SQLite兼容
+        is_pinned: bool,        // 自动SQLite兼容
+        is_verified: bool,      // 自动SQLite兼容
+    }
+
+    collection = "users",
+    fields = {
+        id: integer_field(None, None),
+        username: string_field(Some(50), Some(3), None).required(),
+        // 使用sqlite_bool_field() - 自动处理SQLite布尔值兼容性
+        is_active: sqlite_bool_field(),
+        is_pinned: sqlite_bool_field(),
+        is_verified: sqlite_bool_field_with_default(false),
+    }
+}
+```
+
+### 方案2: 手动serde属性 + 通用反序列化器
+
+```rust
+use rat_quickdb::*;
+use serde::Deserialize;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct User {
+    id: Option<i32>,
+    username: String,
+
+    // 手动指定反序列化器
+    #[serde(deserialize_with = "rat_quickdb::sqlite_bool::deserialize_bool_from_any")]
+    is_active: bool,
+
+    #[serde(deserialize_with = "rat_quickdb::sqlite_bool::deserialize_bool_from_int")]
+    is_pinned: bool,
+}
+
+rat_quickdb::define_model! {
+    struct User {
+        id: Option<i32>,
+        username: String,
+        is_active: bool,
+        is_pinned: bool,
+    }
+
+    collection = "users",
+    fields = {
+        id: integer_field(None, None),
+        username: string_field(Some(50), Some(3), None).required(),
+        // 使用传统boolean_field() - 配合手动serde属性
+        is_active: boolean_field(),
+        is_pinned: boolean_field(),
+    }
+}
+```
+
+### 方案3: 传统方式（需要手动处理）
+
+```rust
+// 对于已有代码，可以使用传统boolean_field()
+// 但需要确保数据源中的布尔值格式正确
+rat_quickdb::define_model! {
+    struct User {
+        id: Option<i32>,
+        username: String,
+        is_active: bool,        // 需要手动处理兼容性
+    }
+
+    collection = "users",
+    fields = {
+        id: integer_field(None, None),
+        username: string_field(Some(50), Some(3), None).required(),
+        is_active: boolean_field(),  // 传统方式
+    }
+}
+```
+
+### 反序列化器选择指南
+
+- `deserialize_bool_from_any()`: 支持整数、布尔值、字符串 "true"/"false"
+- `deserialize_bool_from_int()`: 支持整数和布尔值
+- `sqlite_bool_field()`: 自动选择最佳反序列化器
+
+### 迁移指南
+
+从传统`boolean_field()`迁移到`sqlite_bool_field()`：
+
+```rust
+// 之前（可能有兼容性问题）
+is_active: boolean_field(),
+
+// 之后（完全兼容）
+is_active: sqlite_bool_field(),
 ```
 
 ## 🆔 ID生成策略

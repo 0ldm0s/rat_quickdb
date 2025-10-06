@@ -231,6 +231,8 @@ pub struct FieldDefinition {
     pub description: Option<String>,
     /// 自定义验证函数名
     pub validator: Option<String>,
+    /// SQLite 布尔值兼容性
+    pub sqlite_compatibility: bool,
 }
 
 impl FieldDefinition {
@@ -244,6 +246,7 @@ impl FieldDefinition {
             indexed: false,
             description: None,
             validator: None,
+            sqlite_compatibility: false,
         }
     }
 
@@ -280,6 +283,18 @@ impl FieldDefinition {
     /// 设置验证函数
     pub fn validator(mut self, validator_name: &str) -> Self {
         self.validator = Some(validator_name.to_string());
+        self
+    }
+
+    /// 设置 SQLite 兼容性
+    pub fn with_sqlite_compatibility(mut self, compatible: bool) -> Self {
+        self.sqlite_compatibility = compatible;
+        self
+    }
+
+    /// 设置默认值（别名方法，提供更直观的API）
+    pub fn with_default(mut self, value: DataValue) -> Self {
+        self.default = Some(value);
         self
     }
 
@@ -607,8 +622,68 @@ pub struct IndexDefinition {
     pub name: Option<String>,
 }
 
+/// SQLite 兼容的布尔值反序列化器
+///
+/// 提供 SQLite 布尔值兼容性的通用解决方案
+pub mod sqlite_bool {
+    use serde::{Deserialize, Deserializer};
+    use serde_json::Value;
+    use serde::de::Error;
+
+    /// 从整数或布尔值反序列化布尔值（SQLite兼容）
+    ///
+    /// # 使用方法
+    /// ```rust
+    /// #[derive(Deserialize)]
+    /// struct MyModel {
+    ///     #[serde(deserialize_with = "crate::model::sqlite_bool::deserialize_bool_from_any")]
+    ///     is_active: bool,
+    /// }
+    /// ```
+    pub fn deserialize_bool_from_any<'de, D>(deserializer: D) -> Result<bool, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        match value {
+            Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    Ok(i != 0)
+                } else if let Some(u) = n.as_u64() {
+                    Ok(u != 0)
+                } else if let Some(f) = n.as_f64() {
+                    Ok(f != 0.0)
+                } else {
+                    Err(D::Error::custom("无效的数字格式"))
+                }
+            },
+            Value::Bool(b) => Ok(b),
+            Value::String(s) => {
+                // 支持字符串格式的布尔值 "true"/"false", "1"/"0", "yes"/"no"
+                match s.to_lowercase().as_str() {
+                    "true" | "1" | "yes" | "on" => Ok(true),
+                    "false" | "0" | "no" | "off" => Ok(false),
+                    _ => Err(D::Error::custom(format!("无效的布尔字符串: {}", s))),
+                }
+            },
+            _ => Err(D::Error::custom("期望数字、布尔值或字符串")),
+        }
+    }
+
+    /// 从整数反序列化布尔值（仅支持整数输入）
+    ///
+    /// 用于明确知道数据源只可能是整数的情况
+    pub fn deserialize_bool_from_int<'de, D>(deserializer: D) -> Result<bool, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let i = i64::deserialize(deserializer)?;
+        Ok(i != 0)
+    }
+}
+
 /// 模型特征
-/// 
+///
 /// 所有模型都必须实现这个特征
 pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
     /// 获取模型元数据
@@ -773,8 +848,8 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                                 _ => value.clone()
                             }
                         },
-                        "is_active" | "is_featured" => {
-                            // 布尔字段可能被存储为整数
+                        "is_active" | "is_featured" | "is_pinned" | "is_muted" | "is_edited" | "is_deleted" | "is_online" | "is_verified" | "is_banned" => {
+                            // 布尔字段可能被存储为整数或布尔值
                             match value {
                                 JsonValue::Number(n) => {
                                     if n.as_i64() == Some(1) {
@@ -784,6 +859,10 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                                     } else {
                                         value.clone()
                                     }
+                                },
+                                JsonValue::Bool(b) => {
+                                    // 如果已经是布尔值，保持不变
+                                    value.clone()
                                 },
                                 _ => value.clone()
                             }
@@ -1131,6 +1210,20 @@ pub fn float_field(
 /// 便捷函数：创建布尔字段
 pub fn boolean_field() -> FieldDefinition {
     FieldDefinition::new(FieldType::Boolean)
+}
+
+/// SQLite 兼容的布尔字段
+///
+/// 专门为 SQLite 设计的布尔字段，自动处理整数和布尔值的兼容性
+pub fn sqlite_bool_field() -> FieldDefinition {
+    FieldDefinition::new(FieldType::Boolean).with_sqlite_compatibility(true)
+}
+
+/// 便捷函数：创建 SQLite 兼容的布尔字段（带默认值）
+pub fn sqlite_bool_field_with_default(default_value: bool) -> FieldDefinition {
+    FieldDefinition::new(FieldType::Boolean)
+        .with_sqlite_compatibility(true)
+        .with_default(if default_value { DataValue::Bool(true) } else { DataValue::Bool(false) })
 }
 
 /// 便捷函数：创建日期时间字段
