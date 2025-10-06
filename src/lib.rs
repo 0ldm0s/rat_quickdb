@@ -27,17 +27,16 @@ pub mod python_api;
 // 重新导出常用类型和函数
 pub use error::{QuickDbError, QuickDbResult};
 pub use types::*;
-pub use pool::{ConnectionPool, DatabaseConnection};
+pub use pool::DatabaseConnection;
 pub use manager::{
-    PoolManager, add_database, remove_database, get_connection, release_connection,
-    get_aliases, set_default_alias, health_check, shutdown,
+    add_database, remove_database, get_aliases, set_default_alias, health_check, shutdown,
     get_id_generator, get_mongo_auto_increment_generator
 };
 
 pub use manager::{
     get_cache_manager, get_cache_stats, clear_cache, clear_all_caches
 };
-pub use odm::{AsyncOdmManager, OdmOperations, get_odm_manager, get_odm_manager_mut};
+pub use odm::{AsyncOdmManager, get_odm_manager, get_odm_manager_mut, OdmOperations};
 pub use model::{
     Model, ModelOperations, ModelManager, FieldType, FieldDefinition, ModelMeta, IndexDefinition,
     array_field, list_field, string_field, integer_field, float_field, boolean_field,

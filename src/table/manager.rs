@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use crate::error::{QuickDbResult, QuickDbError};
 use crate::adapter::DatabaseAdapter;
-use crate::PoolManager;
+use crate::manager::PoolManager;
 use super::schema::{TableSchema, ColumnDefinition, ColumnType};
 use super::version::{VersionManager, SchemaVersion, MigrationScriptType};
 use rat_logger::info;
@@ -17,7 +17,7 @@ use rat_logger::info;
 #[derive(Debug)]
 pub struct TableManager {
     /// 连接池管理器
-    pool_manager: Arc<crate::PoolManager>,
+    pool_manager: Arc<PoolManager>,
     /// 版本管理器
     version_manager: Arc<RwLock<VersionManager>>,
     /// 表模式缓存
@@ -111,7 +111,7 @@ pub struct SchemaDiff {
 impl TableManager {
     /// 创建新的表管理器
     pub fn new(
-        pool_manager: Arc<crate::PoolManager>,
+        pool_manager: Arc<PoolManager>,
         config: TableManagerConfig,
     ) -> Self {
         Self {

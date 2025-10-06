@@ -4,7 +4,7 @@
 //! 包括连接配置、CRUD操作、多数据库管理等功能。
 
 use rat_quickdb::*;
-use rat_quickdb::manager::{get_global_pool_manager, health_check, shutdown, get_cache_manager, get_cache_stats};
+use rat_quickdb::manager::{health_check, shutdown, get_cache_manager, get_cache_stats};
 use rat_quickdb::types::{CacheConfig, CacheStrategy, TtlConfig, L1CacheConfig, L2CacheConfig, CompressionConfig, CompressionAlgorithm};
 use std::collections::HashMap;
 use chrono::Utc;
@@ -184,8 +184,7 @@ async fn main() -> QuickDbResult<()> {
     
     // 3. 连接池监控
     println!("\n3. 连接池监控");
-    let manager = get_global_pool_manager();
-    let aliases = manager.get_aliases();
+    let aliases = get_aliases();
     println!("已配置的数据库别名: {:?}", aliases);
     
     let health_map = health_check().await;
@@ -285,18 +284,12 @@ async fn create_users_table(odm: &AsyncOdmManager) -> QuickDbResult<()> {
         regex: None,
     });
     
-    // 通过连接池创建表
-    let manager = get_global_pool_manager();
-    let pools = manager.get_connection_pools();
-    if let Some(pool) = pools.get("default") {
-        pool.create_table("users", &fields).await?;
-    } else {
-        return Err(QuickDbError::ConfigError {
-            message: "无法获取默认连接池".to_string(),
-        });
+    // 注意：在ODM设计下，表会自动创建，无需手动操作
+    println!("📝 注意：rat_quickdb会在首次插入数据时自动创建表");
+    println!("users表结构已定义，包含以下字段：");
+    for (field_name, field_type) in &fields {
+        println!("  - {}: {:?}", field_name, field_type);
     }
-    
-    println!("users表创建成功（如果不存在）");
     Ok(())
 }
 
@@ -307,7 +300,9 @@ fn create_user_data(name: &str, email: &str, age: i32, department: &str) -> Hash
     user_data.insert("email".to_string(), DataValue::String(email.to_string()));
     user_data.insert("age".to_string(), DataValue::Int(age as i64));
     user_data.insert("department".to_string(), DataValue::String(department.to_string()));
+    user_data.insert("salary".to_string(), DataValue::Float(5000.0 + (age as f64 * 100.0))); // 基于年龄的薪资
     user_data.insert("created_at".to_string(), DataValue::DateTime(Utc::now()));
+    user_data.insert("updated_at".to_string(), DataValue::DateTime(Utc::now()));
     user_data.insert("status".to_string(), DataValue::String("active".to_string()));
     user_data
 }

@@ -571,7 +571,7 @@ pub static GLOBAL_POOL_MANAGER: once_cell::sync::Lazy<PoolManager> =
     once_cell::sync::Lazy::new(|| PoolManager::new());
 
 /// 获取全局连接池管理器
-pub fn get_global_pool_manager() -> &'static PoolManager {
+pub(crate) fn get_global_pool_manager() -> &'static PoolManager {
     &GLOBAL_POOL_MANAGER
 }
 
