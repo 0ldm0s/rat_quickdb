@@ -102,6 +102,12 @@ pub trait OdmOperations {
         conditions: Vec<QueryCondition>,
         alias: Option<&str>,
     ) -> QuickDbResult<bool>;
+
+    /// 获取数据库服务器版本信息
+    async fn get_server_version(
+        &self,
+        alias: Option<&str>,
+    ) -> QuickDbResult<String>;
 }
 
 /// ODM操作请求类型
@@ -170,6 +176,10 @@ pub enum OdmRequest {
         conditions: Vec<QueryCondition>,
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<bool>>,
+    },
+    GetServerVersion {
+        alias: Option<String>,
+        response: oneshot::Sender<QuickDbResult<String>>,
     },
 }
 
@@ -255,6 +265,10 @@ impl AsyncOdmManager {
                 },
                 OdmRequest::Exists { collection, conditions, alias, response } => {
                     let result = Self::handle_exists(&collection, conditions, alias).await;
+                    let _ = response.send(result);
+                },
+                OdmRequest::GetServerVersion { alias, response } => {
+                    let result = Self::handle_get_server_version(alias).await;
                     let _ = response.send(result);
                 },
             }
@@ -769,23 +783,60 @@ impl AsyncOdmManager {
             })?;
         
         // 使用生产者/消费者模式发送操作到连接池
-        let (tx, rx) = tokio::sync::oneshot::channel();
+        let (response_tx, response_rx) = tokio::sync::oneshot::channel();
         let operation = DatabaseOperation::Exists {
             table: collection.to_string(),
             conditions,
-            response: tx,
+            response: response_tx,
         };
-        
+
         connection_pool.operation_sender.send(operation)
             .map_err(|_| QuickDbError::ConnectionError {
                 message: "连接池操作通道已关闭".to_string(),
             })?;
-        
-        let result = rx.await
+
+        let result = response_rx.await
             .map_err(|_| QuickDbError::ConnectionError {
                 message: "等待数据库操作结果超时".to_string(),
             })??;
-        
+
+        Ok(result)
+    }
+
+    async fn handle_get_server_version(alias: Option<String>) -> QuickDbResult<String> {
+        let manager = get_global_pool_manager();
+        let actual_alias = match alias {
+            Some(a) => a,
+            None => {
+                manager.get_default_alias().await
+                    .unwrap_or_else(|| "default".to_string())
+            }
+        };
+        debug!("处理版本查询请求: alias={}", actual_alias);
+
+        let manager = get_global_pool_manager();
+        let connection_pools = manager.get_connection_pools();
+        let connection_pool = connection_pools.get(&actual_alias)
+            .ok_or_else(|| QuickDbError::AliasNotFound {
+                alias: actual_alias.clone(),
+            })?;
+
+        // 使用生产者/消费者模式发送操作到连接池
+        let (response_tx, response_rx) = tokio::sync::oneshot::channel();
+        let operation = DatabaseOperation::GetServerVersion {
+            response: response_tx,
+        };
+
+        connection_pool.operation_sender.send(operation)
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "连接池操作通道已关闭".to_string(),
+            })?;
+
+        let result = response_rx.await
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "等待数据库操作结果超时".to_string(),
+            })??;
+
         Ok(result)
     }
 }
@@ -1083,6 +1134,28 @@ impl OdmOperations for AsyncOdmManager {
                 message: "ODM请求处理失败".to_string(),
             })?
     }
+
+    async fn get_server_version(
+        &self,
+        alias: Option<&str>,
+    ) -> QuickDbResult<String> {
+        let (sender, receiver) = oneshot::channel();
+
+        let request = OdmRequest::GetServerVersion {
+            alias: alias.map(|s| s.to_string()),
+            response: sender,
+        };
+
+        self.request_sender.send(request)
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "ODM后台任务已停止".to_string(),
+            })?;
+
+        receiver.await
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "ODM请求处理失败".to_string(),
+            })?
+    }
 }
 
 /// 全局异步ODM管理器实例
@@ -1203,4 +1276,10 @@ pub async fn exists(
 ) -> QuickDbResult<bool> {
     let manager = get_odm_manager().await;
     manager.exists(collection, conditions, alias).await
+}
+
+/// 获取数据库服务器版本信息
+pub async fn get_server_version(alias: Option<&str>) -> QuickDbResult<String> {
+    let manager = get_odm_manager().await;
+    manager.get_server_version(alias).await
 }

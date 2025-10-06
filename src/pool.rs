@@ -115,6 +115,10 @@ pub enum DatabaseOperation {
         table: String,
         response: oneshot::Sender<QuickDbResult<()>>,
     },
+    /// 获取服务器版本
+    GetServerVersion {
+        response: oneshot::Sender<QuickDbResult<String>>,
+    },
 }
 
 /// 原生数据库连接枚举 - 直接持有数据库连接，不使用Arc包装
@@ -510,6 +514,11 @@ impl SqliteWorker {
                 let _ = response.send(result);
                 Ok(())
             },
+            DatabaseOperation::GetServerVersion { response } => {
+                let result = self.adapter.get_server_version(&self.connection).await;
+                let _ = response.send(result);
+                Ok(())
+            },
         };
         
         operation_result
@@ -796,6 +805,11 @@ impl MultiConnectionManager {
             },
             DatabaseOperation::DropTable { table, response } => {
                 let result = worker.adapter.drop_table(&worker.connection, &table).await;
+                let _ = response.send(result);
+                Ok(())
+            },
+            DatabaseOperation::GetServerVersion { response } => {
+                let result = worker.adapter.get_server_version(&worker.connection).await;
                 let _ = response.send(result);
                 Ok(())
             },

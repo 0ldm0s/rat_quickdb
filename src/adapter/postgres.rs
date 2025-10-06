@@ -678,18 +678,48 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let sql = format!("DROP TABLE IF EXISTS {} CASCADE", table);
-            
+
             debug!("执行PostgreSQL删除表SQL: {}", sql);
-            
+
             sqlx::query(&sql)
                 .execute(pool)
                 .await
                 .map_err(|e| QuickDbError::QueryError {
                     message: format!("删除PostgreSQL表失败: {}", e),
                 })?;
-            
+
             info!("成功删除PostgreSQL表: {}", table);
             Ok(())
+        } else {
+            Err(QuickDbError::ConnectionError {
+                message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
+            })
+        }
+    }
+
+    async fn get_server_version(
+        &self,
+        connection: &DatabaseConnection,
+    ) -> QuickDbResult<String> {
+        if let DatabaseConnection::PostgreSQL(pool) = connection {
+            let sql = "SELECT version()";
+
+            debug!("执行PostgreSQL版本查询SQL: {}", sql);
+
+            let row = sqlx::query(sql)
+                .fetch_one(pool)
+                .await
+                .map_err(|e| QuickDbError::QueryError {
+                    message: format!("查询PostgreSQL版本失败: {}", e),
+                })?;
+
+            let version: String = row.try_get(0)
+                .map_err(|e| QuickDbError::QueryError {
+                    message: format!("解析PostgreSQL版本结果失败: {}", e),
+                })?;
+
+            info!("成功获取PostgreSQL版本: {}", version);
+            Ok(version)
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望PostgreSQL连接".to_string(),

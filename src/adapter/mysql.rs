@@ -1063,13 +1063,46 @@ impl DatabaseAdapter for MysqlAdapter {
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let sql = format!("DROP TABLE IF EXISTS {}", table);
-            
+
             debug!("执行MySQL删除表SQL: {}", sql);
-            
+
             self.execute_update(pool, &sql, &[]).await?;
-            
+
             info!("成功删除MySQL表: {}", table);
             Ok(())
+        } else {
+            Err(QuickDbError::ConnectionError {
+                message: "连接类型不匹配，期望MySQL连接".to_string(),
+            })
+        }
+    }
+
+    async fn get_server_version(
+        &self,
+        connection: &DatabaseConnection,
+    ) -> QuickDbResult<String> {
+        if let DatabaseConnection::MySQL(pool) = connection {
+            let sql = "SELECT VERSION()";
+
+            debug!("执行MySQL版本查询SQL: {}", sql);
+
+            let results = self.execute_query(pool, sql, &[]).await?;
+
+            if let Some(result) = results.first() {
+                match result {
+                    DataValue::String(version) => {
+                        info!("成功获取MySQL版本: {}", version);
+                        Ok(version.clone())
+                    },
+                    _ => Err(QuickDbError::QueryError {
+                        message: "MySQL版本查询返回了非字符串结果".to_string(),
+                    }),
+                }
+            } else {
+                Err(QuickDbError::QueryError {
+                    message: "MySQL版本查询返回了空结果".to_string(),
+                })
+            }
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望MySQL连接".to_string(),

@@ -67,7 +67,7 @@ pub use id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 // 重新导出 ODM 操作函数（底层 DataValue API）
 // 注意：这些函数返回 DataValue，主要用于内部使用
 // 对于应用开发，推荐使用 ModelManager<T> 获取结构化数据
-pub use odm::{create, find_by_id, find, update, update_by_id, delete, delete_by_id, count, exists};
+pub use odm::{create, find_by_id, find, update, update_by_id, delete, delete_by_id, count, exists, get_server_version};
 
 // Python API 导出（仅在启用 python-bindings 特性时）
 // 注意：Python绑定相关的导出已移至专门的Python绑定库中
