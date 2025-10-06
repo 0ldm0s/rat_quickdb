@@ -17,7 +17,7 @@ pub use error::*;
 
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{mpsc, oneshot};
-use crate::PoolManager;
+use crate::manager::PoolManager;
 use crate::table::TableManager;
 use crate::error::QuickDbResult;
 

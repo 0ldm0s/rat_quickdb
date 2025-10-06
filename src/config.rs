@@ -220,34 +220,37 @@ impl DatabaseConfigBuilder {
     }
 
     /// 设置缓存配置
-    /// 
+    ///
     /// # 参数
     ///
-    /// * `cache` - 缓存配置，如果为None则创建禁用的默认配置
-    pub fn cache(mut self, cache: Option<CacheConfig>) -> Self {
-        let cache_config = match cache {
-            Some(config) => config,
-            None => CacheConfig {
-                enabled: false, // 禁用缓存
-                strategy: CacheStrategy::Lru,
-                ttl_config: TtlConfig {
-                    default_ttl_secs: 300,
-                    max_ttl_secs: 3600,
-                    check_interval_secs: 60,
-                },
-                l1_config: L1CacheConfig {
-                    max_capacity: 100,
-                    max_memory_mb: 16,
-                    enable_stats: false,
-                },
-                l2_config: None,
-                compression_config: CompressionConfig {
-                    enabled: false,
-                    algorithm: CompressionAlgorithm::Lz4,
-                    threshold_bytes: 1024,
-                },
-                version: "v1".to_string(),
+    /// * `cache` - 缓存配置
+    pub fn cache(mut self, cache: CacheConfig) -> Self {
+        self.cache = Some(cache);
+        self
+    }
+
+    /// 禁用缓存
+    pub fn disable_cache(mut self) -> Self {
+        let cache_config = CacheConfig {
+            enabled: false, // 禁用缓存
+            strategy: CacheStrategy::Lru,
+            ttl_config: TtlConfig {
+                default_ttl_secs: 300,
+                max_ttl_secs: 3600,
+                check_interval_secs: 60,
             },
+            l1_config: L1CacheConfig {
+                max_capacity: 100,
+                max_memory_mb: 16,
+                enable_stats: false,
+            },
+            l2_config: None,
+            compression_config: CompressionConfig {
+                enabled: false,
+                algorithm: CompressionAlgorithm::Lz4,
+                threshold_bytes: 1024,
+            },
+            version: "v1".to_string(),
         };
         self.cache = Some(cache_config);
         self

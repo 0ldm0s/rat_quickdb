@@ -83,7 +83,7 @@ impl ServerVersionTester {
                 .max_lifetime(1800)
                 .build()?)
             .alias("sqlite_test".to_string())
-            .cache(None) // 禁用缓存，自动创建默认配置
+            .disable_cache() // 禁用缓存
             .id_strategy(IdStrategy::AutoIncrement)
             .build()?;
 

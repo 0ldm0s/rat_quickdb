@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 use rat_logger::{info, warn, error};
 
 use crate::error::{QuickDbResult, QuickDbError};
-use crate::PoolManager;
+use crate::manager::PoolManager;
 use crate::pool::ConnectionPool;
 use crate::table::TableManager;
 use crate::types::{DataValue, QueryCondition, QueryOptions};
