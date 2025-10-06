@@ -588,19 +588,50 @@ impl DatabaseAdapter for SqliteAdapter {
                 message: "Invalid connection type for SQLite".to_string(),
             }),
         };
-        
+
         let sql = format!("DROP TABLE IF EXISTS {}", table);
-        
+
         debug!("执行SQLite删除表SQL: {}", sql);
-        
+
         sqlx::query(&sql)
             .execute(pool)
             .await
             .map_err(|e| QuickDbError::QueryError {
                 message: format!("删除SQLite表失败: {}", e),
             })?;
-        
+
         info!("成功删除SQLite表: {}", table);
         Ok(())
+    }
+
+    async fn get_server_version(
+        &self,
+        connection: &DatabaseConnection,
+    ) -> QuickDbResult<String> {
+        let pool = match connection {
+            DatabaseConnection::SQLite(pool) => pool,
+            _ => return Err(QuickDbError::ConnectionError {
+                message: "Invalid connection type for SQLite".to_string(),
+            }),
+        };
+
+        let sql = "SELECT sqlite_version()";
+
+        debug!("执行SQLite版本查询SQL: {}", sql);
+
+        let row = sqlx::query(sql)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| QuickDbError::QueryError {
+                message: format!("查询SQLite版本失败: {}", e),
+            })?;
+
+        let version: String = row.try_get(0)
+            .map_err(|e| QuickDbError::QueryError {
+                message: format!("解析SQLite版本结果失败: {}", e),
+            })?;
+
+        info!("成功获取SQLite版本: {}", version);
+        Ok(version)
     }
 }

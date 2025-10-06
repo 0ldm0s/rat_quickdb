@@ -855,15 +855,55 @@ impl DatabaseAdapter for MongoAdapter {
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::MongoDB(db) = connection {
             println!("执行MongoDB删除集合: {}", table);
-            
+
             let collection = db.collection::<mongodb::bson::Document>(table);
             collection.drop(None).await
                 .map_err(|e| QuickDbError::QueryError {
                     message: format!("删除MongoDB集合失败: {}", e),
                 })?;
-            
+
             info!("成功删除MongoDB集合: {}", table);
             Ok(())
+        } else {
+            Err(QuickDbError::ConnectionError {
+                message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            })
+        }
+    }
+
+    async fn get_server_version(
+        &self,
+        connection: &DatabaseConnection,
+    ) -> QuickDbResult<String> {
+        if let DatabaseConnection::MongoDB(db) = connection {
+            debug!("执行MongoDB版本查询");
+
+            // 使用MongoDB的buildInfo命令获取版本信息
+            let command = mongodb::bson::doc! {
+                "buildInfo": 1
+            };
+
+            let result = db.run_command(command, None).await
+                .map_err(|e| QuickDbError::QueryError {
+                    message: format!("查询MongoDB版本失败: {}", e),
+                })?;
+
+            // 从结果中提取版本信息
+            if let Some(version) = result.get("version") {
+                let version_str = match version {
+                    mongodb::bson::Bson::String(v) => v.clone(),
+                    _ => return Err(QuickDbError::QueryError {
+                        message: "MongoDB版本信息格式错误".to_string(),
+                    }),
+                };
+
+                info!("成功获取MongoDB版本: {}", version_str);
+                Ok(version_str)
+            } else {
+                Err(QuickDbError::QueryError {
+                    message: "MongoDB版本查询结果中没有版本信息".to_string(),
+                })
+            }
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望MongoDB连接".to_string(),

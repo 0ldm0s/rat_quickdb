@@ -363,4 +363,12 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         
         result
     }
+
+    async fn get_server_version(
+        &self,
+        connection: &DatabaseConnection,
+    ) -> QuickDbResult<String> {
+        // 版本查询通常不涉及具体数据，直接调用内部适配器
+        self.inner.get_server_version(connection).await
+    }
 }

@@ -143,6 +143,12 @@ pub trait DatabaseAdapter: Send + Sync {
         connection: &DatabaseConnection,
         table: &str,
     ) -> QuickDbResult<()>;
+
+    /// 获取数据库服务器版本信息
+    async fn get_server_version(
+        &self,
+        connection: &DatabaseConnection,
+    ) -> QuickDbResult<String>;
 }
 
 /// 根据数据库类型创建适配器
