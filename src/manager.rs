@@ -526,7 +526,7 @@ impl PoolManager {
                 let table_exists = pool.exists(&collection_name, &[]).await?;
                 if !table_exists {
                     info!("表 {} 不存在，正在创建", collection_name);
-                    pool.create_table(&collection_name, &fields).await?;
+                    pool.create_table(&collection_name, &fields, &pool.db_config.id_strategy).await?;
                     info!("✅ 创建表成功: {}", collection_name);
                 }
 
@@ -753,6 +753,39 @@ pub async fn clear_table_all_cache(alias: &str, table: &str) -> QuickDbResult<us
     let query_count = cache_manager.clear_table_query_cache(table).await
         .map_err(|e| QuickDbError::CacheError { message: e.to_string() })?;
     Ok(record_count + query_count)
+}
+
+/// 便捷函数 - 删除表/集合
+///
+/// 如果表不存在则直接返回成功，存在则执行删除操作
+///
+/// # 参数
+/// * `alias` - 数据库别名
+/// * `table` - 表名或集合名
+///
+/// # 示例
+/// ```no_run
+/// # use rat_quickdb::manager::drop_table;
+/// # async fn example() -> rat_quickdb::QuickDbResult<()> {
+/// // 删除表（如果存在）
+/// drop_table("main", "test_users").await?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn drop_table(alias: &str, table: &str) -> QuickDbResult<()> {
+    let pool_manager = get_global_pool_manager();
+
+    // 检查数据库是否存在
+    if !pool_manager.pools.contains_key(alias) {
+        debug!("数据库别名 {} 不存在，无需删除表", alias);
+        return Ok(());
+    }
+
+    // 获取连接池
+    let pool = pool_manager.pools.get(alias).unwrap();
+
+    // 直接执行删除操作，不检测表是否存在（因为连接池隔离问题）
+    pool.drop_table(table).await
 }
 
 /// 便捷函数 - 关闭管理器

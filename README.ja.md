@@ -33,6 +33,75 @@
 rat_quickdb = "0.2.4"
 ```
 
+## ⚠️ 重要なアーキテクチャに関する注意事項
+
+### ODMレイヤ使用要件 (v0.2.4+)
+
+**v0.2.4から、ODMレイヤをバイパスして直接コネクションプールマネージャにアクセスすることはできなくなりました。**
+
+すべてのデータベース操作は以下の方法を通じて行う必要があります：
+
+1. **推奨：モデルAPIを使用**
+```rust
+use rat_quickdb::*;
+use rat_quickdb::ModelOperations;
+
+// モデルを定義
+define_model! {
+    struct User {
+        id: String,
+        username: String,
+        email: String,
+    }
+    // ... フィールド定義
+}
+
+// 作成と保存
+let user = User {
+    id: String::new(), // フレームワークが自動でIDを生成
+    username: "張三".to_string(),
+    email: "zhangsan@example.com".to_string(),
+};
+let user_id = user.save().await?;
+
+// クエリ
+let found_user = ModelManager::<User>::find_by_id(&user_id).await?;
+```
+
+2. **代替案：ODM APIを使用**
+```rust
+use rat_quickdb::*;
+
+// add_databaseでデータベース設定を追加
+let config = DatabaseConfig::builder()
+    .db_type(DatabaseType::SQLite)
+    .connection(ConnectionConfig::SQLite {
+        path: "test.db".to_string(),
+        create_if_missing: true,
+    })
+    .alias("main".to_string())
+    .build()?;
+add_database(config).await?;
+
+// ODMでデータベース操作
+let mut user_data = HashMap::new();
+user_data.insert("username".to_string(), DataValue::String("張三".to_string()));
+create("users", user_data, Some("main")).await?;
+```
+
+3. **禁止されている使用方法**
+```rust
+// ❌ エラー：コネクションプールマネージャへの直接アクセスは不可
+// let pool_manager = get_global_pool_manager();
+// let pool = pool_manager.get_connection_pools().get("main");
+```
+
+この設計により以下が保証されます：
+- **アーキテクチャの完全性**: 統一されたデータアクセス層
+- **セキュリティ**: 低レベルのコネクションプール直接操作によるリソースリークを防止
+- **一貫性**: すべての操作が同じODMレイヤ処理を通過
+- **保守性**: 統一されたエラーハンドリングとログ記録
+
 ## 🚀 クイックスタート
 
 ### 基本的な使用方法

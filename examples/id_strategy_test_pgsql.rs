@@ -69,23 +69,37 @@ async fn test_auto_increment() -> QuickDbResult<()> {
     println!("🔢 测试 AutoIncrement ID 策略");
     println!("===============================");
 
-    // 配置数据库，使用自增ID
+    // 配置数据库，使用自增ID - 从MySQL版本复制配置
     let db_config = DatabaseConfig {
-        alias: "auto_increment_db".to_string(),
-        db_type: DatabaseType::SQLite,
-        connection: ConnectionConfig::SQLite {
-            path: "./id_strategy_test.db".to_string(),
-            create_if_missing: true,
+        db_type: DatabaseType::PostgreSQL,
+        connection: ConnectionConfig::PostgreSQL {
+            host: "172.16.0.23".to_string(),
+            port: 5432,
+            database: "testdb".to_string(),
+            username: "testdb".to_string(),
+            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            ssl_mode: Some("prefer".to_string()),
+            tls_config: None,
         },
-        pool: PoolConfig::default(),
-        id_strategy: IdStrategy::AutoIncrement,
+        pool: PoolConfig {
+            min_connections: 1,
+            max_connections: 5,
+            connection_timeout: 30,
+            idle_timeout: 300,
+            max_lifetime: 1800,
+        },
+        alias: "auto_increment_db".to_string(),
         cache: None,
+        id_strategy: IdStrategy::AutoIncrement,
     };
 
     add_database(db_config).await?;
 
     // 设置默认数据库别名
     rat_quickdb::set_default_alias("auto_increment_db").await?;
+
+    // 清理之前的表，确保使用正确的ID策略创建新表
+    let _ = rat_quickdb::drop_table("auto_increment_db", "test_users").await;
 
     // 创建测试用户
     let users = vec![
@@ -121,9 +135,9 @@ async fn test_auto_increment() -> QuickDbResult<()> {
         }
     }
 
-    // 清理数据
-    let _ = rat_quickdb::delete("test_users", vec![], Some("auto_increment_db")).await;
-    println!("✅ AutoIncrement ID 测试完成\n");
+    // 清理数据 - 暂时注释掉以便检查数据库表结构
+    // let _ = rat_quickdb::delete("test_users", vec![], Some("auto_increment_db")).await;
+    println!("✅ AutoIncrement ID 测试完成（数据保留以便检查表结构）\n");
 
     Ok(())
 }
@@ -133,13 +147,18 @@ async fn test_uuid() -> QuickDbResult<()> {
     println!("🆔 测试 UUID ID 策略");
     println!("========================");
 
-    // 配置数据库，使用UUID ID
+    // 配置数据库，使用UUID ID - 从MySQL版本复制配置
     let db_config = DatabaseConfig {
         alias: "uuid_db".to_string(),
-        db_type: DatabaseType::SQLite,
-        connection: ConnectionConfig::SQLite {
-            path: "./id_strategy_test.db".to_string(),
-            create_if_missing: true,
+        db_type: DatabaseType::PostgreSQL,
+        connection: ConnectionConfig::PostgreSQL {
+            host: "172.16.0.23".to_string(),
+            port: 5432,
+            database: "testdb".to_string(),
+            username: "testdb".to_string(),
+            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            ssl_mode: Some("prefer".to_string()),
+            tls_config: None,
         },
         pool: PoolConfig::default(),
         id_strategy: IdStrategy::Uuid,
@@ -150,6 +169,9 @@ async fn test_uuid() -> QuickDbResult<()> {
 
     // 设置默认数据库别名
     rat_quickdb::set_default_alias("uuid_db").await?;
+
+    // 清理之前的表，确保使用正确的ID策略创建新表
+    let _ = rat_quickdb::drop_table("uuid_db", "test_users").await;
 
     // 创建测试用户
     let users = vec![
@@ -190,9 +212,9 @@ async fn test_uuid() -> QuickDbResult<()> {
         }
     }
 
-    // 清理数据
-    let _ = rat_quickdb::delete("test_users", vec![], Some("uuid_db")).await;
-    println!("✅ UUID ID 测试完成\n");
+    // 清理数据 - 暂时注释掉以便检查数据库表结构
+    // let _ = rat_quickdb::delete("test_users", vec![], Some("uuid_db")).await;
+    println!("✅ UUID ID 测试完成（数据保留以便检查表结构）\n");
 
     Ok(())
 }
@@ -202,16 +224,21 @@ async fn test_snowflake() -> QuickDbResult<()> {
     println!("❄️ 测试 Snowflake ID 策略");
     println!("=============================");
 
-    // 配置数据库，使用雪花算法ID
+    // 配置数据库，使用雪花算法ID - PostgreSQL配置
     let db_config = DatabaseConfig {
         alias: "snowflake_db".to_string(),
-        db_type: DatabaseType::SQLite,
-        connection: ConnectionConfig::SQLite {
-            path: "./id_strategy_test.db".to_string(),
-            create_if_missing: true,
+        db_type: DatabaseType::PostgreSQL,
+        connection: ConnectionConfig::PostgreSQL {
+            host: "172.16.0.23".to_string(),
+            port: 5432,
+            database: "testdb".to_string(),
+            username: "testdb".to_string(),
+            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            ssl_mode: Some("prefer".to_string()),
+            tls_config: None,
         },
         pool: PoolConfig::default(),
-        id_strategy: IdStrategy::snowflake(1, 1),
+        id_strategy: IdStrategy::Snowflake { machine_id: 1, datacenter_id: 1 },
         cache: None,
     };
 
@@ -219,6 +246,9 @@ async fn test_snowflake() -> QuickDbResult<()> {
 
     // 设置默认数据库别名
     rat_quickdb::set_default_alias("snowflake_db").await?;
+
+    // 清理之前的表，确保使用正确的ID策略创建新表
+    let _ = rat_quickdb::drop_table("snowflake_db", "test_users").await;
 
     // 创建测试用户
     let users = vec![
@@ -281,9 +311,9 @@ async fn test_snowflake() -> QuickDbResult<()> {
         }
     }
 
-    // 清理数据
-    let _ = rat_quickdb::delete("test_users", vec![], Some("snowflake_db")).await;
-    println!("✅ Snowflake ID 测试完成\n");
+    // 清理数据 - 暂时注释掉以便检查数据库表结构
+    // let _ = rat_quickdb::delete("test_users", vec![], Some("snowflake_db")).await;
+    println!("✅ Snowflake ID 测试完成（数据保留以便检查表结构）\n");
 
     Ok(())
 }

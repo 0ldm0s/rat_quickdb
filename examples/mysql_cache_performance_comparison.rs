@@ -23,7 +23,7 @@ use chrono;
 /// 测试用户结构体
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct TestUser {
-    id: i64,
+    id: String,
     name: String,
     email: String,
     age: i32,
@@ -31,10 +31,10 @@ struct TestUser {
 }
 
 impl TestUser {
-    /// 转换为数据映射（不包含id，让数据库自动生成）
+    /// 转换为数据映射（ID由框架自动生成）
     fn to_data_map(&self) -> HashMap<String, DataValue> {
         let mut data = HashMap::new();
-        // 不包含id字段，让MySQL自动生成自增主键
+        data.insert("id".to_string(), DataValue::String(self.id.clone()));
         data.insert("name".to_string(), DataValue::String(self.name.clone()));
         data.insert("email".to_string(), DataValue::String(self.email.clone()));
         data.insert("age".to_string(), DataValue::Int(self.age as i64));
@@ -42,10 +42,10 @@ impl TestUser {
         data
     }
 
-    /// 创建新的测试用户（不包含ID）
+    /// 创建新的测试用户（ID由框架自动生成）
     fn new_without_id(index: usize) -> Self {
         Self {
-            id: 0, // 占位符，实际不使用
+            id: String::new(), // 框架会自动替换为正确的ID
             name: format!("用户{}", index),
             email: format!("user{}@example.com", index),
             age: 20 + (index % 50) as i32,

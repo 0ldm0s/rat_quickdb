@@ -159,7 +159,7 @@ fn create_mongodb_config() -> Result<DatabaseConfig, QuickDbError> {
 /// 创建测试数据
 fn create_test_data() -> HashMap<String, DataValue> {
     let mut data = HashMap::new();
-    data.insert("id".to_string(), DataValue::String("user_001".to_string()));
+    // 不设置ID，让框架自动生成
     data.insert("name".to_string(), DataValue::String("张三".to_string()));
     data.insert("age".to_string(), DataValue::Int(25));
     data.insert("city".to_string(), DataValue::String("北京".to_string()));

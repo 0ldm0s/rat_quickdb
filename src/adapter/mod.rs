@@ -34,6 +34,7 @@ pub trait DatabaseAdapter: Send + Sync {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<DataValue>;
 
     /// 根据ID查找记录
@@ -118,6 +119,7 @@ pub trait DatabaseAdapter: Send + Sync {
         connection: &DatabaseConnection,
         table: &str,
         fields: &HashMap<String, FieldType>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<()>;
 
     /// 创建索引
