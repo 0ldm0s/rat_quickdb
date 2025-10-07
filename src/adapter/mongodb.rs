@@ -4,7 +4,7 @@
 
 use super::DatabaseAdapter;
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
+use crate::types::{*, IdStrategy};
 use crate::pool::DatabaseConnection;
 use crate::table::{TableManager, TableSchema, ColumnType};
 use crate::model::FieldType;
@@ -433,6 +433,7 @@ impl DatabaseAdapter for MongoAdapter {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
+        id_strategy: Option<&IdStrategy>,
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::MongoDB(db) = connection {
             // 自动建表逻辑：检查集合是否存在，如果不存在则创建
@@ -457,7 +458,7 @@ impl DatabaseAdapter for MongoAdapter {
                             (col.name.clone(), field_type)
                         })
                         .collect();
-                self.create_table(connection, table, &fields).await?;
+                self.create_table(connection, table, &fields, id_strategy).await?;
                 info!("自动创建MongoDB集合 '{}' 成功", table);
             }
             
@@ -759,6 +760,7 @@ impl DatabaseAdapter for MongoAdapter {
         connection: &DatabaseConnection,
         table: &str,
         _fields: &HashMap<String, FieldType>,
+        _id_strategy: Option<&IdStrategy>,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::MongoDB(db) = connection {
             // MongoDB是无模式的，集合会在第一次插入时自动创建
