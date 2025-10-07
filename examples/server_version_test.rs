@@ -6,6 +6,7 @@
 
 use rat_quickdb::*;
 use rat_logger::{info, warn, error, debug};
+use std::collections::HashMap;
 
 /// 服务器版本查询测试器
 struct ServerVersionTester {
@@ -53,10 +54,14 @@ impl ServerVersionTester {
         // ========== 测试SQLite ==========
         self.test_sqlite().await?;
 
-        // TODO: 后续可以添加其他数据库测试
-        // self.test_postgresql().await?;
-        // self.test_mysql().await?;
-        // self.test_mongodb().await?;
+        // ========== 测试PostgreSQL ==========
+        self.test_postgresql().await?;
+
+        // ========== 测试MySQL ==========
+        self.test_mysql().await?;
+
+        // ========== 测试MongoDB ==========
+        self.test_mongodb().await?;
 
         // 打印测试结果汇总
         self.print_summary();
@@ -160,6 +165,214 @@ impl ServerVersionTester {
         info!("- rat_quickdb已修复内部API暴露问题，所有示例都使用正确的ODM层API");
         info!("- 保持了良好的封装性和架构安全性");
         info!("- 所有示例都遵循最佳实践，通过add_database()和ODM操作数据库");
+      }
+
+    /// 测试PostgreSQL数据库
+    async fn test_postgresql(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        info!("\n🐘 开始测试PostgreSQL数据库...");
+
+        // 创建PostgreSQL数据库配置 - 参考id_strategy_test_pgsql.rs
+        let pgsql_config = DatabaseConfig {
+            alias: "postgresql_test".to_string(),
+            db_type: DatabaseType::PostgreSQL,
+            connection: ConnectionConfig::PostgreSQL {
+                host: "172.16.0.23".to_string(),
+                port: 5432,
+                database: "testdb".to_string(),
+                username: "testdb".to_string(),
+                password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+                ssl_mode: Some("prefer".to_string()),
+                tls_config: None,
+            },
+            pool: PoolConfig {
+                min_connections: 1,
+                max_connections: 5,
+                connection_timeout: 30,
+                idle_timeout: 300,
+                max_lifetime: 1800,
+            },
+            id_strategy: IdStrategy::AutoIncrement,
+            cache: None,
+        };
+
+        // 通过正确的ODM API添加数据库配置
+        add_database(pgsql_config).await?;
+        info!("✅ PostgreSQL数据库配置添加成功");
+
+        // 通过ODM层测试版本查询
+        match get_server_version(Some("postgresql_test")).await {
+            Ok(version) => {
+                info!("✅ PostgreSQL版本查询成功: {}", version);
+
+                // 记录测试结果
+                self.test_results.push(DatabaseTestResult {
+                    db_type: "PostgreSQL".to_string(),
+                    alias: "postgresql_test".to_string(),
+                    version,
+                    success: true,
+                    error: None,
+                });
+            },
+            Err(e) => {
+                error!("❌ PostgreSQL版本查询失败: {}", e);
+
+                // 记录测试结果
+                self.test_results.push(DatabaseTestResult {
+                    db_type: "PostgreSQL".to_string(),
+                    alias: "postgresql_test".to_string(),
+                    version: "未知".to_string(),
+                    success: false,
+                    error: Some(e.to_string()),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 测试MySQL数据库
+    async fn test_mysql(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        info!("\n🐬 开始测试MySQL数据库...");
+
+        // 创建MySQL数据库配置 - 参考id_strategy_test_mysql.rs
+        let mysql_config = DatabaseConfig {
+            alias: "mysql_test".to_string(),
+            db_type: DatabaseType::MySQL,
+            connection: ConnectionConfig::MySQL {
+                host: "172.16.0.21".to_string(),
+                port: 3306,
+                database: "testdb".to_string(),
+                username: "testdb".to_string(),
+                password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+                ssl_opts: {
+                    let mut opts = HashMap::new();
+                    opts.insert("ssl_mode".to_string(), "PREFERRED".to_string());
+                    Some(opts)
+                },
+                tls_config: None,
+            },
+            pool: PoolConfig {
+                min_connections: 1,
+                max_connections: 5,
+                connection_timeout: 30,
+                idle_timeout: 300,
+                max_lifetime: 1800,
+            },
+            id_strategy: IdStrategy::AutoIncrement,
+            cache: None,
+        };
+
+        // 通过正确的ODM API添加数据库配置
+        add_database(mysql_config).await?;
+        info!("✅ MySQL数据库配置添加成功");
+
+        // 通过ODM层测试版本查询
+        match get_server_version(Some("mysql_test")).await {
+            Ok(version) => {
+                info!("✅ MySQL版本查询成功: {}", version);
+
+                // 记录测试结果
+                self.test_results.push(DatabaseTestResult {
+                    db_type: "MySQL".to_string(),
+                    alias: "mysql_test".to_string(),
+                    version,
+                    success: true,
+                    error: None,
+                });
+            },
+            Err(e) => {
+                error!("❌ MySQL版本查询失败: {}", e);
+
+                // 记录测试结果
+                self.test_results.push(DatabaseTestResult {
+                    db_type: "MySQL".to_string(),
+                    alias: "mysql_test".to_string(),
+                    version: "未知".to_string(),
+                    success: false,
+                    error: Some(e.to_string()),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 测试MongoDB数据库
+    async fn test_mongodb(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        info!("\n🍃 开始测试MongoDB数据库...");
+
+        // 创建MongoDB数据库配置 - 参考id_strategy_test_mongodb.rs
+        let mongodb_config = DatabaseConfig {
+            alias: "mongodb_test".to_string(),
+            db_type: DatabaseType::MongoDB,
+            connection: ConnectionConfig::MongoDB {
+                host: "db0.0ldm0s.net".to_string(),
+                port: 27017,
+                database: "testdb".to_string(),
+                username: Some("testdb".to_string()),
+                password: Some("yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string()),
+                auth_source: Some("testdb".to_string()),
+                direct_connection: true,
+                tls_config: Some(rat_quickdb::types::TlsConfig {
+                    enabled: true,
+                    ca_cert_path: None,
+                    client_cert_path: None,
+                    client_key_path: None,
+                    verify_server_cert: false,
+                    verify_hostname: false,
+                    min_tls_version: None,
+                    cipher_suites: None,
+                }),
+                zstd_config: Some(rat_quickdb::types::ZstdConfig {
+                    enabled: true,
+                    compression_level: Some(3),
+                    compression_threshold: Some(1024),
+                }),
+                options: {
+                    let mut opts = std::collections::HashMap::new();
+                    opts.insert("retryWrites".to_string(), "true".to_string());
+                    opts.insert("w".to_string(), "majority".to_string());
+                    Some(opts)
+                },
+            },
+            pool: PoolConfig::default(),
+            id_strategy: IdStrategy::ObjectId,
+            cache: None,
+        };
+
+        // 通过正确的ODM API添加数据库配置
+        add_database(mongodb_config).await?;
+        info!("✅ MongoDB数据库配置添加成功");
+
+        // 通过ODM层测试版本查询
+        match get_server_version(Some("mongodb_test")).await {
+            Ok(version) => {
+                info!("✅ MongoDB版本查询成功: {}", version);
+
+                // 记录测试结果
+                self.test_results.push(DatabaseTestResult {
+                    db_type: "MongoDB".to_string(),
+                    alias: "mongodb_test".to_string(),
+                    version,
+                    success: true,
+                    error: None,
+                });
+            },
+            Err(e) => {
+                error!("❌ MongoDB版本查询失败: {}", e);
+
+                // 记录测试结果
+                self.test_results.push(DatabaseTestResult {
+                    db_type: "MongoDB".to_string(),
+                    alias: "mongodb_test".to_string(),
+                    version: "未知".to_string(),
+                    success: false,
+                    error: Some(e.to_string()),
+                });
+            }
+        }
+
+        Ok(())
     }
 }
 

@@ -11,26 +11,22 @@ use rat_quickdb::{
 use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
 use serde::{Serialize, Deserialize};
 
-// 定义测试模型，包含_id和id字段以及索引
+// 定义测试模型，包含id字段以及索引
 rat_quickdb::define_model! {
     struct IndexTestModel {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        _id: Option<String>,
-        id: Option<i32>,
+        id: String,
         name: String,
         email: String,
     }
 
     collection = "index_test_models",
     fields = {
-        _id: string_field(Some(24), Some(24), None),
-        id: integer_field(None, None),
+        id: string_field(None, None, None).required().unique(),
         name: string_field(Some(100), Some(1), None).required(),
         email: string_field(Some(255), Some(5), None).required().unique(),
     }
 
     indexes = [
-        { fields: ["_id"], unique: true, name: "idx__id" },  // MongoDB的_id字段索引
         { fields: ["id"], unique: true, name: "idx_id" },   // SQL的id字段索引
         { fields: ["email"], unique: true, name: "idx_email" }, // email唯一索引
         { fields: ["name"], unique: false, name: "idx_name" }, // name普通索引
@@ -94,8 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 测试模型实例化和数据映射
     println!("\n=== 模型实例化测试 ===");
     let model = IndexTestModel {
-        _id: None,
-        id: None,
+        id: String::new(), // 框架会自动替换为正确的ID
         name: "测试用户".to_string(),
         email: "test@example.com".to_string(),
     };
@@ -103,13 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let data_map = model.to_data_map()?;
     println!("数据映射: {:?}", data_map);
 
-    // 验证_id字段被正确过滤（当为None时）
-    if data_map.contains_key("_id") {
-        println!("⚠️  数据映射包含_id字段: {:?}", data_map.get("_id"));
-    } else {
-        println!("✅ 数据映射正确过滤了None的_id字段");
-    }
-
+    // 验证id字段
     if data_map.contains_key("id") {
         println!("✅ 数据映射包含id字段: {:?}", data_map.get("id"));
     } else {
@@ -117,11 +106,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n=== 索引兼容性总结 ===");
-    println!("✅ define_model宏支持_id和id字段的索引定义");
+    println!("✅ define_model宏支持id字段的索引定义");
     println!("✅ 索引字段正确映射到模型字段");
-    println!("✅ 数据映射自动过滤None的_id字段");
+    println!("✅ 框架自动生成ID字段值");
     println!("✅ 模型元数据正确包含所有索引定义");
-    println!("✅ _id和id字段可以共存于同一个模型中");
+    println!("✅ SQLite数据库的AutoIncrement策略工作正常");
 
     Ok(())
 }

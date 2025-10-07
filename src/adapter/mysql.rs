@@ -1146,13 +1146,28 @@ impl DatabaseAdapter for MysqlAdapter {
 
             if let Some(result) = results.first() {
                 match result {
+                    DataValue::Object(obj) => {
+                        // MySQL适配器返回的是Object包装的结果，需要提取版本信息
+                        if let Some((_, DataValue::String(version))) = obj.iter().next() {
+                            info!("成功获取MySQL版本: {}", version);
+                            Ok(version.clone())
+                        } else {
+                            Err(QuickDbError::QueryError {
+                                message: "MySQL版本查询返回的对象中没有找到字符串版本信息".to_string(),
+                            })
+                        }
+                    },
                     DataValue::String(version) => {
+                        // 兼容直接返回字符串的情况
                         info!("成功获取MySQL版本: {}", version);
                         Ok(version.clone())
                     },
-                    _ => Err(QuickDbError::QueryError {
-                        message: "MySQL版本查询返回了非字符串结果".to_string(),
-                    }),
+                    _ => {
+                        debug!("MySQL版本查询返回了意外的数据类型: {:?}", result);
+                        Err(QuickDbError::QueryError {
+                            message: "MySQL版本查询返回了非字符串结果".to_string(),
+                        })
+                    },
                 }
             } else {
                 Err(QuickDbError::QueryError {

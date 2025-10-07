@@ -28,9 +28,9 @@ struct TestUser {
 }
 
 impl TestUser {
-    fn new(id: &str, name: &str, email: &str, age: i32) -> Self {
+    fn new(name: &str, email: &str, age: i32) -> Self {
         Self {
-            id: id.to_string(),
+            id: String::new(), // 框架会自动替换为正确的ObjectId
             name: name.to_string(),
             email: email.to_string(),
             age,
@@ -255,21 +255,17 @@ impl CachePerformanceTest {
     async fn setup_test_data(&mut self) -> QuickDbResult<()> {
         info!("设置MongoDB测试数据");
         
-        // 创建测试用户数据，为不同数据库使用不同的ID前缀避免冲突
+        // 创建测试用户数据
         for i in 1..=100 {
-            // 为缓存数据库创建用户（使用cached_前缀）
-            let cached_user_id = format!("cached_user_{:03}", i);
+            // 为缓存数据库创建用户
             let cached_user = TestUser::new(
-                &cached_user_id,
                 &format!("缓存用户{}", i),
                 &format!("cached_user{}@example.com", i),
                 20 + (i % 50),
             );
-            
-            // 为非缓存数据库创建用户（使用non_cached_前缀）
-            let non_cached_user_id = format!("non_cached_user_{:03}", i);
+
+            // 为非缓存数据库创建用户
             let non_cached_user = TestUser::new(
-                &non_cached_user_id,
                 &format!("非缓存用户{}", i),
                 &format!("non_cached_user{}@example.com", i),
                 20 + (i % 50),
