@@ -99,9 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ MongoDB 连接配置完成");
 
     // 设置 MongoDB 为默认数据库
-    use rat_quickdb::manager::get_global_pool_manager;
-    let pool_manager = get_global_pool_manager();
-    pool_manager.set_default_alias("mongodb_test").await?;
+    rat_quickdb::set_default_alias("mongodb_test").await?;
 
     // 测试 CRUD 操作
     test_mongodb_crud_operations().await?;

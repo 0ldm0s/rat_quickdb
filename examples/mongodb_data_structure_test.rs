@@ -10,7 +10,7 @@ use rat_quickdb::{
         DatabaseConfig, MongoDbConnectionBuilder, PoolConfig, TlsConfig, ZstdConfig,
         DataValue, QueryCondition, QueryOperator, QueryOptions
     },
-    manager::{add_database, get_global_pool_manager},
+    manager::add_database,
     odm::{get_odm_manager, OdmOperations},
     init,
 };

@@ -5,7 +5,7 @@
 use rat_quickdb::{
     odm::{get_odm_manager, OdmOperations},
     types::{DatabaseConfig, DatabaseType, ConnectionConfig, PoolConfig, IdStrategy},
-    manager::{add_database, get_global_pool_manager},
+    manager::add_database,
     DataValue,
 };
 use std::collections::HashMap;
@@ -37,9 +37,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     // 添加数据库配置
-    let pool_manager = get_global_pool_manager();
-    pool_manager.add_database(db_config).await?;
-    pool_manager.set_default_alias("test_uuid").await?;
+    add_database(db_config).await?;
+    rat_quickdb::set_default_alias("test_uuid").await?;
 
     // 获取ODM管理器
     let odm_manager = get_odm_manager().await;

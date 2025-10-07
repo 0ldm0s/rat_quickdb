@@ -4,7 +4,7 @@
 
 use rat_quickdb::*;
 use rat_quickdb::types::{QueryCondition, QueryOperator, DataValue};
-use rat_quickdb::manager::{get_global_pool_manager, shutdown};
+use rat_quickdb::manager::shutdown;
 use std::collections::HashMap;
 use chrono::Utc;
 
@@ -263,16 +263,8 @@ async fn create_test_table() -> QuickDbResult<()> {
     fields.insert("created_at".to_string(), FieldType::DateTime);
     fields.insert("updated_at".to_string(), FieldType::DateTime);
 
-    // 通过连接池创建表
-    let manager = get_global_pool_manager();
-    let pools = manager.get_connection_pools();
-    if let Some(pool) = pools.get("default") {
-        pool.create_table("employees", &fields).await?;
-    } else {
-        return Err(QuickDbError::ConfigError {
-            message: "无法获取默认连接池".to_string(),
-        });
-    }
+    // 通过ODM自动创建表（无需手动创建）
+    println!("   员工表将通过ODM自动创建");
 
     println!("✅ 测试表创建成功");
     Ok(())

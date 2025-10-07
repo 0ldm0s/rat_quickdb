@@ -3,7 +3,7 @@
 
 use rat_quickdb::{
     types::*,
-    manager::{PoolManager, get_global_pool_manager},
+    manager::add_database,
     error::QuickDbResult,
 };
 use std::path::Path;
@@ -46,8 +46,7 @@ async fn main() -> QuickDbResult<()> {
     };
     
     // 初始化数据库连接
-    let pool_manager = get_global_pool_manager();
-    match pool_manager.add_database(config).await {
+    match add_database(config).await {
         Ok(_) => {
             println!("✅ 数据库连接创建成功");
             

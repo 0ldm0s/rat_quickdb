@@ -916,7 +916,7 @@ impl CacheManager {
             info!("缓存已禁用，跳过模式清理: pattern={}", pattern);
             return Ok(0);
         }
-        info!("开始清理匹配模式的缓存: pattern={}", pattern);
+        debug!("开始清理匹配模式的缓存: pattern={}", pattern);
 
         let mut cleared_count = 0;
         let table_keys = self.table_keys.read().await;
@@ -938,7 +938,7 @@ impl CacheManager {
             }
         }
 
-        info!("按模式清理缓存完成: pattern={}, cleared_count={}", pattern, cleared_count);
+        debug!("按模式清理缓存完成: pattern={}, cleared_count={}", pattern, cleared_count);
         Ok(cleared_count)
     }
 
@@ -1104,7 +1104,7 @@ impl CacheManager {
         let pattern = format!("{}:{}:query:*", CACHE_KEY_PREFIX, table);
         let cleared_count = self.clear_by_pattern(&pattern).await?;
         
-        info!("清理表查询缓存完成: table={}, cleared_count={}", table, cleared_count);
+        debug!("清理表查询缓存完成: table={}, cleared_count={}", table, cleared_count);
         Ok(cleared_count)
     }
 

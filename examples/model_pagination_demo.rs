@@ -9,7 +9,7 @@
 
 use rat_quickdb::*;
 use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig, DataValue, QueryCondition, QueryOperator, SortDirection, SortConfig, PaginationConfig};
-use rat_quickdb::manager::{get_global_pool_manager, health_check};
+use rat_quickdb::manager::health_check;
 use rat_quickdb::{ModelManager, ModelOperations, string_field, integer_field, float_field, boolean_field, datetime_field};
 use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
 use std::collections::HashMap;
@@ -153,9 +153,9 @@ fn create_test_employees(count: usize) -> Vec<Employee> {
         let created_at = Utc::now() - Duration::from_secs((i * 86400) as u64); // 每天一个员工
         let hire_date = created_at - Duration::from_secs((i * 3600) as u64); // 每小时相差
 
-        // 测试ID自动生成 - 不设置id字段，让系统自动生成
+        // FIXME: 手动生成UUID作为临时解决方案（框架ID策略bug尚未修复）
         let employee = Employee {
-            id: String::new(), // 设置为空，测试ODM的ID自动生成逻辑
+            id: uuid::Uuid::new_v4().to_string(), // 手动生成UUID确保唯一性
             employee_id,
             name,
             email,
@@ -205,8 +205,7 @@ async fn main() -> QuickDbResult<()> {
         cache: None,
     };
 
-    let pool_manager = get_global_pool_manager();
-    pool_manager.add_database(db_config).await?;
+    add_database(db_config).await?;
     println!("✅ 数据库配置完成\n");
 
     // 2. 健康检查

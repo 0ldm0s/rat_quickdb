@@ -115,9 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     add_database(sqlite_config).await?;
     
     // 设置 SQLite 为默认数据库
-    use rat_quickdb::manager::get_global_pool_manager;
-    let pool_manager = get_global_pool_manager();
-    pool_manager.set_default_alias("sqlite_db").await?;
+    rat_quickdb::set_default_alias("sqlite_db").await?;
     
     // 测试 SQLite 数据库
     println!("\n--- 测试 SQLite 数据库 ---");
@@ -179,14 +177,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn test_array_fields(db_alias: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
-    // 通过PoolManager获取连接池来删除可能存在的残留表，确保测试环境干净
-    println!("清理测试环境，删除可能存在的残留表...");
-    let pool_manager = rat_quickdb::manager::get_global_pool_manager();
-    let pools = pool_manager.get_connection_pools();
-    let alias = db_alias.unwrap_or("default");
-    if let Some(pool) = pools.get(alias) {
-        let _ = pool.drop_table("users").await; // 忽略错误，表可能不存在
-    }
+    // 清理现有测试数据
+    println!("清理现有测试数据...");
+    let _ = rat_quickdb::odm::delete("users", vec![], db_alias).await;
     println!("测试环境清理完成");
     // 创建用户
     let mut metadata = HashMap::new();

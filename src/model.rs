@@ -622,65 +622,6 @@ pub struct IndexDefinition {
     pub name: Option<String>,
 }
 
-/// SQLite 兼容的布尔值反序列化器
-///
-/// 提供 SQLite 布尔值兼容性的通用解决方案
-pub mod sqlite_bool {
-    use serde::{Deserialize, Deserializer};
-    use serde_json::Value;
-    use serde::de::Error;
-
-    /// 从整数或布尔值反序列化布尔值（SQLite兼容）
-    ///
-    /// # 使用方法
-    /// ```rust
-    /// #[derive(Deserialize)]
-    /// struct MyModel {
-    ///     #[serde(deserialize_with = "crate::model::sqlite_bool::deserialize_bool_from_any")]
-    ///     is_active: bool,
-    /// }
-    /// ```
-    pub fn deserialize_bool_from_any<'de, D>(deserializer: D) -> Result<bool, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
-        match value {
-            Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    Ok(i != 0)
-                } else if let Some(u) = n.as_u64() {
-                    Ok(u != 0)
-                } else if let Some(f) = n.as_f64() {
-                    Ok(f != 0.0)
-                } else {
-                    Err(D::Error::custom("无效的数字格式"))
-                }
-            },
-            Value::Bool(b) => Ok(b),
-            Value::String(s) => {
-                // 支持字符串格式的布尔值 "true"/"false", "1"/"0", "yes"/"no"
-                match s.to_lowercase().as_str() {
-                    "true" | "1" | "yes" | "on" => Ok(true),
-                    "false" | "0" | "no" | "off" => Ok(false),
-                    _ => Err(D::Error::custom(format!("无效的布尔字符串: {}", s))),
-                }
-            },
-            _ => Err(D::Error::custom("期望数字、布尔值或字符串")),
-        }
-    }
-
-    /// 从整数反序列化布尔值（仅支持整数输入）
-    ///
-    /// 用于明确知道数据源只可能是整数的情况
-    pub fn deserialize_bool_from_int<'de, D>(deserializer: D) -> Result<bool, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let i = i64::deserialize(deserializer)?;
-        Ok(i != 0)
-    }
-}
 
 /// 模型特征
 ///
@@ -705,11 +646,11 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
         let data = self.to_data_map()?;
         
         // 调试信息：打印序列化后的数据
-        info!("🔍 验证数据映射: {:?}", data);
+        debug!("🔍 验证数据映射: {:?}", data);
         
         for (field_name, field_def) in &meta.fields {
             let field_value = data.get(field_name).unwrap_or(&DataValue::Null);
-            info!("🔍 验证字段 {}: {:?}", field_name, field_value);
+            debug!("🔍 验证字段 {}: {:?}", field_name, field_value);
             field_def.validate_with_field_name(field_value, field_name)?;
         }
         
@@ -729,17 +670,17 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
     fn to_data_map_legacy(&self) -> QuickDbResult<HashMap<String, DataValue>> {
         let json_str = serde_json::to_string(self)
             .map_err(|e| QuickDbError::SerializationError { message: format!("序列化失败: {}", e) })?;
-        info!("🔍 序列化后的JSON字符串: {}", json_str);
+        debug!("🔍 序列化后的JSON字符串: {}", json_str);
         
         let json_value: JsonValue = serde_json::from_str(&json_str)
             .map_err(|e| QuickDbError::SerializationError { message: format!("解析JSON失败: {}", e) })?;
-        info!("🔍 解析后的JsonValue: {:?}", json_value);
+        debug!("🔍 解析后的JsonValue: {:?}", json_value);
         
         let mut data_map = HashMap::new();
         if let JsonValue::Object(obj) = json_value {
             for (key, value) in obj {
                 let data_value = DataValue::from_json(value.clone());
-                info!("🔍 字段 {} 转换: {:?} -> {:?}", key, value, data_value);
+                debug!("🔍 字段 {} 转换: {:?} -> {:?}", key, value, data_value);
                 data_map.insert(key, data_value);
             }
         }
@@ -754,9 +695,13 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
 
     /// 从数据映射创建模型实例
     fn from_data_map(data: HashMap<String, DataValue>) -> QuickDbResult<Self> {
+        // 使用模型元数据后处理数据字段，修复复杂类型字段反序列化问题
+        let meta = Self::meta();
+        let processed_data = crate::process_data_fields_from_metadata(data, &meta.fields);
+
         // 将 HashMap<String, DataValue> 转换为 JsonValue，处理类型转换
         let mut json_map = serde_json::Map::new();
-        for (key, value) in data {
+        for (key, value) in processed_data {
             let json_value = match value {
                 // 处理复杂类型的智能转换
                 DataValue::Object(obj_map) => {
@@ -828,56 +773,10 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                 // 分析具体的错误，看看哪个字段类型不匹配
                 debug!("反序列化错误: {}", first_error);
 
-                // 如果错误信息提示期望sequence但得到string，说明某个数组字段被错误转换了
-                // 让我们重新构建JSON，确保数组类型保持不变
-                let mut fixed_map = serde_json::Map::new();
-                for (key, value) in json_value.as_object().unwrap() {
-                    // 根据字段名推断正确的类型
-                    let fixed_value = match key.as_str() {
-                        "tags" | "profile" => {
-                            // 这些字段在结构体中有特定的类型定义
-                            match value {
-                                JsonValue::String(s) if s.starts_with('[') && s.ends_with(']') => {
-                                    // 如果是字符串格式的数组，尝试解析回数组
-                                    if let Ok(parsed_array) = serde_json::from_str::<Vec<JsonValue>>(&s) {
-                                        JsonValue::Array(parsed_array)
-                                    } else {
-                                        value.clone()
-                                    }
-                                },
-                                _ => value.clone()
-                            }
-                        },
-                        "is_active" | "is_featured" | "is_pinned" | "is_muted" | "is_edited" | "is_deleted" | "is_online" | "is_verified" | "is_banned" => {
-                            // 布尔字段可能被存储为整数或布尔值
-                            match value {
-                                JsonValue::Number(n) => {
-                                    if n.as_i64() == Some(1) {
-                                        JsonValue::Bool(true)
-                                    } else if n.as_i64() == Some(0) {
-                                        JsonValue::Bool(false)
-                                    } else {
-                                        value.clone()
-                                    }
-                                },
-                                JsonValue::Bool(b) => {
-                                    // 如果已经是布尔值，保持不变
-                                    value.clone()
-                                },
-                                _ => value.clone()
-                            }
-                        },
-                        _ => value.clone()
-                    };
-                    fixed_map.insert(key.clone(), fixed_value);
-                }
-
-                let fixed_json = JsonValue::Object(fixed_map);
-                debug!("修复后的JSON数据: {}", serde_json::to_string_pretty(&fixed_json).unwrap_or_else(|_| "无法序列化".to_string()));
-
-                serde_json::from_value(fixed_json).map_err(|e| {
-                    error!("修复后反序列化仍然失败: {}", e);
-                    QuickDbError::SerializationError { message: format!("反序列化失败: {}", e) }
+                // 现在数组字段已经在前面通过模型元数据处理过了，直接返回错误
+                debug!("反序列化失败，数组字段处理后仍然有问题: {}", first_error);
+                Err(QuickDbError::SerializationError {
+                    message: format!("反序列化失败: {}", first_error)
                 })
             }
         }
@@ -1212,19 +1111,6 @@ pub fn boolean_field() -> FieldDefinition {
     FieldDefinition::new(FieldType::Boolean)
 }
 
-/// SQLite 兼容的布尔字段
-///
-/// 专门为 SQLite 设计的布尔字段，自动处理整数和布尔值的兼容性
-pub fn sqlite_bool_field() -> FieldDefinition {
-    FieldDefinition::new(FieldType::Boolean).with_sqlite_compatibility(true)
-}
-
-/// 便捷函数：创建 SQLite 兼容的布尔字段（带默认值）
-pub fn sqlite_bool_field_with_default(default_value: bool) -> FieldDefinition {
-    FieldDefinition::new(FieldType::Boolean)
-        .with_sqlite_compatibility(true)
-        .with_default(if default_value { DataValue::Bool(true) } else { DataValue::Bool(false) })
-}
 
 /// 便捷函数：创建日期时间字段
 pub fn datetime_field() -> FieldDefinition {

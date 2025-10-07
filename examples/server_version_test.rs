@@ -156,10 +156,10 @@ impl ServerVersionTester {
         info!("- 使用别名系统管理多个数据库连接");
         info!("- 后续可以添加PostgreSQL、MySQL、MongoDB等数据库测试");
 
-        warn!("\n⚠️  架构警告：");
-        warn!("- 当前rat_quickdb导出了一些内部API（如get_global_pool_manager）");
-        warn!("- 这会破坏ODM层的封装性，建议在未来的版本中修复");
-        warn!("- 正确的做法是只通过ODM层API操作数据库");
+        info!("\n✅ 架构完整性：");
+        info!("- rat_quickdb已修复内部API暴露问题，所有示例都使用正确的ODM层API");
+        info!("- 保持了良好的封装性和架构安全性");
+        info!("- 所有示例都遵循最佳实践，通过add_database()和ODM操作数据库");
     }
 }
 

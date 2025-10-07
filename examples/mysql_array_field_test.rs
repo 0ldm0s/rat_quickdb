@@ -120,16 +120,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("MySQL数据库连接添加成功");
     
     // 设置MySQL为默认数据库
-    use rat_quickdb::manager::get_global_pool_manager;
-    let pool_manager = get_global_pool_manager();
-    pool_manager.set_default_alias("mysql_test").await?;
+    rat_quickdb::set_default_alias("mysql_test").await?;
     
-    // 通过PoolManager获取连接池来删除可能存在的残留表，确保测试环境干净
-    info!("清理测试环境，删除可能存在的残留表...");
-    let pools = pool_manager.get_connection_pools();
-    if let Some(pool) = pools.get("mysql_test") {
-        let _ = pool.drop_table("students").await; // 忽略错误，表可能不存在
-    }
+    // 清理现有测试数据
+    info!("清理现有测试数据...");
+    let _ = rat_quickdb::odm::delete("students", vec![], Some("mysql_test")).await;
     info!("测试环境清理完成");
     
     // 创建测试学生数据

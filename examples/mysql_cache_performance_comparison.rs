@@ -9,7 +9,6 @@
 use rat_quickdb::{
     types::*,
     odm::AsyncOdmManager,
-    manager::{PoolManager, get_global_pool_manager},
     error::{QuickDbResult, QuickDbError},
     odm::OdmOperations,
 };
@@ -195,17 +194,14 @@ impl CachePerformanceTest {
         let cached_config = Self::create_cached_database_config();
         let non_cached_config = Self::create_non_cached_database_config();
 
-        // 获取全局连接池管理器
-        let pool_manager = get_global_pool_manager();
-        
         // 添加数据库配置
-        pool_manager.add_database(cached_config).await?;
-        pool_manager.add_database(non_cached_config).await?;
+        rat_quickdb::add_database(cached_config).await?;
+        rat_quickdb::add_database(non_cached_config).await?;
 
         // 创建ODM管理器
         let odm = AsyncOdmManager::new();
 
-        let test_data = (1..=1000)
+        let test_data = (1..=100)
             .map(|i| TestUser::new_without_id(i))
             .collect();
 

@@ -3,7 +3,7 @@
 //! 验证 PostgreSQL 适配器的 JSON/JSONB 字段处理是否正常工作
 
 use rat_quickdb::types::*;
-use rat_quickdb::manager::{get_global_pool_manager, add_database};
+use rat_quickdb::manager::add_database;
 use rat_quickdb::odm::{AsyncOdmManager, OdmOperations};
 use serde_json::json;
 use std::collections::HashMap;
