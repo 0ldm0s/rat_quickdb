@@ -30,7 +30,7 @@
 
 ```toml
 [dependencies]
-rat_quickdb = "0.2.3"
+rat_quickdb = "0.2.4"
 ```
 
 ## 🚀 クイックスタート
