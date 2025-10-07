@@ -477,7 +477,7 @@ impl DatabaseAdapter for MongoAdapter {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
-        id_strategy: Option<&IdStrategy>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::MongoDB(db) = connection {
             // 调试：打印原始接收到的数据
@@ -517,40 +517,40 @@ impl DatabaseAdapter for MongoAdapter {
             error!("🔍 MongoDB适配器接收到的数据: {:?}", mapped_data);
 
             // 根据ID策略处理ID字段
-            if let Some(strategy) = id_strategy {
-                if mapped_data.contains_key("_id") {
-                    match strategy {
-                        IdStrategy::AutoIncrement | IdStrategy::ObjectId => {
-                            // 对于这些策略，移除空的ID字段，让MongoDB自动生成
-                            if let Some(DataValue::String(s)) = mapped_data.get("_id") {
-                                if s.is_empty() {
-                                    mapped_data.remove("_id");
-                                }
+            if mapped_data.contains_key("_id") {
+                let strategy = id_strategy;
+                match strategy {
+                    IdStrategy::AutoIncrement | IdStrategy::ObjectId => {
+                        // 对于这些策略，移除空的ID字段，让MongoDB自动生成
+                        if let Some(DataValue::String(s)) = mapped_data.get("_id") {
+                            if s.is_empty() {
+                                mapped_data.remove("_id");
                             }
-                        },
-                        IdStrategy::Snowflake { .. } | IdStrategy::Uuid => {
-                            // 对于雪花和UUID策略，移除空的ID字段，让ODM层生成的ID生效
-                            if let Some(DataValue::String(s)) = mapped_data.get("_id") {
-                                if s.is_empty() {
-                                    mapped_data.remove("_id");
-                                }
-                            }
-                        },
-                        _ => {
-                            // 其他策略保留ID字段
                         }
+                    },
+                    IdStrategy::Snowflake { .. } | IdStrategy::Uuid => {
+                        // 对于雪花和UUID策略，移除空的ID字段，让ODM层生成的ID生效
+                        if let Some(DataValue::String(s)) = mapped_data.get("_id") {
+                            if s.is_empty() {
+                                mapped_data.remove("_id");
+                            }
+                        }
+                    },
+                    _ => {
+                        // 其他策略保留ID字段
                     }
-                } else {
-                    // 没有ID字段，检查策略是否需要ID
-                    match strategy {
-                        IdStrategy::Snowflake { .. } | IdStrategy::Uuid => {
-                            return Err(QuickDbError::ValidationError {
-                                field: "_id".to_string(),
-                                message: format!("使用{:?}策略时必须提供ID字段", strategy),
-                            });
-                        },
-                        _ => {} // 其他策略不需要ID字段
-                    }
+                }
+            } else {
+                // 没有ID字段，检查策略是否需要ID
+                let strategy = id_strategy;
+                match strategy {
+                    IdStrategy::Snowflake { .. } | IdStrategy::Uuid => {
+                        return Err(QuickDbError::ValidationError {
+                            field: "_id".to_string(),
+                            message: format!("使用{:?}策略时必须提供ID字段", strategy),
+                        });
+                    },
+                    _ => {} // 其他策略不需要ID字段
                 }
             }
 
@@ -877,7 +877,7 @@ impl DatabaseAdapter for MongoAdapter {
         connection: &DatabaseConnection,
         table: &str,
         _fields: &HashMap<String, FieldType>,
-        _id_strategy: Option<&IdStrategy>,
+        _id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::MongoDB(db) = connection {
             // MongoDB是无模式的，集合会在第一次插入时自动创建

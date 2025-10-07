@@ -84,7 +84,7 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
-        id_strategy: Option<&IdStrategy>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<DataValue> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -457,7 +457,7 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         fields: &HashMap<String, FieldType>,
-        id_strategy: Option<&IdStrategy>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,

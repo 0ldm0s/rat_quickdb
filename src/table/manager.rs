@@ -233,7 +233,7 @@ impl TableManager {
         }
         
         // 使用ConnectionPool的create_table方法
-        let result = pool.create_table(&schema.name, &fields, Some(&pool.db_config.id_strategy)).await;
+        let result = pool.create_table(&schema.name, &fields, &pool.db_config.id_strategy).await;
         
         if result.is_ok() {
             // 更新缓存

@@ -307,8 +307,8 @@ impl AsyncOdmManager {
                 alias: actual_alias.clone(),
             })?;
 
-        // 获取ID策略用于传递给适配器，默认为AutoIncrement
-        let id_strategy = Some(connection_pool.db_config.id_strategy.clone());
+        // 获取ID策略用于传递给适配器，必须提供有效策略
+        let id_strategy = connection_pool.db_config.id_strategy.clone();
 
         // 根据ID策略处理ID字段
         let mut processed_data = data.clone();
