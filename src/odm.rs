@@ -307,38 +307,68 @@ impl AsyncOdmManager {
                 alias: actual_alias.clone(),
             })?;
 
-        // 检查数据是否包含id字段，如果没有则使用IdGenerator生成
+        // 获取ID策略用于传递给适配器，默认为AutoIncrement
+        let id_strategy = Some(connection_pool.db_config.id_strategy.clone());
+
+        // 根据ID策略处理ID字段
         let mut processed_data = data.clone();
-        if !processed_data.contains_key("id") && !processed_data.contains_key("_id") {
-            debug!("数据中缺少ID字段，使用IdGenerator生成ID");
-            if let Ok(id_generator) = manager.get_id_generator(&actual_alias) {
-                match id_generator.generate().await {
-                    Ok(id_type) => {
-                        let id_value = match id_type {
-                            crate::types::IdType::Number(n) => DataValue::Int(n),
-                            crate::types::IdType::String(s) => DataValue::String(s),
-                        };
-                        // 根据数据库类型决定使用"id"还是"_id"字段
-                        match connection_pool.db_config.db_type {
-                            crate::types::DatabaseType::MongoDB => {
-                                debug!("为MongoDB生成_id字段: {:?}", id_value);
-                                processed_data.insert("_id".to_string(), id_value);
+        if let Ok(id_generator) = manager.get_id_generator(&actual_alias) {
+            match id_generator.strategy() {
+                crate::types::IdStrategy::AutoIncrement => {
+                    // AutoIncrement策略：移除用户传入的id字段，让数据库自动生成
+                    debug!("AutoIncrement策略，移除id字段让数据库自动生成");
+                    processed_data.remove("id");
+                    processed_data.remove("_id");
+                },
+                _ => {
+                    // 检查是否有有效的ID字段（非空、非零）
+                    let id_is_valid = match processed_data.get("id") {
+                        Some(crate::types::DataValue::String(s)) => !s.is_empty(),
+                        Some(crate::types::DataValue::Int(i)) => *i > 0,
+                        Some(crate::types::DataValue::Null) => false,
+                        Some(_) => true, // 其他非空类型认为是有效ID
+                        None => false,
+                    };
+                    let _id_is_valid = match processed_data.get("_id") {
+                        Some(crate::types::DataValue::String(s)) => !s.is_empty(),
+                        Some(crate::types::DataValue::Int(i)) => *i > 0,
+                        Some(crate::types::DataValue::Null) => false,
+                        Some(_) => true, // 其他非空类型认为是有效ID
+                        None => false,
+                    };
+                    let has_valid_id = id_is_valid || _id_is_valid;
+
+                    if !has_valid_id {
+                        debug!("数据中没有有效ID字段，使用IdGenerator生成ID");
+                        match id_generator.generate().await {
+                            Ok(id_type) => {
+                                let id_value = match &id_type {
+                                    crate::types::IdType::Number(n) => DataValue::Int(*n),
+                                    crate::types::IdType::String(s) => DataValue::String(s.clone()),
+                                };
+                                debug!("成功生成ID: {:?}, 转换后: {:?}", id_type, id_value);
+                                // 根据数据库类型决定使用"id"还是"_id"字段
+                                match connection_pool.db_config.db_type {
+                                    crate::types::DatabaseType::MongoDB => {
+                                        debug!("为MongoDB生成_id字段");
+                                        processed_data.insert("_id".to_string(), id_value);
+                                    },
+                                    _ => {
+                                        debug!("为SQL数据库生成id字段");
+                                        processed_data.insert("id".to_string(), id_value);
+                                    }
+                                }
                             },
-                            _ => {
-                                debug!("为SQL数据库生成id字段: {:?}", id_value);
-                                processed_data.insert("id".to_string(), id_value);
+                            Err(e) => {
+                                warn!("使用IdGenerator生成ID失败: {}", e);
+                                // 继续使用原始数据，让数据库处理ID生成
                             }
                         }
-                    },
-                    Err(e) => {
-                        warn!("使用IdGenerator生成ID失败: {}", e);
-                        // 继续使用原始数据，让数据库处理ID生成
                     }
                 }
-            } else {
-                warn!("获取IdGenerator失败");
-                // 继续使用原始数据，让数据库处理ID生成
             }
+        } else {
+            warn!("获取IdGenerator失败，使用原始数据");
         }
 
         // 创建oneshot通道用于接收响应
@@ -348,6 +378,7 @@ impl AsyncOdmManager {
         let operation = crate::pool::DatabaseOperation::Create {
             table: collection.to_string(),
             data: processed_data,
+            id_strategy,
             response: response_tx,
         };
         

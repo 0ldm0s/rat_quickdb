@@ -69,23 +69,41 @@ async fn test_auto_increment() -> QuickDbResult<()> {
     println!("🔢 测试 AutoIncrement ID 策略");
     println!("===============================");
 
-    // 配置数据库，使用自增ID
+    // 配置数据库，使用自增ID - 从mysql_array_field_test.rs复制MySQL配置
     let db_config = DatabaseConfig {
-        alias: "auto_increment_db".to_string(),
-        db_type: DatabaseType::SQLite,
-        connection: ConnectionConfig::SQLite {
-            path: "./id_strategy_test.db".to_string(),
-            create_if_missing: true,
+        db_type: DatabaseType::MySQL,
+        connection: ConnectionConfig::MySQL {
+            host: "172.16.0.21".to_string(),
+            port: 3306,
+            database: "testdb".to_string(),
+            username: "testdb".to_string(),
+            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            ssl_opts: {
+                let mut opts = HashMap::new();
+                opts.insert("ssl_mode".to_string(), "PREFERRED".to_string());
+                Some(opts)
+            },
+            tls_config: None,
         },
-        pool: PoolConfig::default(),
-        id_strategy: IdStrategy::AutoIncrement,
+        pool: PoolConfig {
+            min_connections: 1,
+            max_connections: 5,
+            connection_timeout: 30,
+            idle_timeout: 300,
+            max_lifetime: 1800,
+        },
+        alias: "auto_increment_db".to_string(),
         cache: None,
+        id_strategy: IdStrategy::AutoIncrement,
     };
 
     add_database(db_config).await?;
 
     // 设置默认数据库别名
     rat_quickdb::set_default_alias("auto_increment_db").await?;
+
+    // 清理可能存在的表，避免结构冲突
+    let _ = rat_quickdb::drop_table("auto_increment_db", "test_users").await;
 
     // 创建测试用户
     let users = vec![
@@ -110,19 +128,31 @@ async fn test_auto_increment() -> QuickDbResult<()> {
         }
     }
 
-    // 验证ID是否是数字且递增
+    // 验证ID是否是数字且递增（不能为0）
     println!("\n验证ID是否正确生成:");
+    let mut all_valid = true;
     for (i, id) in created_ids.iter().enumerate() {
-        println!("用户 {} ID: {} (应该是数字且递增)", i + 1, id);
+        println!("用户 {} ID: {} (应该是非零数字且递增)", i + 1, id);
         if let Ok(num_id) = id.parse::<i64>() {
-            println!("  ✅ ID是数字: {}", num_id);
+            if num_id > 0 {
+                println!("  ✅ ID是有效的正数: {}", num_id);
+            } else {
+                println!("  ❌ ID为0，说明AutoIncrement策略失败: {}", num_id);
+                all_valid = false;
+            }
         } else {
             println!("  ❌ ID不是数字: {}", id);
+            all_valid = false;
         }
     }
 
-    // 清理数据
-    let _ = rat_quickdb::delete("test_users", vec![], Some("auto_increment_db")).await;
+    if all_valid {
+        println!("✅ 所有ID验证通过，AutoIncrement策略正常工作");
+    } else {
+        println!("❌ ID验证失败，AutoIncrement策略有问题");
+    }
+
+    // 不清理数据，以便验证实际插入结果
     println!("✅ AutoIncrement ID 测试完成\n");
 
     Ok(())
@@ -133,23 +163,41 @@ async fn test_uuid() -> QuickDbResult<()> {
     println!("🆔 测试 UUID ID 策略");
     println!("========================");
 
-    // 配置数据库，使用UUID ID
+    // 配置数据库，使用UUID ID - 从mysql_array_field_test.rs复制MySQL配置
     let db_config = DatabaseConfig {
-        alias: "uuid_db".to_string(),
-        db_type: DatabaseType::SQLite,
-        connection: ConnectionConfig::SQLite {
-            path: "./id_strategy_test.db".to_string(),
-            create_if_missing: true,
+        db_type: DatabaseType::MySQL,
+        connection: ConnectionConfig::MySQL {
+            host: "172.16.0.21".to_string(),
+            port: 3306,
+            database: "testdb".to_string(),
+            username: "testdb".to_string(),
+            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            ssl_opts: {
+                let mut opts = HashMap::new();
+                opts.insert("ssl_mode".to_string(), "PREFERRED".to_string());
+                Some(opts)
+            },
+            tls_config: None,
         },
-        pool: PoolConfig::default(),
-        id_strategy: IdStrategy::Uuid,
+        pool: PoolConfig {
+            min_connections: 1,
+            max_connections: 5,
+            connection_timeout: 30,
+            idle_timeout: 300,
+            max_lifetime: 1800,
+        },
+        alias: "uuid_db".to_string(),
         cache: None,
+        id_strategy: IdStrategy::Uuid,
     };
 
     add_database(db_config).await?;
 
     // 设置默认数据库别名
     rat_quickdb::set_default_alias("uuid_db").await?;
+
+    // 清理可能存在的表，避免结构冲突
+    let _ = rat_quickdb::drop_table("uuid_db", "test_users").await;
 
     // 创建测试用户
     let users = vec![
@@ -202,23 +250,41 @@ async fn test_snowflake() -> QuickDbResult<()> {
     println!("❄️ 测试 Snowflake ID 策略");
     println!("=============================");
 
-    // 配置数据库，使用雪花算法ID
+    // 配置数据库，使用雪花算法ID - 从mysql_array_field_test.rs复制MySQL配置
     let db_config = DatabaseConfig {
-        alias: "snowflake_db".to_string(),
-        db_type: DatabaseType::SQLite,
-        connection: ConnectionConfig::SQLite {
-            path: "./id_strategy_test.db".to_string(),
-            create_if_missing: true,
+        db_type: DatabaseType::MySQL,
+        connection: ConnectionConfig::MySQL {
+            host: "172.16.0.21".to_string(),
+            port: 3306,
+            database: "testdb".to_string(),
+            username: "testdb".to_string(),
+            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            ssl_opts: {
+                let mut opts = HashMap::new();
+                opts.insert("ssl_mode".to_string(), "PREFERRED".to_string());
+                Some(opts)
+            },
+            tls_config: None,
         },
-        pool: PoolConfig::default(),
-        id_strategy: IdStrategy::snowflake(1, 1),
+        pool: PoolConfig {
+            min_connections: 1,
+            max_connections: 5,
+            connection_timeout: 30,
+            idle_timeout: 300,
+            max_lifetime: 1800,
+        },
+        alias: "snowflake_db".to_string(),
         cache: None,
+        id_strategy: IdStrategy::snowflake(1, 1),
     };
 
     add_database(db_config).await?;
 
     // 设置默认数据库别名
     rat_quickdb::set_default_alias("snowflake_db").await?;
+
+    // 清理可能存在的表，避免结构冲突
+    let _ = rat_quickdb::drop_table("snowflake_db", "test_users").await;
 
     // 创建测试用户
     let users = vec![

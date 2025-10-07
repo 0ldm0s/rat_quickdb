@@ -4,7 +4,7 @@
 
 use super::{DatabaseAdapter, SqlQueryBuilder};
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
+use crate::types::{*, IdStrategy};
 use crate::model::FieldType;
 use crate::pool::{DatabaseConnection};
 use crate::table::{TableManager, TableSchema, ColumnType};
@@ -81,6 +81,7 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
+        id_strategy: Option<&IdStrategy>,
     ) -> QuickDbResult<DataValue> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -111,7 +112,7 @@ impl DatabaseAdapter for SqliteAdapter {
                             (col.name.clone(), field_type)
                         })
                         .collect();
-                self.create_table(connection, table, &fields).await?;
+                self.create_table(connection, table, &fields, id_strategy).await?;
                 info!("自动创建SQLite表 '{}' 成功", table);
             }
             
@@ -453,6 +454,7 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         fields: &HashMap<String, FieldType>,
+        id_strategy: Option<&IdStrategy>,
     ) -> QuickDbResult<()> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,

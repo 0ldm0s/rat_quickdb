@@ -4,7 +4,7 @@
 
 use super::{DatabaseAdapter, SqlQueryBuilder};
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
+use crate::types::{*, IdStrategy};
 use crate::FieldType;
 use crate::pool::DatabaseConnection;
 use crate::table::{TableManager, TableSchema, ColumnType};
@@ -238,6 +238,7 @@ impl DatabaseAdapter for PostgresAdapter {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
+        id_strategy: Option<&IdStrategy>,
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             // 自动建表逻辑：检查表是否存在，如果不存在则创建
@@ -269,7 +270,7 @@ impl DatabaseAdapter for PostgresAdapter {
                         (col.name.clone(), field_type)
                     })
                     .collect();
-                self.create_table(connection, table, &fields).await?;
+                self.create_table(connection, table, &fields, id_strategy).await?;
                 info!("自动创建PostgreSQL表 '{}' 成功", table);
             } else {
                 // 表已存在，检查是否有SERIAL类型的id字段
@@ -550,6 +551,7 @@ impl DatabaseAdapter for PostgresAdapter {
         connection: &DatabaseConnection,
         table: &str,
         fields: &HashMap<String, FieldType>,
+        id_strategy: Option<&IdStrategy>,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let mut field_definitions = Vec::new();

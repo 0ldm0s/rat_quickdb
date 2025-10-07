@@ -5,7 +5,7 @@
 use crate::adapter::DatabaseAdapter;
 use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::{DataValue, QueryCondition, QueryConditionGroup, QueryOperator, QueryOptions, SortDirection};
+use crate::types::{DataValue, QueryCondition, QueryConditionGroup, QueryOperator, QueryOptions, SortDirection, IdStrategy};
 use crate::adapter::query_builder::SqlQueryBuilder;
 use crate::table::{TableManager, TableSchema, ColumnType};
 use crate::model::{FieldType, ModelMeta};
@@ -601,6 +601,7 @@ impl DatabaseAdapter for MysqlAdapter {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
+        id_strategy: Option<&IdStrategy>,
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::MySQL(pool) = connection {
             // 自动建表逻辑：检查表是否存在，如果不存在则创建
@@ -625,7 +626,7 @@ impl DatabaseAdapter for MysqlAdapter {
                             (col.name.clone(), field_type)
                         })
                         .collect();
-                self.create_table(connection, table, &fields).await?;
+                self.create_table(connection, table, &fields, id_strategy).await?;
                 info!("自动创建MySQL表 '{}' 成功", table);
             }
             
@@ -634,7 +635,10 @@ impl DatabaseAdapter for MysqlAdapter {
                 .insert(data.clone())
                 .from(table)
                 .build()?;
-            
+
+            debug!("生成的INSERT SQL: {}", sql);
+            debug!("绑定参数: {:?}", params);
+
             // 使用事务确保插入和获取ID在同一个连接中
             let mut tx = pool.begin().await
                 .map_err(|e| QuickDbError::QueryError {
@@ -670,48 +674,70 @@ impl DatabaseAdapter for MysqlAdapter {
                     };
                 }
                 
-                query.execute(&mut *tx).await
-                    .map_err(|e| QuickDbError::QueryError {
-                        message: format!("执行插入失败: {}", e),
-                    })?
-                    .rows_affected()
+                let execute_result = query.execute(&mut *tx).await;
+                match execute_result {
+                    Ok(result) => {
+                        let rows = result.rows_affected();
+                        debug!("✅ SQL执行成功，影响的行数: {}", rows);
+                        rows
+                    },
+                    Err(e) => {
+                        debug!("❌ SQL执行失败: {}", e);
+                        return Err(QuickDbError::QueryError {
+                            message: format!("执行插入失败: {}", e),
+                        });
+                    }
+                }
             };
-            
-            debug!("插入操作影响的行数: {}", affected_rows);
-            
-            // 在同一个事务中查询LAST_INSERT_ID()
-            let last_id_row = sqlx::query("SELECT LAST_INSERT_ID() as id")
-                .fetch_one(&mut *tx)
-                .await
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("获取LAST_INSERT_ID失败: {}", e),
-                })?;
-            
+
+            info!("插入操作最终影响的行数: {}", affected_rows);
+
+            // 根据ID策略获取返回的ID
+            let id_value = match id_strategy {
+                Some(IdStrategy::AutoIncrement) => {
+                    // AutoIncrement策略：获取MySQL自动生成的ID
+                    let last_id_row = sqlx::query("SELECT LAST_INSERT_ID()")
+                        .fetch_one(&mut *tx)
+                        .await
+                        .map_err(|e| QuickDbError::QueryError {
+                            message: format!("获取LAST_INSERT_ID失败: {}", e),
+                        })?;
+
+                    let last_id: u64 = last_id_row.try_get(0)
+                        .map_err(|e| QuickDbError::QueryError {
+                            message: format!("解析LAST_INSERT_ID失败: {}", e),
+                        })?;
+
+                    debug!("在事务中获取到的LAST_INSERT_ID: {}", last_id);
+                    DataValue::Int(last_id as i64)
+                },
+                _ => {
+                    // 其他策略：使用数据中的ID字段
+                    if let Some(id_data) = data.get("id") {
+                        debug!("使用数据中的ID字段: {:?}", id_data);
+                        id_data.clone()
+                    } else {
+                        debug!("数据中没有ID字段，返回默认值0");
+                        DataValue::Int(0)
+                    }
+                }
+            };
+
             // 提交事务
-            tx.commit().await
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("提交事务失败: {}", e),
-                })?;
+            let commit_result = tx.commit().await;
+            match commit_result {
+                Ok(_) => debug!("✅ 事务提交成功"),
+                Err(e) => {
+                    debug!("❌ 事务提交失败: {}", e);
+                    return Err(QuickDbError::QueryError {
+                        message: format!("提交事务失败: {}", e),
+                    });
+                }
+            }
 
-            // MySQL的LAST_INSERT_ID()返回的是u64
-            let last_id: u64 = last_id_row.try_get("id")
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("解析LAST_INSERT_ID失败: {}", e),
-                })?;
-
-            debug!("获取到的LAST_INSERT_ID: {}", last_id);
-            debug!("转换为i64的ID: {}", last_id as i64);
-            
             // 构造返回的DataValue
             let mut result_map = std::collections::HashMap::new();
-            // 将u64转换为i64，因为DataValue::Int使用i64
-            // MySQL自增ID通常在i64范围内，如果超出则使用字符串
-            let id_value = if last_id <= i64::MAX as u64 {
-                let id_as_i64 = last_id as i64;
-                DataValue::Int(id_as_i64)
-            } else {
-                DataValue::String(last_id.to_string())
-            };
+
             result_map.insert("id".to_string(), id_value.clone());
             result_map.insert("affected_rows".to_string(), DataValue::Int(affected_rows as i64));
 
@@ -965,23 +991,39 @@ impl DatabaseAdapter for MysqlAdapter {
         connection: &DatabaseConnection,
         table: &str,
         fields: &HashMap<String, FieldType>,
+        id_strategy: Option<&IdStrategy>,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let mut field_definitions = Vec::new();
             
-            // 检查是否已经有id字段，如果没有则添加默认的id主键
-            if !fields.contains_key("id") {
-                // 使用BIGINT UNSIGNED确保与LAST_INSERT_ID()兼容
-                field_definitions.push("id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY".to_string());
-            }
-            
+            // 统一处理id字段，根据ID策略决定类型和属性
+            let id_definition = match id_strategy {
+                Some(IdStrategy::AutoIncrement) => "id BIGINT AUTO_INCREMENT PRIMARY KEY".to_string(),
+                Some(IdStrategy::ObjectId) => "id VARCHAR(255) PRIMARY KEY".to_string(), // ObjectId存储为字符串
+                Some(IdStrategy::Uuid) => "id VARCHAR(36) PRIMARY KEY".to_string(),
+                Some(IdStrategy::Snowflake { .. }) => "id BIGINT PRIMARY KEY".to_string(),
+                Some(IdStrategy::Custom(_)) => "id VARCHAR(255) PRIMARY KEY".to_string(), // 自定义ID使用字符串
+                None => {
+                    // 默认策略：强制自增
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY".to_string()
+                }
+            };
+            field_definitions.push(id_definition);
+
             for (name, field_type) in fields {
+                // 跳过id字段，因为已经根据策略处理过了
+                if name == "id" {
+                    continue;
+                }
+
+                // 非id字段的正常处理
                 let sql_type = match field_type {
                     FieldType::String { max_length, .. } => {
                         if let Some(max_len) = max_length {
                             format!("VARCHAR({})", max_len)
                         } else {
-                            "TEXT".to_string()
+                            // 对于没有指定长度的字符串字段，使用合理的默认长度
+                            "VARCHAR(1000)".to_string()
                         }
                     },
                     FieldType::Integer { .. } => "INT".to_string(),
@@ -1001,13 +1043,8 @@ impl DatabaseAdapter for MysqlAdapter {
                     FieldType::Object { .. } => "JSON".to_string(),
                     FieldType::Reference { .. } => "VARCHAR(255)".to_string(),
                 };
-                
-                // 如果是id字段，添加主键约束
-                if name == "id" {
-                    field_definitions.push(format!("{} {} AUTO_INCREMENT PRIMARY KEY", name, sql_type));
-                } else {
-                    field_definitions.push(format!("{} {}", name, sql_type));
-                }
+
+                field_definitions.push(format!("{} {}", name, sql_type));
             }
             
             let sql = format!(
