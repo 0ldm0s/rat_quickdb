@@ -41,8 +41,9 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<DataValue> {
-        let result = self.inner.create(connection, table, data).await;
+        let result = self.inner.create(connection, table, data, id_strategy).await;
         
         // 创建成功后只清理查询缓存，保留记录缓存
         if result.is_ok() {
@@ -318,9 +319,10 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         connection: &DatabaseConnection,
         table: &str,
         fields: &HashMap<String, FieldType>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         // 表结构操作不缓存，直接调用内部适配器
-        self.inner.create_table(connection, table, fields).await
+        self.inner.create_table(connection, table, fields, id_strategy).await
     }
 
     /// 创建索引 - 直接调用内部适配器

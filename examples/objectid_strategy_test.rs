@@ -33,12 +33,10 @@ define_model! {
 }
 
 impl ObjectIdTestUser {
-    /// 创建测试用户（ID为空以触发自动生成）
+    /// 创建测试用户（框架自动生成ID）
     fn new(username: &str, email: &str) -> Self {
         Self {
-            // FIXME: 这是错误的用法！ObjectId策略应该自动生成ID，但现在框架有bug没有生效
-            // 手动生成ID作为临时解决方案
-            id: generate_object_id(),
+            id: String::new(), // 框架会自动替换为正确的ObjectId
             username: username.to_string(),
             email: email.to_string(),
             created_at: Utc::now(),

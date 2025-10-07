@@ -163,6 +163,7 @@ async fn trigger_adapter_creation(pool_manager: &PoolManager, db_alias: &str) ->
             table: "test_table".to_string(),
             data: test_data,
             response: tx,
+            id_strategy: IdStrategy::AutoIncrement,
         };
         
         if let Err(e) = pool.operation_sender.send(operation) {

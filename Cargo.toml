@@ -112,7 +112,4 @@ tokio-test = "0.4"
 tempfile = "3.8"
 
 # Examples dependencies for testing
-[[example]]
-name = "test_auto_index_creation"
-path = "examples/test_auto_index_creation.rs"
-required-features = ["examples"]
+# 所有示例都可以直接运行，不需要额外特性

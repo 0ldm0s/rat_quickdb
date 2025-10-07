@@ -250,6 +250,7 @@ impl TaskWorker {
         let operation = DatabaseOperation::Create {
             table: table.to_string(),
             data,
+            id_strategy: pool.db_config.id_strategy.clone(),
             response: tx,
         };
         
@@ -513,6 +514,7 @@ impl TaskWorker {
             let operation = DatabaseOperation::Create {
                 table: table.to_string(),
                 data,
+                id_strategy: pool.db_config.id_strategy.clone(),
                 response: tx,
             };
             

@@ -36,6 +36,7 @@ pub enum DatabaseOperation {
     Create {
         table: String,
         data: HashMap<String, DataValue>,
+        id_strategy: IdStrategy,
         response: oneshot::Sender<QuickDbResult<DataValue>>,
     },
     /// 根据ID查找记录
@@ -100,6 +101,7 @@ pub enum DatabaseOperation {
     CreateTable {
         table: String,
         fields: HashMap<String, FieldType>,
+        id_strategy: IdStrategy,
         response: oneshot::Sender<QuickDbResult<()>>,
     },
     /// 创建索引
@@ -449,8 +451,8 @@ impl SqliteWorker {
         
         // 执行数据库操作，使用 Result 来处理错误而不是 panic 捕获
         let operation_result = match operation {
-            DatabaseOperation::Create { table, data, response } => {
-                let result = self.adapter.create(&self.connection, &table, &data).await;
+            DatabaseOperation::Create { table, data, id_strategy, response } => {
+                let result = self.adapter.create(&self.connection, &table, &data, &id_strategy).await;
                 let _ = response.send(result);
                 Ok(())
             },
@@ -499,8 +501,8 @@ impl SqliteWorker {
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::CreateTable { table, fields, response } => {
-                let result = self.adapter.create_table(&self.connection, &table, &fields).await;
+            DatabaseOperation::CreateTable { table, fields, id_strategy, response } => {
+                let result = self.adapter.create_table(&self.connection, &table, &fields, &id_strategy).await;
                 let _ = response.send(result);
                 Ok(())
             },
@@ -743,8 +745,8 @@ impl MultiConnectionManager {
         
         // 处理具体操作
         let result = match operation {
-            DatabaseOperation::Create { table, data, response } => {
-                let result = worker.adapter.create(&worker.connection, &table, &data).await;
+            DatabaseOperation::Create { table, data, id_strategy, response } => {
+                let result = worker.adapter.create(&worker.connection, &table, &data, &id_strategy).await;
                 let _ = response.send(result);
                 Ok(())
             },
@@ -793,8 +795,8 @@ impl MultiConnectionManager {
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::CreateTable { table, fields, response } => {
-                let result = worker.adapter.create_table(&worker.connection, &table, &fields).await;
+            DatabaseOperation::CreateTable { table, fields, id_strategy, response } => {
+                let result = worker.adapter.create_table(&worker.connection, &table, &fields, &id_strategy).await;
                 let _ = response.send(result);
                 Ok(())
             },
@@ -1049,12 +1051,14 @@ impl ConnectionPool {
         &self,
         table: &str,
         data: &HashMap<String, DataValue>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<DataValue> {
         let (response_sender, response_receiver) = oneshot::channel();
-        
+
         let operation = DatabaseOperation::Create {
             table: table.to_string(),
             data: data.clone(),
+            id_strategy: id_strategy.clone(),
             response: response_sender,
         };
         
@@ -1280,12 +1284,14 @@ impl ConnectionPool {
         &self,
         table: &str,
         fields: &HashMap<String, FieldType>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         let (response_sender, response_receiver) = oneshot::channel();
         
         let operation = DatabaseOperation::CreateTable {
             table: table.to_string(),
             fields: fields.clone(),
+            id_strategy: id_strategy.clone(),
             response: response_sender,
         };
         

@@ -4,7 +4,7 @@
 
 use super::{DatabaseAdapter, SqlQueryBuilder};
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
+use crate::types::{*, IdStrategy};
 use crate::model::FieldType;
 use crate::pool::{DatabaseConnection};
 use crate::table::{TableManager, TableSchema, ColumnType};
@@ -42,6 +42,9 @@ impl SqliteAdapter {
                         if matches!(column_name, "is_active" | "active" | "enabled" | "disabled" | "verified" | "is_admin" | "is_deleted")
                            && (i == 0 || i == 1) {
                             DataValue::Bool(i == 1)
+                        } else if column_name == "id" && i > 1000000000000000000 {
+                            // 如果是id字段且值很大，可能是雪花ID，转换为字符串保持跨数据库兼容性
+                            DataValue::String(i.to_string())
                         } else {
                             DataValue::Int(i)
                         }
@@ -81,6 +84,7 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<DataValue> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -111,7 +115,7 @@ impl DatabaseAdapter for SqliteAdapter {
                             (col.name.clone(), field_type)
                         })
                         .collect();
-                self.create_table(connection, table, &fields).await?;
+                self.create_table(connection, table, &fields, id_strategy).await?;
                 info!("自动创建SQLite表 '{}' 成功", table);
             }
             
@@ -453,6 +457,7 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         fields: &HashMap<String, FieldType>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,

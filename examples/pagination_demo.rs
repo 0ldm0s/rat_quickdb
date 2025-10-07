@@ -15,7 +15,7 @@ use chrono::Utc;
 /// 用户模型
 define_model! {
     struct User {
-        id: i32,
+        id: String,
         name: String,
         email: String,
         age: i32,
@@ -25,7 +25,7 @@ define_model! {
     }
     collection = "users",
     fields = {
-        id: integer_field(None, None).required().unique(),
+        id: string_field(None, None, None).required().unique(),
         name: string_field(None, None, None).required(),
         email: string_field(None, None, None).required(),
         age: integer_field(None, None).required(),
@@ -47,7 +47,7 @@ impl User {
         let names = ["张三", "李四", "王五", "赵六", "孙七", "周八", "吴九", "郑十"];
 
         User {
-            id: (index + 1) as i32,
+            id: String::new(), // 框架会自动替换为正确的ID
             name: format!("{}{}", names[index % names.len()], index + 1),
             email: format!("user{}@example.com", index + 1),
             age: ((index % 35) + 22) as i32, // 22-56岁
@@ -124,7 +124,7 @@ async fn main() -> QuickDbResult<()> {
             .max_lifetime(3600)
             .build()?)
         .alias("default".to_string())
-        .id_strategy(IdStrategy::AutoIncrement)
+        .id_strategy(IdStrategy::Uuid)
         .build()?;
 
     add_database(config).await?;
