@@ -41,7 +41,14 @@ impl MysqlAdapter {
         // 1. 尝试读取为 Option<i64>
         if let Ok(val) = row.try_get::<Option<i64>, _>(column_name) {
             return Ok(match val {
-                Some(i) => DataValue::Int(i),
+                Some(i) => {
+                    // 如果是id字段且值很大，可能是雪花ID，转换为字符串保持跨数据库兼容性
+                    if column_name == "id" && i > 1000000000000000000 {
+                        DataValue::String(i.to_string())
+                    } else {
+                        DataValue::Int(i)
+                    }
+                },
                 None => DataValue::Null,
             });
         }

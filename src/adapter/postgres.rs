@@ -38,7 +38,14 @@ impl PostgresAdapter {
                         }
                     } else if let Ok(val) = row.try_get::<Option<i64>, _>(column_name) {
                         match val {
-                            Some(i) => DataValue::Int(i),
+                            Some(i) => {
+                                // 如果是id字段且值很大，可能是雪花ID，转换为字符串保持跨数据库兼容性
+                                if column_name == "id" && i > 1000000000000000000 {
+                                    DataValue::String(i.to_string())
+                                } else {
+                                    DataValue::Int(i)
+                                }
+                            },
                             None => DataValue::Null,
                         }
                     } else {
@@ -83,7 +90,10 @@ impl PostgresAdapter {
                 "UUID" => {
                     if let Ok(val) = row.try_get::<Option<uuid::Uuid>, _>(column_name) {
                         match val {
-                            Some(u) => DataValue::Uuid(u),
+                            Some(u) => {
+                                // 将UUID转换为字符串以保持跨数据库兼容性
+                                DataValue::String(u.to_string())
+                            },
                             None => DataValue::Null,
                         }
                     } else {
@@ -299,6 +309,33 @@ impl DatabaseAdapter for PostgresAdapter {
             if !data_has_id || (data_has_id && has_auto_increment_id) {
                 insert_data.remove("id");
                 debug!("使用PostgreSQL SERIAL自增，不在INSERT中包含id字段");
+            } else if data_has_id && id_strategy.is_some() {
+                // 如果有ID字段且指定了ID策略，可能需要转换数据类型
+                match id_strategy {
+                    Some(IdStrategy::Snowflake { .. }) => {
+                        // 雪花ID需要转换为整数
+                        if let Some(id_value) = insert_data.get("id").cloned() {
+                            if let DataValue::String(s) = id_value {
+                                if let Ok(num) = s.parse::<i64>() {
+                                    insert_data.insert("id".to_string(), DataValue::Int(num));
+                                    debug!("将雪花ID从字符串转换为整数: {} -> {}", s, num);
+                                }
+                            }
+                        }
+                    },
+                    Some(IdStrategy::Uuid) => {
+                        // UUID需要转换为UUID类型
+                        if let Some(id_value) = insert_data.get("id").cloned() {
+                            if let DataValue::String(s) = id_value {
+                                if let Ok(uuid) = s.parse::<uuid::Uuid>() {
+                                    insert_data.insert("id".to_string(), DataValue::Uuid(uuid));
+                                    debug!("将UUID从字符串转换为UUID类型: {}", s);
+                                }
+                            }
+                        }
+                    },
+                    _ => {} // 其他策略不需要转换
+                }
             }
             
             let (sql, params) = SqlQueryBuilder::new()
@@ -556,9 +593,17 @@ impl DatabaseAdapter for PostgresAdapter {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let mut field_definitions = Vec::new();
             
-            // 检查是否已经有id字段，如果没有则添加默认的id主键
+            // 根据ID策略创建ID字段
             if !fields.contains_key("id") {
-                field_definitions.push("id SERIAL PRIMARY KEY".to_string());
+                let id_definition = match id_strategy {
+                    Some(IdStrategy::AutoIncrement) => "id SERIAL PRIMARY KEY".to_string(),
+                    Some(IdStrategy::Uuid) => "id UUID PRIMARY KEY".to_string(), // 使用原生UUID类型，返回时转换为字符串
+                    Some(IdStrategy::Snowflake { .. }) => "id BIGINT PRIMARY KEY".to_string(),
+                    Some(IdStrategy::ObjectId) => "id TEXT PRIMARY KEY".to_string(),
+                    Some(IdStrategy::Custom(_)) => "id TEXT PRIMARY KEY".to_string(), // 自定义策略使用TEXT
+                    None => "id SERIAL PRIMARY KEY".to_string(), // 默认使用自增
+                };
+                field_definitions.push(id_definition);
             }
             
             for (name, field_type) in fields {
@@ -588,14 +633,24 @@ impl DatabaseAdapter for PostgresAdapter {
                     FieldType::Reference { target_collection: _ } => "TEXT".to_string(),
                 };
                 
-                // 如果是id字段，检查是否需要自增
+                // 如果是id字段，根据ID策略创建正确的字段类型
                 if name == "id" {
-                    // 对于id字段，如果是整数类型且配置了AutoIncrement策略，使用SERIAL
-                    if matches!(field_type, FieldType::Integer { .. }) {
-                        field_definitions.push("id SERIAL PRIMARY KEY".to_string());
-                    } else {
-                        field_definitions.push(format!("{} {} PRIMARY KEY", name, sql_type));
-                    }
+                    let id_definition = match id_strategy {
+                        Some(IdStrategy::AutoIncrement) => "id SERIAL PRIMARY KEY".to_string(),
+                        Some(IdStrategy::Uuid) => "id UUID PRIMARY KEY".to_string(), // 使用原生UUID类型
+                        Some(IdStrategy::Snowflake { .. }) => "id BIGINT PRIMARY KEY".to_string(),
+                        Some(IdStrategy::ObjectId) => "id TEXT PRIMARY KEY".to_string(),
+                        Some(IdStrategy::Custom(_)) => "id TEXT PRIMARY KEY".to_string(), // 自定义策略使用TEXT
+                        None => {
+                            // 默认策略：根据字段类型决定
+                            if matches!(field_type, FieldType::Integer { .. }) {
+                                "id SERIAL PRIMARY KEY".to_string()
+                            } else {
+                                format!("id {} PRIMARY KEY", sql_type)
+                            }
+                        }
+                    };
+                    field_definitions.push(id_definition);
                 } else {
                     field_definitions.push(format!("{} {}", name, sql_type));
                 }
