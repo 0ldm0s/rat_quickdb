@@ -62,9 +62,28 @@ impl MongoAdapter {
         let mut data_map = HashMap::new();
 
         for (key, value) in doc {
-            let data_value = self.bson_to_data_value(value)?;
-            // 保持原始字段名，包括MongoDB的_id字段
-            data_map.insert(key.clone(), data_value);
+            let mut data_value = self.bson_to_data_value(value)?;
+
+            // 特殊处理_id字段，映射为id并进行类型转换
+            if key == "_id" {
+                match &data_value {
+                    DataValue::String(s) => {
+                        // 检查是否是雪花ID（19位数字的字符串）
+                        if s.len() == 19 && s.chars().all(|c| c.is_ascii_digit()) {
+                            // 雪花ID：在查询结果中保持字符串格式以维持跨数据库兼容性
+                            data_value = DataValue::String(s.clone());
+                        } else {
+                            // 其他ID格式保持原样
+                        }
+                    },
+                    _ => {}
+                }
+                // 将_id映射为id
+                data_map.insert("id".to_string(), data_value);
+            } else {
+                // 保持原始字段名
+                data_map.insert(key.clone(), data_value);
+            }
         }
 
         Ok(data_map)
@@ -124,7 +143,14 @@ impl MongoAdapter {
             Bson::ObjectId(oid) => Ok(DataValue::String(oid.to_hex())),
             Bson::String(s) => Ok(DataValue::String(s.clone())),
             Bson::Int32(i) => Ok(DataValue::Int(*i as i64)),
-            Bson::Int64(i) => Ok(DataValue::Int(*i)),
+            Bson::Int64(i) => {
+                // 检查是否可能是雪花ID，保持跨数据库兼容性
+                if *i > 1000000000000000000 {
+                    Ok(DataValue::String(i.to_string()))
+                } else {
+                    Ok(DataValue::Int(*i))
+                }
+            },
             Bson::Double(f) => Ok(DataValue::Float(*f)),
             Bson::Boolean(b) => Ok(DataValue::Bool(*b)),
             Bson::Null => Ok(DataValue::Null),
@@ -418,10 +444,28 @@ impl MongoAdapter {
     /// 将数据映射中的id字段转换为_id字段
     fn map_data_fields(&self, data: &HashMap<String, DataValue>) -> HashMap<String, DataValue> {
         let mut mapped_data = HashMap::new();
-        for (key, value) in data {
-            let mapped_key = self.map_field_name(key);
-            mapped_data.insert(mapped_key, value.clone());
+
+        // 首先处理_id字段（如果存在且不为空）
+        if let Some(_id_value) = data.get("_id") {
+            if let DataValue::String(s) = _id_value {
+                if !s.is_empty() {
+                    mapped_data.insert("_id".to_string(), _id_value.clone());
+                }
+            } else {
+                mapped_data.insert("_id".to_string(), _id_value.clone());
+            }
         }
+
+        // 然后处理其他字段，避免覆盖_id字段
+        for (key, value) in data {
+            if key != "_id" { // 跳过_id字段，避免覆盖
+                let mapped_key = self.map_field_name(key);
+                if mapped_key != "_id" { // 确保不会映射到_id
+                    mapped_data.insert(mapped_key, value.clone());
+                }
+            }
+        }
+
         mapped_data
     }
 }
@@ -436,6 +480,8 @@ impl DatabaseAdapter for MongoAdapter {
         id_strategy: Option<&IdStrategy>,
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::MongoDB(db) = connection {
+            // 调试：打印原始接收到的数据
+            error!("🔍 MongoDB适配器原始接收到的数据: {:?}", data);
             // 自动建表逻辑：检查集合是否存在，如果不存在则创建
             if !self.table_exists(connection, table).await? {
                 info!("集合 {} 不存在，正在自动创建", table);
@@ -464,14 +510,52 @@ impl DatabaseAdapter for MongoAdapter {
             
             let collection = self.get_collection(db, table);
             
-            // 映射字段名（id -> _id）
-            let mapped_data = self.map_data_fields(data);
+            // 映射字段名（id -> _id）并处理ID策略
+            let mut mapped_data = self.map_data_fields(data);
+
+            // 调试：打印接收到的数据
+            error!("🔍 MongoDB适配器接收到的数据: {:?}", mapped_data);
+
+            // 根据ID策略处理ID字段
+            if let Some(strategy) = id_strategy {
+                if mapped_data.contains_key("_id") {
+                    match strategy {
+                        IdStrategy::AutoIncrement | IdStrategy::ObjectId => {
+                            // 对于这些策略，移除空的ID字段，让MongoDB自动生成
+                            if let Some(DataValue::String(s)) = mapped_data.get("_id") {
+                                if s.is_empty() {
+                                    mapped_data.remove("_id");
+                                }
+                            }
+                        },
+                        IdStrategy::Snowflake { .. } | IdStrategy::Uuid => {
+                            // 对于雪花和UUID策略，移除空的ID字段，让ODM层生成的ID生效
+                            if let Some(DataValue::String(s)) = mapped_data.get("_id") {
+                                if s.is_empty() {
+                                    mapped_data.remove("_id");
+                                }
+                            }
+                        },
+                        _ => {
+                            // 其他策略保留ID字段
+                        }
+                    }
+                } else {
+                    // 没有ID字段，检查策略是否需要ID
+                    match strategy {
+                        IdStrategy::Snowflake { .. } | IdStrategy::Uuid => {
+                            return Err(QuickDbError::ValidationError {
+                                field: "_id".to_string(),
+                                message: format!("使用{:?}策略时必须提供ID字段", strategy),
+                            });
+                        },
+                        _ => {} // 其他策略不需要ID字段
+                    }
+                }
+            }
+
             let mut doc = Document::new();
             for (key, value) in &mapped_data {
-                // 跳过_id字段如果值为Null，让MongoDB自动生成
-                if key == "_id" && matches!(value, DataValue::Null) {
-                    continue;
-                }
                 doc.insert(key, self.data_value_to_bson(value));
             }
 
@@ -484,8 +568,41 @@ impl DatabaseAdapter for MongoAdapter {
                 })?;
             
             let mut result_map = HashMap::new();
-            result_map.insert("_id".to_string(), DataValue::String(result.inserted_id.to_string()));
-            Ok(DataValue::Object(result_map))
+
+            // 检查是否有ODM层生成的ID，如果有则使用它，否则使用MongoDB生成的ID
+            if let Some(id_value) = mapped_data.get("_id") {
+                if let DataValue::String(id_str) = id_value {
+                    if !id_str.is_empty() {
+                        // 使用ODM层生成的ID
+                        result_map.insert("id".to_string(), DataValue::String(id_str.clone()));
+                        Ok(DataValue::Object(result_map))
+                    } else {
+                        // 使用MongoDB生成的ID，确保转换为纯字符串格式
+                        let id_str = match result.inserted_id {
+                            mongodb::bson::Bson::ObjectId(oid) => oid.to_hex(),
+                            _ => result.inserted_id.to_string(),
+                        };
+                        result_map.insert("id".to_string(), DataValue::String(id_str));
+                        Ok(DataValue::Object(result_map))
+                    }
+                } else {
+                    // 使用MongoDB生成的ID，确保转换为纯字符串格式
+                    let id_str = match result.inserted_id {
+                        mongodb::bson::Bson::ObjectId(oid) => oid.to_hex(),
+                        _ => result.inserted_id.to_string(),
+                    };
+                    result_map.insert("id".to_string(), DataValue::String(id_str));
+                    Ok(DataValue::Object(result_map))
+                }
+            } else {
+                // 使用MongoDB生成的ID，确保转换为纯字符串格式
+                let id_str = match result.inserted_id {
+                    mongodb::bson::Bson::ObjectId(oid) => oid.to_hex(),
+                    _ => result.inserted_id.to_string(),
+                };
+                result_map.insert("id".to_string(), DataValue::String(id_str));
+                Ok(DataValue::Object(result_map))
+            }
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望MongoDB连接".to_string(),
