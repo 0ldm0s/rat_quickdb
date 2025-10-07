@@ -608,7 +608,7 @@ impl DatabaseAdapter for MysqlAdapter {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
-        id_strategy: Option<&IdStrategy>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::MySQL(pool) = connection {
             // 自动建表逻辑：检查表是否存在，如果不存在则创建
@@ -701,7 +701,7 @@ impl DatabaseAdapter for MysqlAdapter {
 
             // 根据ID策略获取返回的ID
             let id_value = match id_strategy {
-                Some(IdStrategy::AutoIncrement) => {
+                IdStrategy::AutoIncrement => {
                     // AutoIncrement策略：获取MySQL自动生成的ID
                     let last_id_row = sqlx::query("SELECT LAST_INSERT_ID()")
                         .fetch_one(&mut *tx)
@@ -998,22 +998,18 @@ impl DatabaseAdapter for MysqlAdapter {
         connection: &DatabaseConnection,
         table: &str,
         fields: &HashMap<String, FieldType>,
-        id_strategy: Option<&IdStrategy>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let mut field_definitions = Vec::new();
             
             // 统一处理id字段，根据ID策略决定类型和属性
             let id_definition = match id_strategy {
-                Some(IdStrategy::AutoIncrement) => "id BIGINT AUTO_INCREMENT PRIMARY KEY".to_string(),
-                Some(IdStrategy::ObjectId) => "id VARCHAR(255) PRIMARY KEY".to_string(), // ObjectId存储为字符串
-                Some(IdStrategy::Uuid) => "id VARCHAR(36) PRIMARY KEY".to_string(),
-                Some(IdStrategy::Snowflake { .. }) => "id BIGINT PRIMARY KEY".to_string(),
-                Some(IdStrategy::Custom(_)) => "id VARCHAR(255) PRIMARY KEY".to_string(), // 自定义ID使用字符串
-                None => {
-                    // 默认策略：强制自增
-                    "id BIGINT AUTO_INCREMENT PRIMARY KEY".to_string()
-                }
+                IdStrategy::AutoIncrement => "id BIGINT AUTO_INCREMENT PRIMARY KEY".to_string(),
+                IdStrategy::ObjectId => "id VARCHAR(255) PRIMARY KEY".to_string(), // ObjectId存储为字符串
+                IdStrategy::Uuid => "id VARCHAR(36) PRIMARY KEY".to_string(),
+                IdStrategy::Snowflake { .. } => "id BIGINT PRIMARY KEY".to_string(),
+                IdStrategy::Custom(_) => "id VARCHAR(255) PRIMARY KEY".to_string(), // 自定义ID使用字符串
             };
             field_definitions.push(id_definition);
 

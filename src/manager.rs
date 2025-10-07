@@ -526,7 +526,7 @@ impl PoolManager {
                 let table_exists = pool.exists(&collection_name, &[]).await?;
                 if !table_exists {
                     info!("表 {} 不存在，正在创建", collection_name);
-                    pool.create_table(&collection_name, &fields, Some(&pool.db_config.id_strategy)).await?;
+                    pool.create_table(&collection_name, &fields, &pool.db_config.id_strategy).await?;
                     info!("✅ 创建表成功: {}", collection_name);
                 }
 

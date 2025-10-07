@@ -213,6 +213,7 @@ async fn test_mixed_mode(manager: &mut PoolManager) -> Result<(), Box<dyn std::e
                 table: "test_table".to_string(),
                 data: test_data,
                 response: tx,
+                id_strategy: IdStrategy::AutoIncrement,
             };
             
             if pool.operation_sender.send(operation).is_ok() {
@@ -241,6 +242,7 @@ async fn trigger_adapter_creation(
             table: "test_table".to_string(),
             data: test_data.clone(),
             response: tx,
+            id_strategy: IdStrategy::AutoIncrement,
         };
         
         if pool1.operation_sender.send(operation).is_ok() {
@@ -256,6 +258,7 @@ async fn trigger_adapter_creation(
             table: "test_table".to_string(),
             data: test_data,
             response: tx,
+            id_strategy: IdStrategy::AutoIncrement,
         };
         
         if pool2.operation_sender.send(operation).is_ok() {

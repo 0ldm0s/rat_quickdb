@@ -248,7 +248,7 @@ impl DatabaseAdapter for PostgresAdapter {
         connection: &DatabaseConnection,
         table: &str,
         data: &HashMap<String, DataValue>,
-        id_strategy: Option<&IdStrategy>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             // 自动建表逻辑：检查表是否存在，如果不存在则创建
@@ -309,10 +309,10 @@ impl DatabaseAdapter for PostgresAdapter {
             if !data_has_id || (data_has_id && has_auto_increment_id) {
                 insert_data.remove("id");
                 debug!("使用PostgreSQL SERIAL自增，不在INSERT中包含id字段");
-            } else if data_has_id && id_strategy.is_some() {
+            } else if data_has_id {
                 // 如果有ID字段且指定了ID策略，可能需要转换数据类型
                 match id_strategy {
-                    Some(IdStrategy::Snowflake { .. }) => {
+                    IdStrategy::Snowflake { .. } => {
                         // 雪花ID需要转换为整数
                         if let Some(id_value) = insert_data.get("id").cloned() {
                             if let DataValue::String(s) = id_value {
@@ -323,7 +323,7 @@ impl DatabaseAdapter for PostgresAdapter {
                             }
                         }
                     },
-                    Some(IdStrategy::Uuid) => {
+                    IdStrategy::Uuid => {
                         // UUID需要转换为UUID类型
                         if let Some(id_value) = insert_data.get("id").cloned() {
                             if let DataValue::String(s) = id_value {
@@ -588,7 +588,7 @@ impl DatabaseAdapter for PostgresAdapter {
         connection: &DatabaseConnection,
         table: &str,
         fields: &HashMap<String, FieldType>,
-        id_strategy: Option<&IdStrategy>,
+        id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let mut field_definitions = Vec::new();
@@ -596,12 +596,11 @@ impl DatabaseAdapter for PostgresAdapter {
             // 根据ID策略创建ID字段
             if !fields.contains_key("id") {
                 let id_definition = match id_strategy {
-                    Some(IdStrategy::AutoIncrement) => "id SERIAL PRIMARY KEY".to_string(),
-                    Some(IdStrategy::Uuid) => "id UUID PRIMARY KEY".to_string(), // 使用原生UUID类型，返回时转换为字符串
-                    Some(IdStrategy::Snowflake { .. }) => "id BIGINT PRIMARY KEY".to_string(),
-                    Some(IdStrategy::ObjectId) => "id TEXT PRIMARY KEY".to_string(),
-                    Some(IdStrategy::Custom(_)) => "id TEXT PRIMARY KEY".to_string(), // 自定义策略使用TEXT
-                    None => "id SERIAL PRIMARY KEY".to_string(), // 默认使用自增
+                    IdStrategy::AutoIncrement => "id SERIAL PRIMARY KEY".to_string(),
+                    IdStrategy::Uuid => "id UUID PRIMARY KEY".to_string(), // 使用原生UUID类型，返回时转换为字符串
+                    IdStrategy::Snowflake { .. } => "id BIGINT PRIMARY KEY".to_string(),
+                    IdStrategy::ObjectId => "id TEXT PRIMARY KEY".to_string(),
+                    IdStrategy::Custom(_) => "id TEXT PRIMARY KEY".to_string(), // 自定义策略使用TEXT
                 };
                 field_definitions.push(id_definition);
             }
@@ -636,19 +635,11 @@ impl DatabaseAdapter for PostgresAdapter {
                 // 如果是id字段，根据ID策略创建正确的字段类型
                 if name == "id" {
                     let id_definition = match id_strategy {
-                        Some(IdStrategy::AutoIncrement) => "id SERIAL PRIMARY KEY".to_string(),
-                        Some(IdStrategy::Uuid) => "id UUID PRIMARY KEY".to_string(), // 使用原生UUID类型
-                        Some(IdStrategy::Snowflake { .. }) => "id BIGINT PRIMARY KEY".to_string(),
-                        Some(IdStrategy::ObjectId) => "id TEXT PRIMARY KEY".to_string(),
-                        Some(IdStrategy::Custom(_)) => "id TEXT PRIMARY KEY".to_string(), // 自定义策略使用TEXT
-                        None => {
-                            // 默认策略：根据字段类型决定
-                            if matches!(field_type, FieldType::Integer { .. }) {
-                                "id SERIAL PRIMARY KEY".to_string()
-                            } else {
-                                format!("id {} PRIMARY KEY", sql_type)
-                            }
-                        }
+                        IdStrategy::AutoIncrement => "id SERIAL PRIMARY KEY".to_string(),
+                        IdStrategy::Uuid => "id UUID PRIMARY KEY".to_string(), // 使用原生UUID类型
+                        IdStrategy::Snowflake { .. } => "id BIGINT PRIMARY KEY".to_string(),
+                        IdStrategy::ObjectId => "id TEXT PRIMARY KEY".to_string(),
+                        IdStrategy::Custom(_) => "id TEXT PRIMARY KEY".to_string(), // 自定义策略使用TEXT
                     };
                     field_definitions.push(id_definition);
                 } else {
