@@ -153,9 +153,9 @@ fn create_test_employees(count: usize) -> Vec<Employee> {
         let created_at = Utc::now() - Duration::from_secs((i * 86400) as u64); // 每天一个员工
         let hire_date = created_at - Duration::from_secs((i * 3600) as u64); // 每小时相差
 
-        // FIXME: 手动生成UUID作为临时解决方案（框架ID策略bug尚未修复）
+        // 框架自动生成ID
         let employee = Employee {
-            id: uuid::Uuid::new_v4().to_string(), // 手动生成UUID确保唯一性
+            id: String::new(), // 框架会自动替换为正确的ID
             employee_id,
             name,
             email,

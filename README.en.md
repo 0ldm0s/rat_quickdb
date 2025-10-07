@@ -30,8 +30,77 @@ Add dependency in `Cargo.toml`:
 
 ```toml
 [dependencies]
-rat_quickdb = "0.2.3"
+rat_quickdb = "0.2.4"
 ```
+
+## ⚠️ Important Architecture Notice
+
+### ODM Layer Usage Requirement (v0.2.4+)
+
+**Starting from v0.2.4, bypassing the ODM layer to directly access connection pool managers is no longer allowed.**
+
+All database operations must go through the following methods:
+
+1. **Recommended: Use Model API**
+```rust
+use rat_quickdb::*;
+use rat_quickdb::ModelOperations;
+
+// Define model
+define_model! {
+    struct User {
+        id: String,
+        username: String,
+        email: String,
+    }
+    // ... field definitions
+}
+
+// Create and save
+let user = User {
+    id: String::new(), // Framework auto-generates ID
+    username: "张三".to_string(),
+    email: "zhangsan@example.com".to_string(),
+};
+let user_id = user.save().await?;
+
+// Query
+let found_user = ModelManager::<User>::find_by_id(&user_id).await?;
+```
+
+2. **Alternative: Use ODM API**
+```rust
+use rat_quickdb::*;
+
+// Add database configuration via add_database
+let config = DatabaseConfig::builder()
+    .db_type(DatabaseType::SQLite)
+    .connection(ConnectionConfig::SQLite {
+        path: "test.db".to_string(),
+        create_if_missing: true,
+    })
+    .alias("main".to_string())
+    .build()?;
+add_database(config).await?;
+
+// Use ODM to operate database
+let mut user_data = HashMap::new();
+user_data.insert("username".to_string(), DataValue::String("张三".to_string()));
+create("users", user_data, Some("main")).await?;
+```
+
+3. **Prohibited Usage**
+```rust
+// ❌ Error: Direct access to connection pool manager is no longer allowed
+// let pool_manager = get_global_pool_manager();
+// let pool = pool_manager.get_connection_pools().get("main");
+```
+
+This design ensures:
+- **Architecture Integrity**: Unified data access layer
+- **Security**: Prevents resource leaks from direct low-level connection pool operations
+- **Consistency**: All operations go through the same ODM layer processing
+- **Maintainability**: Unified error handling and logging
 
 ## 🚀 Quick Start
 

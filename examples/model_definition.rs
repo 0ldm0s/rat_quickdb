@@ -149,7 +149,7 @@ async fn demonstrate_json_serialization() -> QuickDbResult<()> {
     // 创建真实的用户数据
     println!("创建用户数据...");
     let user = User {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: String::new(),
         username: format!("zhangsan_{}", uuid::Uuid::new_v4().simple()),
         email: format!("zhangsan_{}@example.com", uuid::Uuid::new_v4().simple()),
         password_hash: "hashed_password_here".to_string(),
@@ -232,7 +232,7 @@ async fn demonstrate_basic_crud() -> QuickDbResult<()> {
     // 创建用户
     println!("\n1. 创建用户...");
     let user = User {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: String::new(),
         username: format!("demo_user_{}", uuid::Uuid::new_v4().simple()),
         email: format!("demo_user_{}@example.com", uuid::Uuid::new_v4().simple()),
         password_hash: "hashed_password_here".to_string(),
@@ -325,7 +325,7 @@ async fn demonstrate_error_handling() -> QuickDbResult<()> {
     // 3. 创建重复数据（测试唯一约束）
     println!("\n3. 创建重复数据...");
     let first_user = User {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: String::new(),
         username: format!("unique_user_{}", uuid::Uuid::new_v4().simple()),
         email: format!("unique_user_{}@example.com", uuid::Uuid::new_v4().simple()),
         password_hash: "hashed_password_here".to_string(),
@@ -348,7 +348,7 @@ async fn demonstrate_error_handling() -> QuickDbResult<()> {
 
             // 第二次创建相同用户名的用户
             let duplicate_user = User {
-                id: uuid::Uuid::new_v4().to_string(),
+                id: String::new(),
                 username: format!("unique_user_{}", uuid::Uuid::new_v4().simple()), // 重复用户名
                 email: format!("unique_user2_{}@example.com", uuid::Uuid::new_v4().simple()),
                 password_hash: "hashed_password_here".to_string(),
@@ -417,7 +417,7 @@ async fn demonstrate_batch_operations() -> QuickDbResult<()> {
     println!("\n1. 批量创建用户...");
     let batch_users = vec![
         User {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: String::new(),
             username: format!("batch1_{}", uuid::Uuid::new_v4().simple()),
             email: format!("batch1_{}@example.com", uuid::Uuid::new_v4().simple()),
             password_hash: "hashed_password_here".to_string(),
@@ -433,7 +433,7 @@ async fn demonstrate_batch_operations() -> QuickDbResult<()> {
             tags: Some(vec!["批量用户".to_string()]),
         },
         User {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: String::new(),
             username: format!("batch2_{}", uuid::Uuid::new_v4().simple()),
             email: format!("batch2_{}@example.com", uuid::Uuid::new_v4().simple()),
             password_hash: "hashed_password_here".to_string(),
@@ -449,7 +449,7 @@ async fn demonstrate_batch_operations() -> QuickDbResult<()> {
             tags: Some(vec!["批量用户".to_string()]),
         },
         User {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: String::new(),
             username: format!("batch3_{}", uuid::Uuid::new_v4().simple()),
             email: format!("batch3_{}@example.com", uuid::Uuid::new_v4().simple()),
             password_hash: "hashed_password_here".to_string(),
@@ -465,7 +465,7 @@ async fn demonstrate_batch_operations() -> QuickDbResult<()> {
             tags: Some(vec!["批量用户".to_string()]),
         },
         User {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: String::new(),
             username: format!("batch4_{}", uuid::Uuid::new_v4().simple()),
             email: format!("batch4_{}@example.com", uuid::Uuid::new_v4().simple()),
             password_hash: "hashed_password_here".to_string(),
@@ -960,7 +960,7 @@ async fn demonstrate_model_validation() -> QuickDbResult<()> {
     // 1. 验证有效用户数据 - 使用结构体model API
     println!("\n1. 验证有效用户数据...");
     let valid_user = User {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: String::new(),
         username: format!("test_valid_user_{}", uuid::Uuid::new_v4().simple()),
         email: format!("test_valid_user_{}@example.com", uuid::Uuid::new_v4().simple()),
         password_hash: "hashed_password_here".to_string(),
@@ -997,7 +997,7 @@ async fn demonstrate_model_validation() -> QuickDbResult<()> {
     // 2. 测试重复数据验证
     println!("\n2. 测试重复数据验证...");
     let duplicate_user = User {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: String::new(),
         username: format!("test_valid_user_{}", uuid::Uuid::new_v4().simple()), // 重复的用户名
         email: format!("test_duplicate_user_{}@example.com", uuid::Uuid::new_v4().simple()),
         password_hash: "hashed_password_here".to_string(),
@@ -1056,7 +1056,7 @@ async fn demonstrate_model_validation() -> QuickDbResult<()> {
 
     // 创建文章实例
     let article = Article {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: String::new(),
         title: "验证测试文章".to_string(),
         slug: format!("test-article-{}", uuid::Uuid::new_v4().simple()),
         content: "这是一篇用于验证的测试文章，内容足够长以满足验证要求。".to_string(),
@@ -1153,7 +1153,7 @@ async fn demonstrate_complex_queries() -> QuickDbResult<()> {
     println!("创建测试用户...");
     let test_users = vec![
         User {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: String::new(),
             username: format!("query_alice_{}", uuid::Uuid::new_v4().simple()),
             email: format!("query_alice_{}@example.com", uuid::Uuid::new_v4().simple()),
             password_hash: "hashed_password_here".to_string(),
@@ -1169,7 +1169,7 @@ async fn demonstrate_complex_queries() -> QuickDbResult<()> {
             tags: Some(vec!["开发者".to_string(), "活跃用户".to_string()]),
         },
         User {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: String::new(),
             username: format!("query_bob_{}", uuid::Uuid::new_v4().simple()),
             email: format!("query_bob_{}@example.com", uuid::Uuid::new_v4().simple()),
             password_hash: "hashed_password_here".to_string(),
@@ -1185,7 +1185,7 @@ async fn demonstrate_complex_queries() -> QuickDbResult<()> {
             tags: Some(vec!["设计师".to_string(), "新用户".to_string()]),
         },
         User {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: String::new(),
             username: format!("query_charlie_{}", uuid::Uuid::new_v4().simple()),
             email: format!("query_charlie_{}@example.com", uuid::Uuid::new_v4().simple()),
             password_hash: "hashed_password_here".to_string(),
@@ -1201,7 +1201,7 @@ async fn demonstrate_complex_queries() -> QuickDbResult<()> {
             tags: Some(vec!["管理员".to_string(), "资深用户".to_string()]),
         },
         User {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: String::new(),
             username: format!("query_diana_{}", uuid::Uuid::new_v4().simple()),
             email: format!("query_diana_{}@example.com", uuid::Uuid::new_v4().simple()),
             password_hash: "hashed_password_here".to_string(),

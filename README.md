@@ -31,8 +31,77 @@
 
 ```toml
 [dependencies]
-rat_quickdb = "0.2.3"
+rat_quickdb = "0.2.4"
 ```
+
+## ⚠️ 重要架构说明
+
+### ODM层使用要求 (v0.2.4+)
+
+**从v0.2.4版本开始，不再允许绕过ODM层直接使用连接池管理器。**
+
+所有数据库操作必须通过以下方式：
+
+1. **推荐：使用模型API**
+```rust
+use rat_quickdb::*;
+use rat_quickdb::ModelOperations;
+
+// 定义模型
+define_model! {
+    struct User {
+        id: String,
+        username: String,
+        email: String,
+    }
+    // ... 字段定义
+}
+
+// 创建和保存
+let user = User {
+    id: String::new(), // 框架自动生成ID
+    username: "张三".to_string(),
+    email: "zhangsan@example.com".to_string(),
+};
+let user_id = user.save().await?;
+
+// 查询
+let found_user = ModelManager::<User>::find_by_id(&user_id).await?;
+```
+
+2. **备选：使用ODM API**
+```rust
+use rat_quickdb::*;
+
+// 通过add_database添加数据库配置
+let config = DatabaseConfig::builder()
+    .db_type(DatabaseType::SQLite)
+    .connection(ConnectionConfig::SQLite {
+        path: "test.db".to_string(),
+        create_if_missing: true,
+    })
+    .alias("main".to_string())
+    .build()?;
+add_database(config).await?;
+
+// 使用ODM操作数据库
+let mut user_data = HashMap::new();
+user_data.insert("username".to_string(), DataValue::String("张三".to_string()));
+create("users", user_data, Some("main")).await?;
+```
+
+3. **禁止的用法**
+```rust
+// ❌ 错误：不再允许直接访问连接池管理器
+// let pool_manager = get_global_pool_manager();
+// let pool = pool_manager.get_connection_pools().get("main");
+```
+
+这种设计确保了：
+- **架构完整性**: 统一的数据访问层
+- **安全性**: 防止直接操作底层连接池导致的资源泄漏
+- **一致性**: 所有操作都经过相同的ODM层处理
+- **维护性**: 统一的错误处理和日志记录
 
 ## 🚀 快速开始
 
@@ -558,7 +627,7 @@ rat_quickdb采用现代化架构设计：
 
 ## 🌟 版本信息
 
-**当前版本**: 0.2.3
+**当前版本**: 0.2.4
 
 **支持Rust版本**: 1.70+
 

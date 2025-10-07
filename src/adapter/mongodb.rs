@@ -481,7 +481,7 @@ impl DatabaseAdapter for MongoAdapter {
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::MongoDB(db) = connection {
             // 调试：打印原始接收到的数据
-            error!("🔍 MongoDB适配器原始接收到的数据: {:?}", data);
+            debug!("🔍 MongoDB适配器原始接收到的数据: {:?}", data);
             // 自动建表逻辑：检查集合是否存在，如果不存在则创建
             if !self.table_exists(connection, table).await? {
                 info!("集合 {} 不存在，正在自动创建", table);
@@ -514,7 +514,7 @@ impl DatabaseAdapter for MongoAdapter {
             let mut mapped_data = self.map_data_fields(data);
 
             // 调试：打印接收到的数据
-            error!("🔍 MongoDB适配器接收到的数据: {:?}", mapped_data);
+            debug!("🔍 MongoDB适配器接收到的数据: {:?}", mapped_data);
 
             // 根据ID策略处理ID字段
             if mapped_data.contains_key("_id") {

@@ -339,14 +339,14 @@ impl AsyncOdmManager {
                     let has_valid_id = id_is_valid || _id_is_valid;
 
                     if !has_valid_id {
-                        error!("数据中没有有效ID字段，使用IdGenerator生成ID");
+                        debug!("数据中没有有效ID字段，使用IdGenerator生成ID");
                         match id_generator.generate().await {
                             Ok(id_type) => {
                                 let id_value = match &id_type {
                                     crate::types::IdType::Number(n) => DataValue::Int(*n),
                                     crate::types::IdType::String(s) => DataValue::String(s.clone()),
                                 };
-                                error!("✅ 成功生成ID: {:?}, 转换后: {:?}", id_type, id_value);
+                                debug!("✅ 成功生成ID: {:?}, 转换后: {:?}", id_type, id_value);
                                 // 根据数据库类型决定使用"id"还是"_id"字段
                                 match connection_pool.db_config.db_type {
                                     crate::types::DatabaseType::MongoDB => {

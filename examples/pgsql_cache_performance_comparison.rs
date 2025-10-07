@@ -19,7 +19,7 @@ use rat_logger::{info, warn, error, debug};
 /// 测试数据结构
 #[derive(Debug, Clone)]
 struct TestUser {
-    id: i32,
+    id: String,
     name: String,
     email: String,
     age: i32,
@@ -27,9 +27,9 @@ struct TestUser {
 }
 
 impl TestUser {
-    fn new(id: i32, name: &str, email: &str, age: i32) -> Self {
+    fn new(name: &str, email: &str, age: i32) -> Self {
         Self {
-            id,
+            id: String::new(), // 框架会自动替换为正确的ID
             name: name.to_string(),
             email: email.to_string(),
             age,
@@ -39,7 +39,7 @@ impl TestUser {
 
     fn to_data_map(&self) -> HashMap<String, DataValue> {
         let mut map = HashMap::new();
-        map.insert("id".to_string(), DataValue::Int(self.id as i64)); // PostgreSQL使用id
+        map.insert("id".to_string(), DataValue::String(self.id.clone()));
         map.insert("name".to_string(), DataValue::String(self.name.clone()));
         map.insert("email".to_string(), DataValue::String(self.email.clone()));
         map.insert("age".to_string(), DataValue::Int(self.age as i64));
@@ -251,19 +251,15 @@ impl CachePerformanceTest {
 
         // 创建测试用户数据，为不同数据库使用不同的ID范围避免冲突
         for i in 1..=100 {
-            // 为缓存数据库创建用户（使用1000+i的ID）
-            let cached_user_id = 1000 + i;
+            // 为缓存数据库创建用户
             let cached_user = TestUser::new(
-                cached_user_id,
                 &format!("缓存用户{}", i),
                 &format!("cached_user{}@example.com", i),
                 20 + (i % 50),
             );
-            
-            // 为非缓存数据库创建用户（使用2000+i的ID）
-            let non_cached_user_id = 2000 + i;
+
+            // 为非缓存数据库创建用户
             let non_cached_user = TestUser::new(
-                non_cached_user_id,
                 &format!("非缓存用户{}", i),
                 &format!("non_cached_user{}@example.com", i),
                 20 + (i % 50),
