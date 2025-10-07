@@ -6,7 +6,6 @@
 use rat_quickdb::{
     types::*,
     odm::AsyncOdmManager,
-    manager::{PoolManager, get_global_pool_manager},
     error::{QuickDbResult, QuickDbError},
     odm::OdmOperations,
     types::MongoDbConnectionBuilder,
@@ -102,12 +101,9 @@ impl CachePerformanceTest {
         // 创建不带缓存的数据库配置
         let non_cached_config = Self::create_non_cached_database_config();
         
-        // 获取全局连接池管理器
-        let pool_manager = get_global_pool_manager();
-        
         // 添加数据库配置
-        pool_manager.add_database(cached_config).await?;
-        pool_manager.add_database(non_cached_config).await?;
+        rat_quickdb::add_database(cached_config).await?;
+        rat_quickdb::add_database(non_cached_config).await?;
         
         // 创建ODM管理器
         let odm = AsyncOdmManager::new();
@@ -421,7 +417,7 @@ impl CachePerformanceTest {
         let non_cached_time = start.elapsed();
         
         // 获取缓存统计信息
-        let cache_stats = match get_global_pool_manager().get_cache_stats("mongodb_cached").await {
+        let cache_stats = match rat_quickdb::get_cache_stats("mongodb_cached").await {
             Ok(stats) => {
                 info!("缓存统计 - 命中: {}, 未命中: {}, 命中率: {:.1}%", 
                       stats.hits, stats.misses, stats.hit_rate * 100.0);

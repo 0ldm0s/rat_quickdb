@@ -2,7 +2,7 @@
 //! 验证缓存TTL过期后是否正确回退到数据库查询
 
 use rat_quickdb::*;
-use rat_quickdb::manager::{get_global_pool_manager, health_check, shutdown};
+use rat_quickdb::manager::{health_check, shutdown};
 use std::collections::HashMap;
 use chrono::Utc;
 use tokio::time::{sleep, Duration};

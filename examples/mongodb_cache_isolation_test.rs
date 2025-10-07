@@ -8,7 +8,7 @@
 
 use rat_quickdb::{
     types::*,
-    manager::{PoolManager, get_global_pool_manager},
+    manager::PoolManager,
     error::{QuickDbResult, QuickDbError},
     pool::DatabaseOperation,
 };

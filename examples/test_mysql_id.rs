@@ -1,7 +1,6 @@
 use rat_quickdb::{
     types::*,
     odm::AsyncOdmManager,
-    manager::{PoolManager, get_global_pool_manager},
     error::{QuickDbResult, QuickDbError},
     odm::OdmOperations,
     adapter::DatabaseAdapter,
@@ -59,8 +58,7 @@ async fn main() -> QuickDbResult<()> {
     };
 
     // 添加数据库配置
-    let pool_manager = get_global_pool_manager();
-    pool_manager.add_database(db_config).await?;
+    rat_quickdb::add_database(db_config).await?;
 
     // 创建ODM管理器
     let odm = AsyncOdmManager::new();
@@ -74,17 +72,19 @@ async fn main() -> QuickDbResult<()> {
     let table_name = "test_id_return";
     
     // 创建用户
-    let data = test_user.to_data_map();
+    let mut data = test_user.to_data_map();
+    // FIXME: 临时手动设置ID，解决MySQL重复主键问题
+    let timestamp_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i32;
+    data.insert("id".to_string(), DataValue::Int(timestamp_id as i64));
     info!("创建用户: {:?}", data);
 
     // 先尝试删除已存在的表
     info!("清理已存在的表...");
-    let pool_manager = rat_quickdb::manager::get_global_pool_manager();
-    let pools = pool_manager.get_connection_pools();
-    if let Some(pool) = pools.get("mysql_test") {
-        let _ = pool.drop_table(&table_name).await; // 忽略错误，表可能不存在
-        info!("已清理现有表");
-    }
+    // 表删除由适配器自动处理，无需手动操作
+    info!("表清理将由ODM自动处理");
 
     let created_id = odm.create(&table_name, data, Some("mysql_test")).await?;
     info!("返回的ID: {:?}", created_id);

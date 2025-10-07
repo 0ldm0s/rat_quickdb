@@ -5,7 +5,7 @@
 use rat_quickdb::{
     odm::{get_odm_manager, OdmOperations},
     types::{DatabaseConfig, DatabaseType, ConnectionConfig, PoolConfig, IdStrategy},
-    manager::{add_database, get_global_pool_manager},
+    manager::add_database,
     DataValue,
 };
 use std::collections::HashMap;
@@ -45,8 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .id_strategy(strategy)
             .build()?;
 
-        let pool_manager = get_global_pool_manager();
-        pool_manager.add_database(db_config).await?;
+        add_database(db_config).await?;
 
         let odm_manager = get_odm_manager().await;
 

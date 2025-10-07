@@ -5,7 +5,7 @@
 
 use rat_quickdb::*;
 use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig, DataValue, QueryCondition, QueryOperator, SortDirection, SortConfig, PaginationConfig};
-use rat_quickdb::manager::{get_global_pool_manager, health_check};
+use rat_quickdb::manager::health_check;
 use rat_quickdb::{ModelManager, ModelOperations, string_field, integer_field, float_field, boolean_field, datetime_field, uuid_field, json_field, array_field, field_types};
 use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
 use std::collections::HashMap;
@@ -213,34 +213,15 @@ async fn demonstrate_json_serialization() -> QuickDbResult<()> {
 /// 演示连接池监控
 async fn demonstrate_pool_monitoring() -> QuickDbResult<()> {
     println!("\n=== 连接池监控演示 ===");
-    
-    // 获取真实的连接池管理器
-    let manager = get_global_pool_manager();
-    
-    // 获取默认连接池的统计信息
-    println!("获取连接池状态...");
-    // 获取连接池健康状态
-    println!("\n获取连接池健康状态...");
-    let health_status = manager.health_check().await;
-    for (alias, is_healthy) in health_status {
-        println!("连接池 '{}': {}", alias, if is_healthy { "健康" } else { "异常" });
-    }
-    
-    // 获取所有数据库别名
-    println!("\n获取所有数据库别名...");
-    let aliases = manager.get_aliases();
-    for alias in aliases {
-        println!("数据库别名: {}", alias);
-    }
-    
-    // 执行真实的健康检查
-    println!("\n执行健康检查...");
+
+    // 执行健康检查
+    println!("执行健康检查...");
     let health_map = health_check().await;
     for (db_alias, is_healthy) in health_map {
         let status = if is_healthy { "✓ 正常" } else { "✗ 异常" };
         println!("数据库 '{}': 健康状态 {}", db_alias, status);
     }
-    
+
     Ok(())
 }
 
@@ -889,8 +870,7 @@ async fn demonstrate_performance_test() -> QuickDbResult<()> {
 
     // 6. 连接池性能状态
     println!("\n6. 连接池性能状态...");
-    let manager = get_global_pool_manager();
-    let health_status = manager.health_check().await;
+    let health_status = health_check().await;
     println!("连接池健康状态: {:?}", health_status);
 
     println!("✅ 性能测试演示完成");
@@ -901,7 +881,7 @@ async fn demonstrate_performance_test() -> QuickDbResult<()> {
 /// 初始化日志系统
 fn init_logging_system() -> Result<(), Box<dyn std::error::Error>> {
     LoggerBuilder::new()
-        .with_level(LevelFilter::Debug)  // 设置为Debug级别以查看详细日志
+        .with_level(LevelFilter::Info)  // 设置为Info级别以减少日志输出
         .add_terminal_with_config(TermConfig::default())
         .init()?;
 
@@ -932,9 +912,8 @@ async fn main() -> QuickDbResult<()> {
         .idle_timeout(300000)
         .max_lifetime(1800000)
         .build()?;
-    
-    // 获取全局连接池管理器并添加数据库配置
-    let pool_manager = get_global_pool_manager();
+
+    // 创建数据库配置
     let db_config = DatabaseConfig::builder()
         .db_type(DatabaseType::SQLite)
         .connection(ConnectionConfig::SQLite {
@@ -945,8 +924,9 @@ async fn main() -> QuickDbResult<()> {
         .alias("default")
         .id_strategy(IdStrategy::Uuid)
         .build()?;
-    
-    pool_manager.add_database(db_config).await?;
+
+    // 添加数据库到连接池管理器
+    add_database(db_config).await?;
     
     // 模拟创建模型管理器
     println!("创建模型管理器...");

@@ -1,175 +1,156 @@
 //! 分页查询演示示例
 //!
-//! 本示例演示如何使用 QueryOptions 进行分页查询，包括：
+//! 本示例演示如何使用 ModelManager 进行分页查询，包括：
 //! - 基础分页查询
 //! - 排序 + 分页组合
 //! - 条件过滤 + 分页
 //! - 分页导航信息计算
 
-use rat_quickdb::{
-    types::*,
-    manager::{PoolManager, get_global_pool_manager},
-    error::QuickDbResult,
-};
+use rat_quickdb::*;
+use rat_quickdb::types::{QueryCondition, QueryOperator, DataValue, QueryOptions, SortConfig, SortDirection, PaginationConfig};
+use rat_quickdb::{ModelManager, ModelOperations, string_field, integer_field, float_field, boolean_field, datetime_field, field_types};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use chrono::Utc;
 
-/// 用户数据结构
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct User {
-    id: i64,
-    name: String,
-    email: String,
-    age: i32,
-    department: String,
-    salary: f64,
-    created_at: String,
+/// 用户模型
+define_model! {
+    struct User {
+        id: i32,
+        name: String,
+        email: String,
+        age: i32,
+        department: String,
+        salary: f64,
+        created_at: chrono::DateTime<chrono::Utc>,
+    }
+    collection = "users",
+    fields = {
+        id: integer_field(None, None).required().unique(),
+        name: string_field(None, None, None).required(),
+        email: string_field(None, None, None).required(),
+        age: integer_field(None, None).required(),
+        department: string_field(None, None, None).required(),
+        salary: float_field(None, None).required(),
+        created_at: datetime_field().required(),
+    }
+    indexes = [
+        { fields: ["department"], unique: false, name: "idx_department" },
+        { fields: ["age"], unique: false, name: "idx_age" },
+        { fields: ["salary"], unique: false, name: "idx_salary" },
+    ],
 }
 
 impl User {
-    /// 转换为数据映射
-    fn to_data_map(&self) -> HashMap<String, DataValue> {
-        let mut data = HashMap::new();
-        data.insert("name".to_string(), DataValue::String(self.name.clone()));
-        data.insert("email".to_string(), DataValue::String(self.email.clone()));
-        data.insert("age".to_string(), DataValue::Int(self.age as i64));
-        data.insert("department".to_string(), DataValue::String(self.department.clone()));
-        data.insert("salary".to_string(), DataValue::Float(self.salary));
-        data.insert("created_at".to_string(), DataValue::String(self.created_at.clone()));
-        data
-    }
-
     /// 创建测试用户
     fn create_test_user(index: usize) -> Self {
-        let departments = vec!["技术部", "产品部", "市场部", "销售部", "人事部"];
-        let names = vec![
-            "张三", "李四", "王五", "赵六", "钱七", "孙八", "周九", "吴十",
-            "郑一", "王二", "冯三", "陈四", "褚五", "卫六", "蒋七", "沈八",
-            "韩九", "杨十", "朱一", "秦二", "尤三", "许四", "何五", "吕六",
-            "施七", "张八", "孔九", "曹十"
-        ];
+        let departments = ["技术部", "销售部", "市场部", "人事部", "财务部"];
+        let names = ["张三", "李四", "王五", "赵六", "孙七", "周八", "吴九", "郑十"];
 
-        Self {
-            id: 0, // 数据库自动生成
+        User {
+            id: (index + 1) as i32,
             name: format!("{}{}", names[index % names.len()], index + 1),
-            email: format!("user{}@company.com", index + 1),
-            age: (index % 35) + 22, // 22-56岁
+            email: format!("user{}@example.com", index + 1),
+            age: ((index % 35) + 22) as i32, // 22-56岁
             department: departments[index % departments.len()].to_string(),
-            salary: 5000.0 + (index % 20) as f64 * 1000.0, // 5000-24000
-            created_at: Utc::now().to_rfc3339(),
+            salary: 5000.0 + (index as f64 * 1000.0) + ((index % 10) as f64 * 500.0),
+            created_at: Utc::now(),
         }
     }
 }
 
-/// 分页信息
+/// 分页信息结构
 #[derive(Debug)]
 struct PageInfo {
-    current_page: u64,
-    page_size: u64,
-    total_items: u64,
-    total_pages: u64,
-    has_next: bool,
+    page: usize,
+    page_size: usize,
+    total_count: usize,
+    total_pages: usize,
     has_prev: bool,
+    has_next: bool,
 }
 
 impl PageInfo {
-    fn new(current_page: u64, page_size: u64, total_items: u64) -> Self {
-        let total_pages = (total_items + page_size - 1) / page_size;
-        let has_next = current_page < total_pages;
-        let has_prev = current_page > 1;
-
+    fn new(page: usize, page_size: usize, total_count: usize) -> Self {
+        let total_pages = (total_count + page_size - 1) / page_size;
         Self {
-            current_page,
+            page,
             page_size,
-            total_items,
+            total_count,
             total_pages,
-            has_next,
-            has_prev,
+            has_prev: page > 1,
+            has_next: page < total_pages,
         }
     }
 
     fn display(&self) {
-        println!("📄 分页信息:");
-        println!("   当前页: {}/{}", self.current_page, self.total_pages);
-        println!("   页面大小: {}", self.page_size);
-        println!("   总记录数: {}", self.total_items);
-        println!("   总页数: {}", self.total_pages);
-        println!("   上一页: {}", if self.has_prev { "✓" } else { "✗" });
-        println!("   下一页: {}", if self.has_next { "✓" } else { "✗" });
+        println!("📄 分页信息: 第 {}/{} 页 | 每页 {} 条 | 共 {} 条 | 上一页: {} | 下一页: {}",
+            self.page, self.total_pages, self.page_size, self.total_count,
+            if self.has_prev { "✓" } else { "✗" },
+            if self.has_next { "✓" } else { "✗" }
+        );
     }
 }
 
 #[tokio::main]
 async fn main() -> QuickDbResult<()> {
-    println!("🚀 RatQuickDB 分页查询演示");
-    println!("=============================\n");
+    // 初始化日志系统
+    rat_quickdb::init();
+    println!("=== 分页查询演示 ===\n");
+
+    // 清理旧的数据库文件
+    let db_files = ["/tmp/pagination_demo.db"];
+    for db_path in &db_files {
+        if std::path::Path::new(db_path).exists() {
+            std::fs::remove_file(db_path).unwrap_or_else(|e| {
+                eprintln!("警告：删除数据库文件失败 {}: {}", db_path, e);
+            });
+            println!("✅ 已清理旧的数据库文件: {}", db_path);
+        }
+    }
 
     // 1. 配置数据库
-    println!("1. 配置SQLite数据库...");
-    let db_config = DatabaseConfig {
-        alias: "main".to_string(),
-        db_type: DatabaseType::SQLite,
-        connection: ConnectionConfig::SQLite {
-            database: "./pagination_demo.db".to_string(),
+    println!("1. 配置数据库...");
+    let config = DatabaseConfig::builder()
+        .db_type(DatabaseType::SQLite)
+        .connection(ConnectionConfig::SQLite {
+            path: "/tmp/pagination_demo.db".to_string(),
             create_if_missing: true,
-        },
-        pool: PoolConfig::default(),
-        id_strategy: IdStrategy::AutoIncrement,
-        cache: None,
-    };
+        })
+        .pool(PoolConfig::builder()
+            .min_connections(2)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(300)
+            .max_lifetime(3600)
+            .build()?)
+        .alias("default".to_string())
+        .id_strategy(IdStrategy::AutoIncrement)
+        .build()?;
 
-    let pool_manager = get_global_pool_manager();
-    pool_manager.add_database(db_config).await?;
+    add_database(config).await?;
     println!("✅ 数据库配置完成\n");
 
-    // 2. 创建表
-    println!("2. 创建用户表...");
-    let create_table_result = rat_quickdb::create_table(
-        "users",
-        &[
-            ("name", FieldType::String),
-            ("email", FieldType::String),
-            ("age", FieldType::Integer),
-            ("department", FieldType::String),
-            ("salary", FieldType::Float),
-            ("created_at", FieldType::String),
-        ],
-        Some("main"),
-    ).await;
-
-    match create_table_result {
-        Ok(_) => println!("✅ 用户表创建成功"),
-        Err(_) => println!("ℹ️  用户表可能已存在"),
-    }
-    println!();
-
-    // 3. 插入测试数据
-    println!("3. 插入测试数据...");
-
-    // 先清空现有数据
-    let _ = rat_quickdb::delete("users", vec![], Some("main")).await;
+    // 2. 插入测试数据
+    println!("2. 插入测试数据...");
 
     let users: Vec<User> = (0..50).map(|i| User::create_test_user(i)).collect();
     let mut created_count = 0;
 
-    for user in &users {
-        let data = user.to_data_map();
-        match rat_quickdb::create("users", data, Some("main")).await {
+    for user in users {
+        match user.save().await {
             Ok(_) => created_count += 1,
             Err(e) => println!("❌ 创建用户失败: {}", e),
         }
     }
 
-    println!("✅ 成功创建 {} 个用户", created_count);
-    println!();
+    println!("✅ 成功创建 {} 个用户\n", created_count);
 
-    // 4. 演示基础分页查询
-    println!("4. 🔍 基础分页查询");
+    // 3. 演示基础分页查询
+    println!("3. 🔍 基础分页查询");
     println!("==================");
 
     let page_size = 5;
-    let total_count = rat_quickdb::count("users", vec![], Some("main")).await?;
+    let total_count = ModelManager::<User>::count(vec![]).await?;
     let total_pages = (total_count + page_size - 1) / page_size;
 
     println!("总共 {} 条记录，每页 {} 条，共 {} 页\n", total_count, page_size, total_pages);
@@ -187,30 +168,16 @@ async fn main() -> QuickDbResult<()> {
             fields: vec![],
         };
 
-        let page_users = rat_quickdb::find("users", vec![], Some(query_options), Some("main")).await?;
+        let page_users = ModelManager::<User>::find(vec![], Some(query_options)).await?;
 
-        let page_info = PageInfo::new(page, page_size, total_count);
+        let page_info = PageInfo::new(page as usize, page_size as usize, total_count as usize);
 
         println!("--- 第 {} 页 ---", page);
         page_info.display();
         println!("📋 用户列表:");
 
         for (index, user) in page_users.iter().enumerate() {
-            if let DataValue::Object(user_map) = user {
-                let name = user_map.get("name").and_then(|v| {
-                    if let DataValue::String(s) = v { Some(s) } else { None }
-                }).unwrap_or(&"未知".to_string());
-
-                let age = user_map.get("age").and_then(|v| {
-                    if let DataValue::Int(i) = v { Some(*i) } else { None }
-                }).unwrap_or(0);
-
-                let department = user_map.get("department").and_then(|v| {
-                    if let DataValue::String(s) = v { Some(s) } else { None }
-                }).unwrap_or(&"未知".to_string());
-
-                println!("   {}. {} ({}岁, {})", index + 1, name, age, department);
-            }
+            println!("   {}. {} ({}岁, {})", index + 1, user.name, user.age, user.department);
         }
         println!();
     }
@@ -219,8 +186,8 @@ async fn main() -> QuickDbResult<()> {
         println!("... 还有 {} 页数据 ...\n", total_pages - 3);
     }
 
-    // 5. 演示排序 + 分页
-    println!("5. 🔄 排序 + 分页查询");
+    // 4. 演示排序 + 分页
+    println!("4. 🔄 排序 + 分页查询");
     println!("===================");
 
     let sort_query_options = QueryOptions {
@@ -242,137 +209,119 @@ async fn main() -> QuickDbResult<()> {
         fields: vec![],
     };
 
-    let high_salary_users = rat_quickdb::find("users", vec![], Some(sort_query_options), Some("main")).await?;
+    let high_salary_users = ModelManager::<User>::find(vec![], Some(sort_query_options)).await?;
 
     println!("📊 按薪资降序、姓名升序排列的前8名用户:");
     for (index, user) in high_salary_users.iter().enumerate() {
-        if let DataValue::Object(user_map) = user {
-            let name = user_map.get("name").and_then(|v| {
-                if let DataValue::String(s) = v { Some(s) } else { None }
-            }).unwrap_or(&"未知".to_string());
-
-            let salary = user_map.get("salary").and_then(|v| {
-                if let DataValue::Float(f) = v { Some(*f) } else { None }
-            }).unwrap_or(0.0);
-
-            let department = user_map.get("department").and_then(|v| {
-                if let DataValue::String(s) = v { Some(s) } else { None }
-            }).unwrap_or(&"未知".to_string());
-
-            println!("   {}. {} - 薪资: {:.2} - {}", index + 1, name, salary, department);
-        }
+        println!("   {}. {} - 薪资: {:.2} - {}", index + 1, user.name, user.salary, user.department);
     }
     println!();
 
-    // 6. 演示条件过滤 + 分页
-    println!("6. 🔍 条件过滤 + 分页查询");
+    // 5. 演示条件过滤 + 分页
+    println!("5. 🔍 条件过滤 + 分页查询");
     println!("=======================");
 
-    // 查询技术部年龄大于30岁的用户
     let filter_conditions = vec![
         QueryCondition {
-            field: "department".to_string(),
-            operator: QueryOperator::Eq,
-            value: DataValue::String("技术部".to_string()),
-        },
-        QueryCondition {
             field: "age".to_string(),
-            operator: QueryOperator::Gt,
+            operator: QueryOperator::Gte,
             value: DataValue::Int(30),
         },
     ];
 
-    let filter_count = rat_quickdb::count("users", filter_conditions.clone(), Some("main")).await?;
+    let filter_page_size = 6;
+    let filtered_count = ModelManager::<User>::count(filter_conditions.clone()).await?;
+    let filtered_total_pages = (filtered_count + filter_page_size - 1) / filter_page_size;
 
-    println!("📋 查询条件: 技术部且年龄大于30岁");
-    println!("📊 符合条件的用户数: {}\n", filter_count);
+    println!("30岁以上的用户: {} 条记录\n", filtered_count);
 
-    if filter_count > 0 {
-        let filter_query_options = QueryOptions {
-            conditions: filter_conditions.clone(),
-            sort: vec![
-                SortConfig {
-                    field: "age".to_string(),
-                    direction: SortDirection::Desc,
-                }
-            ],
+    if filtered_count > 0 {
+        for page in 1..=std::cmp::min(2, filtered_total_pages) {
+            let skip = (page - 1) * filter_page_size;
+
+            let filter_query_options = QueryOptions {
+                conditions: filter_conditions.clone(),
+                sort: vec![
+                    SortConfig {
+                        field: "age".to_string(),
+                        direction: SortDirection::Desc,
+                    }
+                ],
+                pagination: Some(PaginationConfig {
+                    skip,
+                    limit: filter_page_size,
+                }),
+                fields: vec![],
+            };
+
+            let filtered_users = ModelManager::<User>::find(filter_conditions.clone(), Some(filter_query_options)).await?;
+
+            println!("--- 30岁以上用户 - 第 {} 页 ---", page);
+            for (index, user) in filtered_users.iter().enumerate() {
+                println!("   {}. {} - {}岁 - {} - 薪资: {:.2}",
+                    index + 1, user.name, user.age, user.department, user.salary);
+            }
+            println!();
+        }
+    }
+
+    // 6. 演示复杂分页导航
+    println!("6. 🧭 复杂分页导航演示");
+    println!("=====================");
+
+    let nav_page_size = 7;
+    let nav_total_count = ModelManager::<User>::count(vec![]).await?;
+    let nav_total_pages = (nav_total_count + nav_page_size - 1) / nav_page_size;
+
+    // 模拟跳转到第3页
+    let current_page = 3;
+    if current_page <= nav_total_pages {
+        let skip = (current_page - 1) * nav_page_size;
+
+        let nav_query_options = QueryOptions {
+            conditions: vec![],
+            sort: vec![],
             pagination: Some(PaginationConfig {
-                skip: 0,
-                limit: 10,
+                skip,
+                limit: nav_page_size,
             }),
             fields: vec![],
         };
 
-        let filtered_users = rat_quickdb::find("users", filter_conditions, Some(filter_query_options), Some("main")).await?;
+        let nav_users = ModelManager::<User>::find(vec![], Some(nav_query_options)).await?;
+        let nav_page_info = PageInfo::new(current_page as usize, nav_page_size as usize, nav_total_count as usize);
 
-        println!("👥 技术部年龄大于30岁的用户 (按年龄降序):");
-        for (index, user) in filtered_users.iter().enumerate() {
-            if let DataValue::Object(user_map) = user {
-                let name = user_map.get("name").and_then(|v| {
-                    if let DataValue::String(s) = v { Some(s) } else { None }
-                }).unwrap_or(&"未知".to_string());
+        println!("跳转到第 {} 页的显示结果:", current_page);
+        nav_page_info.display();
 
-                let age = user_map.get("age").and_then(|v| {
-                    if let DataValue::Int(i) = v { Some(*i) } else { None }
-                }).unwrap_or(0);
+        // 显示分页导航条
+        print!("📑 导航: ");
+        if nav_page_info.has_prev {
+            print!("<上一页> ");
+        }
 
-                let salary = user_map.get("salary").and_then(|v| {
-                    if let DataValue::Float(f) = v { Some(*f) } else { None }
-                }).unwrap_or(0.0);
+        let start_page = if current_page > 2 { current_page - 2 } else { 1 };
+        let end_page = std::cmp::min(start_page + 4, nav_total_pages);
 
-                println!("   {}. {} - {}岁 - 薪资: {:.2}", index + 1, name, age, salary);
+        for page in start_page..=end_page {
+            if page == current_page {
+                print!("[{}] ", page);
+            } else {
+                print!("{} ", page);
             }
         }
-    }
-    println!();
 
-    // 7. 演示字段选择 + 分页
-    println!("7. 📝 字段选择 + 分页查询");
-    println!("=======================");
+        if nav_page_info.has_next {
+            print!("<下一页>");
+        }
+        println!("\n");
 
-    let fields_query_options = QueryOptions {
-        conditions: vec![],
-        sort: vec![],
-        pagination: Some(PaginationConfig {
-            skip: 10,
-            limit: 5,
-        }),
-        fields: vec!["name".to_string(), "department".to_string(), "salary".to_string()],
-    };
-
-    let selected_fields_users = rat_quickdb::find("users", vec![], Some(fields_query_options), Some("main")).await?;
-
-    println!("📋 跳过前10条，只显示姓名、部门、薪资字段:");
-    for (index, user) in selected_fields_users.iter().enumerate() {
-        if let DataValue::Object(user_map) = user {
-            let name = user_map.get("name").and_then(|v| {
-                if let DataValue::String(s) = v { Some(s) } else { None }
-            }).unwrap_or(&"未知".to_string());
-
-            let department = user_map.get("department").and_then(|v| {
-                if let DataValue::String(s) = v { Some(s) } else { None }
-            }).unwrap_or(&"未知".to_string());
-
-            let salary = user_map.get("salary").and_then(|v| {
-                if let DataValue::Float(f) = v { Some(*f) } else { None }
-            }).unwrap_or(0.0);
-
-            println!("   {}. {} - {} - 薪资: {:.2}", index + 11, name, department, salary);
+        println!("当前页用户列表:");
+        for (index, user) in nav_users.iter().enumerate() {
+            println!("   {}. {} - {} - {}岁", index + 1, user.name, user.department, user.age);
         }
     }
-    println!();
 
-    // 8. 清理
-    println!("8. 🧹 清理演示数据");
-    println!("===================");
-
-    // 删除测试数据
-    let deleted_count = rat_quickdb::delete("users", vec![], Some("main")).await?;
-    println!("✅ 删除了 {} 条测试记录", deleted_count);
-
-    // 关闭连接池
-    rat_quickdb::shutdown().await?;
-
-    println!("\n🎉 分页查询演示完成！");
+    println!("\n=== 分页查询演示完成 ===");
     Ok(())
 }

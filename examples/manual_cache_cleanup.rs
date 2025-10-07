@@ -91,10 +91,9 @@ async fn main() -> QuickDbResult<()> {
     // 初始化rat_quickdb
     rat_quickdb::init();
     
-    // 获取全局连接池管理器并添加数据库配置
-    let pool_manager = rat_quickdb::manager::get_global_pool_manager();
+    // 添加数据库配置
     let db_config = config.get_default_database()?.clone();
-    pool_manager.add_database(db_config).await?;
+    rat_quickdb::add_database(db_config).await?;
     
     // 创建测试数据
     let mut user_ids: Vec<String> = Vec::new();

@@ -6,7 +6,6 @@
 use rat_quickdb::{
     types::*,
     odm::AsyncOdmManager,
-    manager::{PoolManager, get_global_pool_manager},
     error::QuickDbResult,
     odm::OdmOperations,
 };
@@ -99,12 +98,9 @@ impl CachePerformanceTest {
         // 创建不带缓存的数据库配置
         let non_cached_config = Self::create_non_cached_database_config();
         
-        // 使用全局连接池管理器
-        let pool_manager = get_global_pool_manager();
-        
         // 添加数据库配置
-        pool_manager.add_database(cached_config).await?;
-        pool_manager.add_database(non_cached_config).await?;
+        rat_quickdb::add_database(cached_config).await?;
+        rat_quickdb::add_database(non_cached_config).await?;
         
         // 创建 ODM 管理器
         let odm = AsyncOdmManager::new();

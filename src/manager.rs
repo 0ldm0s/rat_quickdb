@@ -487,7 +487,7 @@ impl PoolManager {
         }
 
         self.model_registry.insert(collection_name.clone(), model_meta.clone());
-        info!("注册模型元数据: 集合={}, 索引数量={}", collection_name, model_meta.indexes.len());
+        debug!("注册模型元数据: 集合={}, 索引数量={}", collection_name, model_meta.indexes.len());
 
         Ok(())
     }
@@ -513,7 +513,7 @@ impl PoolManager {
     /// 创建表和索引（基于注册的模型元数据）
     pub async fn ensure_table_and_indexes(&self, collection_name: &str, alias: &str) -> QuickDbResult<()> {
         if let Some(model_meta) = self.get_model(collection_name) {
-            info!("为集合 {} 创建表和索引", collection_name);
+            debug!("为集合 {} 创建表和索引", collection_name);
 
             // 获取连接池
             if let Some(pool) = self.pools.get(alias) {
@@ -534,7 +534,7 @@ impl PoolManager {
                 for index in &model_meta.indexes {
                     let default_name = format!("idx_{}", index.fields.join("_"));
                     let index_name = index.name.as_deref().unwrap_or(&default_name);
-                    info!("创建索引: {} (字段: {:?}, 唯一: {})", index_name, index.fields, index.unique);
+                    debug!("创建索引: {} (字段: {:?}, 唯一: {})", index_name, index.fields, index.unique);
 
                     if let Err(e) = pool.create_index(
                         &collection_name,
@@ -544,7 +544,7 @@ impl PoolManager {
                     ).await {
                         warn!("创建索引失败: {} (错误: {})", index_name, e);
                     } else {
-                        info!("✅ 创建索引成功: {}", index_name);
+                        debug!("✅ 创建索引成功: {}", index_name);
                     }
                 }
             } else {

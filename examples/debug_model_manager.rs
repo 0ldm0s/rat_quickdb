@@ -5,7 +5,6 @@
 use rat_quickdb::*;
 use rat_quickdb::model::*;
 use rat_quickdb::types::*;
-use rat_quickdb::manager::get_global_pool_manager;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -73,8 +72,7 @@ async fn main() -> QuickDbResult<()> {
         .build()?;
 
     // 3. 添加数据库
-    let pool_manager = get_global_pool_manager();
-    pool_manager.add_database(db_config).await?;
+    add_database(db_config).await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
     // 4. 创建测试数据（完整字段，ID自动生成）
