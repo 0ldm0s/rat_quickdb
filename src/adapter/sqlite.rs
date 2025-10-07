@@ -42,6 +42,9 @@ impl SqliteAdapter {
                         if matches!(column_name, "is_active" | "active" | "enabled" | "disabled" | "verified" | "is_admin" | "is_deleted")
                            && (i == 0 || i == 1) {
                             DataValue::Bool(i == 1)
+                        } else if column_name == "id" && i > 1000000000000000000 {
+                            // 如果是id字段且值很大，可能是雪花ID，转换为字符串保持跨数据库兼容性
+                            DataValue::String(i.to_string())
                         } else {
                             DataValue::Int(i)
                         }
