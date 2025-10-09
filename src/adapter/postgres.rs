@@ -5,7 +5,7 @@
 use super::{DatabaseAdapter, SqlQueryBuilder};
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::{*, IdStrategy};
-use crate::FieldType;
+use crate::{FieldType, FieldDefinition};
 use crate::pool::DatabaseConnection;
 use crate::table::{TableManager, TableSchema, ColumnType};
 use async_trait::async_trait;
@@ -164,11 +164,17 @@ impl PostgresAdapter {
         params: &[DataValue],
     ) -> QuickDbResult<Vec<DataValue>> {
         let mut query = sqlx::query(sql);
-        
+
         // 绑定参数
         for param in params {
             query = match param {
-                DataValue::String(s) => query.bind(s),
+                DataValue::String(s) => {
+                    // 尝试判断是否为UUID格式，如果是则转换为UUID类型
+                    match s.parse::<uuid::Uuid>() {
+                        Ok(uuid) => query.bind(uuid), // 绑定为UUID类型
+                        Err(_) => query.bind(s),       // 不是UUID格式，绑定为字符串
+                    }
+                },
                 DataValue::Int(i) => query.bind(*i),
                 DataValue::Float(f) => query.bind(*f),
                 DataValue::Bool(b) => query.bind(*b),
@@ -217,7 +223,13 @@ impl PostgresAdapter {
         // 绑定参数
         for param in params {
             query = match param {
-                DataValue::String(s) => query.bind(s),
+                DataValue::String(s) => {
+                    // 尝试判断是否为UUID格式，如果是则转换为UUID类型
+                    match s.parse::<uuid::Uuid>() {
+                        Ok(uuid) => query.bind(uuid), // 绑定为UUID类型
+                        Err(_) => query.bind(s),       // 不是UUID格式，绑定为字符串
+                    }
+                },
                 DataValue::Int(i) => query.bind(*i),
                 DataValue::Float(f) => query.bind(*f),
                 DataValue::Bool(b) => query.bind(*b),
@@ -262,8 +274,8 @@ impl DatabaseAdapter for PostgresAdapter {
                     has_auto_increment_id = id_col.auto_increment;
                 }
                 
-                // 将 ColumnDefinition 转换为 HashMap<String, FieldType>
-                let fields: HashMap<String, FieldType> = schema.columns.iter()
+                // 将 ColumnDefinition 转换为 HashMap<String, FieldDefinition>
+                let fields: HashMap<String, FieldDefinition> = schema.columns.iter()
                     .map(|col| {
                         let field_type = match &col.column_type {
                             ColumnType::String { .. } => FieldType::String { max_length: None, min_length: None, regex: None },
@@ -277,7 +289,7 @@ impl DatabaseAdapter for PostgresAdapter {
                             ColumnType::Json => FieldType::Json,
                             _ => FieldType::String { max_length: None, min_length: None, regex: None }, // 默认为字符串
                         };
-                        (col.name.clone(), field_type)
+                        (col.name.clone(), FieldDefinition::new(field_type))
                     })
                     .collect();
                 self.create_table(connection, table, &fields, id_strategy).await?;
@@ -587,7 +599,7 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        fields: &HashMap<String, FieldType>,
+        fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
@@ -605,8 +617,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 field_definitions.push(id_definition);
             }
             
-            for (name, field_type) in fields {
-                let sql_type = match field_type {
+            for (name, field_definition) in fields {
+                let sql_type = match &field_definition.field_type {
                     FieldType::String { max_length, .. } => {
                         if let Some(max_len) = max_length {
                             format!("VARCHAR({})", max_len)
@@ -643,7 +655,13 @@ impl DatabaseAdapter for PostgresAdapter {
                     };
                     field_definitions.push(id_definition);
                 } else {
-                    field_definitions.push(format!("{} {}", name, sql_type));
+                    // 添加NULL或NOT NULL约束
+                    let null_constraint = if field_definition.required {
+                        "NOT NULL"
+                    } else {
+                        "NULL"
+                    };
+                    field_definitions.push(format!("{} {} {}", name, sql_type, null_constraint));
                 }
             }
             
@@ -652,7 +670,7 @@ impl DatabaseAdapter for PostgresAdapter {
                 table,
                 field_definitions.join(", ")
             );
-            
+
             debug!("执行PostgreSQL建表: {}", sql);
             
             self.execute_update(pool, &sql, &[]).await?;
@@ -710,8 +728,10 @@ impl DatabaseAdapter for PostgresAdapter {
                 .map_err(|e| QuickDbError::QueryError {
                     message: format!("检查PostgreSQL表是否存在失败: {}", e),
                 })?;
-            
-            Ok(!rows.is_empty())
+
+            let exists = !rows.is_empty();
+            debug!("检查表 {} 是否存在: {}", table, exists);
+            Ok(exists)
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
@@ -735,6 +755,19 @@ impl DatabaseAdapter for PostgresAdapter {
                 .map_err(|e| QuickDbError::QueryError {
                     message: format!("删除PostgreSQL表失败: {}", e),
                 })?;
+
+            // 验证表是否真的被删除了
+            let check_sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1";
+            let check_rows = sqlx::query(check_sql)
+                .bind(table)
+                .fetch_all(pool)
+                .await
+                .map_err(|e| QuickDbError::QueryError {
+                    message: format!("验证表删除失败: {}", e),
+                })?;
+
+            let still_exists = !check_rows.is_empty();
+            println!("🔍 删除后验证表 {} 是否存在: {}", table, still_exists);
 
             info!("成功删除PostgreSQL表: {}", table);
             Ok(())

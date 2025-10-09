@@ -5,7 +5,7 @@
 use super::{DatabaseAdapter, SqlQueryBuilder};
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::{*, IdStrategy};
-use crate::model::FieldType;
+use crate::model::{FieldType, FieldDefinition};
 use crate::pool::{DatabaseConnection};
 use crate::table::{TableManager, TableSchema, ColumnType};
 use async_trait::async_trait;
@@ -97,8 +97,8 @@ impl DatabaseAdapter for SqliteAdapter {
             if !self.table_exists(connection, table).await? {
                 info!("表 {} 不存在，正在自动创建", table);
                 let schema = TableSchema::infer_from_data(table.to_string(), data);
-                // 将 ColumnDefinition 转换为 HashMap<String, FieldType>
-                    let fields: HashMap<String, FieldType> = schema.columns.iter()
+                // 将 ColumnDefinition 转换为 HashMap<String, FieldDefinition>
+                    let fields: HashMap<String, FieldDefinition> = schema.columns.iter()
                         .map(|col| {
                             let field_type = match &col.column_type {
                                 ColumnType::String { .. } => FieldType::String { max_length: None, min_length: None, regex: None },
@@ -112,7 +112,7 @@ impl DatabaseAdapter for SqliteAdapter {
                                 ColumnType::Json => FieldType::Json,
                                 _ => FieldType::String { max_length: None, min_length: None, regex: None }, // 默认为字符串
                             };
-                            (col.name.clone(), field_type)
+                            (col.name.clone(), FieldDefinition::new(field_type))
                         })
                         .collect();
                 self.create_table(connection, table, &fields, id_strategy).await?;
@@ -456,7 +456,7 @@ impl DatabaseAdapter for SqliteAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        fields: &HashMap<String, FieldType>,
+        fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         let pool = match connection {
@@ -475,12 +475,12 @@ impl DatabaseAdapter for SqliteAdapter {
                 has_fields = true;
             }
             
-            for (field_name, field_type) in fields {
+            for (field_name, field_definition) in fields {
                 if has_fields {
                     sql.push_str(", ");
                 }
-                
-                let sql_type = match field_type {
+
+                let sql_type = match &field_definition.field_type {
                     FieldType::String { max_length, .. } => {
                         if let Some(max_len) = max_length {
                             format!("VARCHAR({})", max_len)
@@ -507,10 +507,17 @@ impl DatabaseAdapter for SqliteAdapter {
                 };
                 
                 // 如果是id字段，添加主键约束
+                // 添加NULL或NOT NULL约束
+                let null_constraint = if field_definition.required {
+                    "NOT NULL"
+                } else {
+                    ""
+                };
+
                 if field_name == "id" {
                     sql.push_str(&format!("{} {} PRIMARY KEY", field_name, sql_type));
                 } else {
-                    sql.push_str(&format!("{} {}", field_name, sql_type));
+                    sql.push_str(&format!("{} {} {}", field_name, sql_type, null_constraint));
                 }
                 has_fields = true;
             }

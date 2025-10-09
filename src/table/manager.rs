@@ -179,7 +179,7 @@ impl TableManager {
             })?
             .clone();
         
-        // 将TableSchema转换为HashMap<String, FieldType>
+        // 将TableSchema转换为HashMap<String, FieldDefinition>
         let mut fields = std::collections::HashMap::new();
         for column in &schema.columns {
             // 将ColumnType转换为FieldType
@@ -229,7 +229,7 @@ impl TableManager {
                     regex: None,
                 },
             };
-            fields.insert(column.name.clone(), field_type);
+            fields.insert(column.name.clone(), crate::model::FieldDefinition::new(field_type));
         }
         
         // 使用ConnectionPool的create_table方法

@@ -4,7 +4,7 @@
 
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
-use crate::model::FieldType;
+use crate::model::{FieldType, FieldDefinition};
 use crate::pool::DatabaseConnection;
 use async_trait::async_trait;
 
@@ -118,7 +118,7 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        fields: &HashMap<String, FieldType>,
+        fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
     ) -> QuickDbResult<()>;
 

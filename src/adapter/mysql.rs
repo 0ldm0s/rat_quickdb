@@ -8,7 +8,7 @@ use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::{DataValue, QueryCondition, QueryConditionGroup, QueryOperator, QueryOptions, SortDirection, IdStrategy};
 use crate::adapter::query_builder::SqlQueryBuilder;
 use crate::table::{TableManager, TableSchema, ColumnType};
-use crate::model::{FieldType, ModelMeta};
+use crate::model::{FieldType, FieldDefinition, ModelMeta};
 use crate::manager;
 use async_trait::async_trait;
 use serde_json::Value;
@@ -615,8 +615,8 @@ impl DatabaseAdapter for MysqlAdapter {
             if !self.table_exists(connection, table).await? {
                 info!("表 {} 不存在，正在自动创建", table);
                 let schema = TableSchema::infer_from_data(table.to_string(), data);
-                // 将 ColumnDefinition 转换为 HashMap<String, FieldType>
-                    let fields: HashMap<String, FieldType> = schema.columns.iter()
+                // 将 ColumnDefinition 转换为 HashMap<String, FieldDefinition>
+                    let fields: HashMap<String, FieldDefinition> = schema.columns.iter()
                         .map(|col| {
                             let field_type = match &col.column_type {
                                 ColumnType::String { .. } => FieldType::String { max_length: None, min_length: None, regex: None },
@@ -630,7 +630,7 @@ impl DatabaseAdapter for MysqlAdapter {
                                 ColumnType::Json => FieldType::Json,
                                 _ => FieldType::String { max_length: None, min_length: None, regex: None }, // 默认为字符串
                             };
-                            (col.name.clone(), field_type)
+                            (col.name.clone(), FieldDefinition::new(field_type))
                         })
                         .collect();
                 self.create_table(connection, table, &fields, id_strategy).await?;
@@ -997,7 +997,7 @@ impl DatabaseAdapter for MysqlAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        fields: &HashMap<String, FieldType>,
+        fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::MySQL(pool) = connection {
@@ -1013,14 +1013,14 @@ impl DatabaseAdapter for MysqlAdapter {
             };
             field_definitions.push(id_definition);
 
-            for (name, field_type) in fields {
+            for (name, field_definition) in fields {
                 // 跳过id字段，因为已经根据策略处理过了
                 if name == "id" {
                     continue;
                 }
 
                 // 非id字段的正常处理
-                let sql_type = match field_type {
+                let sql_type = match &field_definition.field_type {
                     FieldType::String { max_length, .. } => {
                         if let Some(max_len) = max_length {
                             format!("VARCHAR({})", max_len)
@@ -1047,7 +1047,13 @@ impl DatabaseAdapter for MysqlAdapter {
                     FieldType::Reference { .. } => "VARCHAR(255)".to_string(),
                 };
 
-                field_definitions.push(format!("{} {}", name, sql_type));
+                // 添加NULL或NOT NULL约束
+                let null_constraint = if field_definition.required {
+                    "NOT NULL"
+                } else {
+                    "NULL"
+                };
+                field_definitions.push(format!("{} {} {}", name, sql_type, null_constraint));
             }
             
             let sql = format!(

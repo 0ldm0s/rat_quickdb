@@ -16,7 +16,7 @@ use rat_logger::{debug, info, warn, error};
 
 use crate::types::*;
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::model::FieldType;
+use crate::model::{FieldType, FieldDefinition};
 
 /// 池化连接 - 用于兼容旧接口
 #[derive(Debug, Clone)]
@@ -100,7 +100,7 @@ pub enum DatabaseOperation {
     /// 创建表
     CreateTable {
         table: String,
-        fields: HashMap<String, FieldType>,
+        fields: HashMap<String, FieldDefinition>,
         id_strategy: IdStrategy,
         response: oneshot::Sender<QuickDbResult<()>>,
     },
@@ -1283,7 +1283,7 @@ impl ConnectionPool {
     pub async fn create_table(
         &self,
         table: &str,
-        fields: &HashMap<String, FieldType>,
+        fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         let (response_sender, response_receiver) = oneshot::channel();

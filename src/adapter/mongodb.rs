@@ -7,7 +7,7 @@ use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::{*, IdStrategy};
 use crate::pool::DatabaseConnection;
 use crate::table::{TableManager, TableSchema, ColumnType};
-use crate::model::FieldType;
+use crate::model::{FieldType, FieldDefinition};
 use async_trait::async_trait;
 
 use std::collections::HashMap;
@@ -486,8 +486,8 @@ impl DatabaseAdapter for MongoAdapter {
             if !self.table_exists(connection, table).await? {
                 info!("集合 {} 不存在，正在自动创建", table);
                 let schema = TableSchema::infer_from_data(table.to_string(), data);
-                // 将 ColumnDefinition 转换为 HashMap<String, FieldType>
-                    let fields: HashMap<String, FieldType> = schema.columns.iter()
+                // 将 ColumnDefinition 转换为 HashMap<String, FieldDefinition>
+                    let fields: HashMap<String, FieldDefinition> = schema.columns.iter()
                         .map(|col| {
                             let field_type = match &col.column_type {
                                 ColumnType::String { .. } => FieldType::String { max_length: None, min_length: None, regex: None },
@@ -501,7 +501,7 @@ impl DatabaseAdapter for MongoAdapter {
                                 ColumnType::Json => FieldType::Json,
                                 _ => FieldType::String { max_length: None, min_length: None, regex: None }, // 默认为字符串
                             };
-                            (col.name.clone(), field_type)
+                            (col.name.clone(), FieldDefinition::new(field_type))
                         })
                         .collect();
                 self.create_table(connection, table, &fields, id_strategy).await?;
@@ -876,7 +876,7 @@ impl DatabaseAdapter for MongoAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        _fields: &HashMap<String, FieldType>,
+        _fields: &HashMap<String, FieldDefinition>,
         _id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::MongoDB(db) = connection {

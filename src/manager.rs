@@ -518,8 +518,8 @@ impl PoolManager {
             // 获取连接池
             if let Some(pool) = self.pools.get(alias) {
                 // 创建表（如果不存在）
-                let fields: HashMap<String, crate::model::FieldType> = model_meta.fields.iter()
-                    .map(|(name, field_def)| (name.clone(), field_def.field_type.clone()))
+                let fields: HashMap<String, crate::model::FieldDefinition> = model_meta.fields.iter()
+                    .map(|(name, field_def)| (name.clone(), field_def.clone()))
                     .collect();
 
                 // 检查表是否存在（使用空条件检查）
@@ -775,16 +775,20 @@ pub async fn clear_table_all_cache(alias: &str, table: &str) -> QuickDbResult<us
 pub async fn drop_table(alias: &str, table: &str) -> QuickDbResult<()> {
     let pool_manager = get_global_pool_manager();
 
-    // 检查数据库是否存在
+    // 检查数据库是否存在，不存在则报错
     if !pool_manager.pools.contains_key(alias) {
-        debug!("数据库别名 {} 不存在，无需删除表", alias);
-        return Ok(());
+        return Err(QuickDbError::AliasNotFound {
+            alias: alias.to_string(),
+        });
     }
 
-    // 获取连接池
-    let pool = pool_manager.pools.get(alias).unwrap();
+    // 获取连接池，检查是否为空
+    let pool = pool_manager.pools.get(alias)
+        .ok_or_else(|| QuickDbError::AliasNotFound {
+            alias: alias.to_string(),
+        })?;
 
-    // 直接执行删除操作，不检测表是否存在（因为连接池隔离问题）
+    // 执行删除操作
     pool.drop_table(table).await
 }
 

@@ -6,7 +6,7 @@ use super::DatabaseAdapter;
 use crate::cache::CacheManager;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
-use crate::model::FieldType;
+use crate::model::{FieldType, FieldDefinition};
 use crate::pool::DatabaseConnection;
 use async_trait::async_trait;
 use serde_json::Value;
@@ -318,7 +318,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        fields: &HashMap<String, FieldType>,
+        fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
     ) -> QuickDbResult<()> {
         // 表结构操作不缓存，直接调用内部适配器
