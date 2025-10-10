@@ -613,28 +613,19 @@ impl DatabaseAdapter for MysqlAdapter {
         if let DatabaseConnection::MySQL(pool) = connection {
             // 自动建表逻辑：检查表是否存在，如果不存在则创建
             if !self.table_exists(connection, table).await? {
-                info!("表 {} 不存在，正在自动创建", table);
-                let schema = TableSchema::infer_from_data(table.to_string(), data);
-                // 将 ColumnDefinition 转换为 HashMap<String, FieldDefinition>
-                    let fields: HashMap<String, FieldDefinition> = schema.columns.iter()
-                        .map(|col| {
-                            let field_type = match &col.column_type {
-                                ColumnType::String { .. } => FieldType::String { max_length: None, min_length: None, regex: None },
-                                ColumnType::Text | ColumnType::LongText => FieldType::String { max_length: None, min_length: None, regex: None },
-                                ColumnType::Integer | ColumnType::SmallInteger => FieldType::Integer { min_value: None, max_value: None },
-                                ColumnType::BigInteger => FieldType::Integer { min_value: None, max_value: None },
-                                ColumnType::Float | ColumnType::Double => FieldType::Float { min_value: None, max_value: None },
-                                ColumnType::Boolean => FieldType::Boolean,
-                                ColumnType::DateTime | ColumnType::Date | ColumnType::Time | ColumnType::Timestamp => FieldType::DateTime,
-                                ColumnType::Uuid => FieldType::Uuid,
-                                ColumnType::Json => FieldType::Json,
-                                _ => FieldType::String { max_length: None, min_length: None, regex: None }, // 默认为字符串
-                            };
-                            (col.name.clone(), FieldDefinition::new(field_type))
-                        })
-                        .collect();
-                self.create_table(connection, table, &fields, id_strategy).await?;
-                info!("自动创建MySQL表 '{}' 成功", table);
+                // 尝试从模型管理器获取预定义的元数据
+                if let Some(model_meta) = manager::get_model(table) {
+                    info!("表 {} 不存在，使用预定义模型元数据创建", table);
+
+                    // 使用模型元数据创建表
+                    self.create_table(connection, table, &model_meta.fields, id_strategy).await?;
+                    info!("✅ 使用模型元数据创建MySQL表 '{}' 成功", table);
+                } else {
+                    return Err(QuickDbError::ValidationError {
+                        field: "table_creation".to_string(),
+                        message: format!("表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。", table),
+                    });
+                }
             }
             
             let (sql, params) = SqlQueryBuilder::new()

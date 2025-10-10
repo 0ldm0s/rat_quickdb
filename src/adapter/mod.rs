@@ -158,7 +158,7 @@ pub fn create_adapter(db_type: &DatabaseType) -> QuickDbResult<Box<dyn DatabaseA
     match db_type {
         DatabaseType::SQLite => Ok(Box::new(SqliteAdapter)),
         DatabaseType::MySQL => Ok(Box::new(MysqlAdapter::new())),
-        DatabaseType::PostgreSQL => Ok(Box::new(PostgresAdapter)),
+        DatabaseType::PostgreSQL => Ok(Box::new(PostgresAdapter::new())),
         DatabaseType::MongoDB => Ok(Box::new(MongoAdapter)),
         _ => Err(QuickDbError::UnsupportedDatabase {
             db_type: format!("{:?}", db_type),

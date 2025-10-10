@@ -484,28 +484,18 @@ impl DatabaseAdapter for MongoAdapter {
             debug!("🔍 MongoDB适配器原始接收到的数据: {:?}", data);
             // 自动建表逻辑：检查集合是否存在，如果不存在则创建
             if !self.table_exists(connection, table).await? {
-                info!("集合 {} 不存在，正在自动创建", table);
-                let schema = TableSchema::infer_from_data(table.to_string(), data);
-                // 将 ColumnDefinition 转换为 HashMap<String, FieldDefinition>
-                    let fields: HashMap<String, FieldDefinition> = schema.columns.iter()
-                        .map(|col| {
-                            let field_type = match &col.column_type {
-                                ColumnType::String { .. } => FieldType::String { max_length: None, min_length: None, regex: None },
-                                ColumnType::Text | ColumnType::LongText => FieldType::String { max_length: None, min_length: None, regex: None },
-                                ColumnType::Integer | ColumnType::SmallInteger => FieldType::Integer { min_value: None, max_value: None },
-                                ColumnType::BigInteger => FieldType::Integer { min_value: None, max_value: None },
-                                ColumnType::Float | ColumnType::Double => FieldType::Float { min_value: None, max_value: None },
-                                ColumnType::Boolean => FieldType::Boolean,
-                                ColumnType::DateTime | ColumnType::Date | ColumnType::Time | ColumnType::Timestamp => FieldType::DateTime,
-                                ColumnType::Uuid => FieldType::Uuid,
-                                ColumnType::Json => FieldType::Json,
-                                _ => FieldType::String { max_length: None, min_length: None, regex: None }, // 默认为字符串
-                            };
-                            (col.name.clone(), FieldDefinition::new(field_type))
-                        })
-                        .collect();
-                self.create_table(connection, table, &fields, id_strategy).await?;
-                info!("自动创建MongoDB集合 '{}' 成功", table);
+                // 尝试从模型管理器获取预定义的元数据
+                if let Some(model_meta) = crate::manager::get_model(table) {
+                    info!("集合 {} 不存在，使用预定义模型元数据创建", table);
+
+                    // MongoDB不需要预创建表结构，集合是无模式的
+                    info!("✅ MongoDB集合 '{}' 不存在，使用无模式设计，将根据数据推断结构", table);
+                } else {
+                    return Err(QuickDbError::ValidationError {
+                        field: "collection_creation".to_string(),
+                        message: format!("集合 '{}' 不存在，且没有预定义的模型元数据。MongoDB使用无模式设计，但建议先定义模型。", table),
+                    });
+                }
             }
             
             let collection = self.get_collection(db, table);

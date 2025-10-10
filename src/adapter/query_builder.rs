@@ -292,9 +292,22 @@ impl SqlQueryBuilder {
             });
         }
 
-        let columns: Vec<String> = self.values.keys().cloned().collect();
+        // 过滤掉 NULL 值，让数据库使用默认值或 NULL
+        let non_null_values: HashMap<String, DataValue> = self.values
+            .iter()
+            .filter(|(_, value)| !matches!(value, DataValue::Null))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        if non_null_values.is_empty() {
+            return Err(QuickDbError::QueryError {
+                message: "所有插入值都是 NULL，无法插入".to_string(),
+            });
+        }
+
+        let columns: Vec<String> = non_null_values.keys().cloned().collect();
         let placeholders: Vec<String> = self.generate_placeholders(columns.len());
-        let params: Vec<DataValue> = columns.iter().map(|k| self.values[k].clone()).collect();
+        let params: Vec<DataValue> = columns.iter().map(|k| non_null_values[k].clone()).collect();
 
         let mut sql = format!(
             "INSERT INTO {} ({}) VALUES ({})",
@@ -325,13 +338,26 @@ impl SqlQueryBuilder {
             });
         }
 
+        // 过滤掉 NULL 值，让数据库保持原值或设置为 NULL（如果需要显式设置 NULL，应该使用 IS NULL 操作）
+        let non_null_values: HashMap<String, DataValue> = self.values
+            .iter()
+            .filter(|(_, value)| !matches!(value, DataValue::Null))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        if non_null_values.is_empty() {
+            return Err(QuickDbError::QueryError {
+                message: "所有更新值都是 NULL，无法更新".to_string(),
+            });
+        }
+
         let mut param_index = 1;
-        let set_clauses: Vec<String> = self.values.keys().map(|k| {
+        let set_clauses: Vec<String> = non_null_values.keys().map(|k| {
             let placeholder = self.get_placeholder(param_index);
             param_index += 1;
             format!("{} = {}", k, placeholder)
         }).collect();
-        let mut params: Vec<DataValue> = self.values.values().cloned().collect();
+        let mut params: Vec<DataValue> = non_null_values.values().cloned().collect();
 
         let mut sql = format!("UPDATE {} SET {}", self.table, set_clauses.join(", "));
 

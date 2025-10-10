@@ -11,12 +11,42 @@ use crate::table::{TableManager, TableSchema, ColumnType};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use rat_logger::{info, error, warn, debug};
 use sqlx::{Row, Column, TypeInfo};
 // 移除不存在的rat_logger::prelude导入
 
 /// PostgreSQL适配器
-pub struct PostgresAdapter;
+pub struct PostgresAdapter {
+    /// 表创建锁，防止重复创建表
+    creation_locks: Arc<Mutex<HashMap<String, ()>>>,
+}
+
+impl PostgresAdapter {
+    /// 创建新的PostgreSQL适配器实例
+    pub fn new() -> Self {
+        Self {
+            creation_locks: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// 获取表创建锁
+    async fn acquire_table_lock(&self, table: &str) -> tokio::sync::MutexGuard<'_, HashMap<String, ()>> {
+        let mut locks = self.creation_locks.lock().await;
+        if !locks.contains_key(table) {
+            locks.insert(table.to_string(), ());
+            debug!("🔒 获取表 {} 的创建锁", table);
+        }
+        locks
+    }
+
+    /// 释放表创建锁
+    async fn release_table_lock(&self, table: &str, mut locks: tokio::sync::MutexGuard<'_, HashMap<String, ()>>) {
+        locks.remove(table);
+        debug!("🔓 释放表 {} 的创建锁", table);
+    }
+}
 
 impl PostgresAdapter {
 
@@ -264,51 +294,50 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             // 自动建表逻辑：检查表是否存在，如果不存在则创建
-            let mut has_auto_increment_id = false;
             if !self.table_exists(connection, table).await? {
-                info!("表 {} 不存在，正在自动创建", table);
-                let schema = TableSchema::infer_from_data(table.to_string(), data);
-                
-                // 检查是否有自增id字段
-                if let Some(id_col) = schema.columns.iter().find(|col| col.name == "id") {
-                    has_auto_increment_id = id_col.auto_increment;
-                }
-                
-                // 将 ColumnDefinition 转换为 HashMap<String, FieldDefinition>
-                let fields: HashMap<String, FieldDefinition> = schema.columns.iter()
-                    .map(|col| {
-                        let field_type = match &col.column_type {
-                            ColumnType::String { .. } => FieldType::String { max_length: None, min_length: None, regex: None },
-                            ColumnType::Text | ColumnType::LongText => FieldType::String { max_length: None, min_length: None, regex: None },
-                            ColumnType::Integer | ColumnType::SmallInteger => FieldType::Integer { min_value: None, max_value: None },
-                            ColumnType::BigInteger => FieldType::Integer { min_value: None, max_value: None },
-                            ColumnType::Float | ColumnType::Double => FieldType::Float { min_value: None, max_value: None },
-                            ColumnType::Boolean => FieldType::Boolean,
-                            ColumnType::DateTime | ColumnType::Date | ColumnType::Time | ColumnType::Timestamp => FieldType::DateTime,
-                            ColumnType::Uuid => FieldType::Uuid,
-                            ColumnType::Json => FieldType::Json,
-                            _ => FieldType::String { max_length: None, min_length: None, regex: None }, // 默认为字符串
-                        };
-                        (col.name.clone(), FieldDefinition::new(field_type))
-                    })
-                    .collect();
-                self.create_table(connection, table, &fields, id_strategy).await?;
-                info!("自动创建PostgreSQL表 '{}' 成功", table);
-            } else {
-                // 表已存在，检查是否有SERIAL类型的id字段
-                let check_serial_sql = "SELECT column_default FROM information_schema.columns WHERE table_name = $1 AND column_name = 'id'";
-                let rows = sqlx::query(check_serial_sql)
-                    .bind(table)
-                    .fetch_all(pool)
-                    .await
-                    .map_err(|e| QuickDbError::QueryError {
-                        message: format!("检查表结构失败: {}", e),
-                    })?;
-                
-                if let Some(row) = rows.first() {
-                    if let Ok(Some(default_value)) = row.try_get::<Option<String>, _>("column_default") {
-                        has_auto_increment_id = default_value.starts_with("nextval");
+                // 获取表创建锁，防止重复创建
+                let _lock = self.acquire_table_lock(table).await;
+
+                // 再次检查表是否存在（双重检查锁定模式）
+                if !self.table_exists(connection, table).await? {
+                    // 尝试从模型管理器获取预定义的元数据
+                    if let Some(model_meta) = crate::manager::get_model(table) {
+                        info!("表 {} 不存在，使用预定义模型元数据创建", table);
+
+                        // 使用模型元数据创建表
+                        self.create_table(connection, table, &model_meta.fields, id_strategy).await?;
+                        info!("✅ 使用模型元数据创建PostgreSQL表 '{}' 成功", table);
+
+                        // 等待100ms确保数据库事务完全提交
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        info!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
+                    } else {
+                        return Err(QuickDbError::ValidationError {
+                            field: "table_creation".to_string(),
+                            message: format!("表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。", table),
+                        });
                     }
+                } else {
+                    info!("表 {} 已存在，跳过创建", table);
+                }
+
+                // 锁会在这里自动释放（当 _lock 超出作用域时）
+            }
+
+            // 表已存在，检查是否有SERIAL类型的id字段
+            let mut has_auto_increment_id = false;
+            let check_serial_sql = "SELECT column_default FROM information_schema.columns WHERE table_name = $1 AND column_name = 'id'";
+            let rows = sqlx::query(check_serial_sql)
+                .bind(table)
+                .fetch_all(pool)
+                .await
+                .map_err(|e| QuickDbError::QueryError {
+                    message: format!("检查表结构失败: {}", e),
+                })?;
+
+            if let Some(row) = rows.first() {
+                if let Ok(Some(default_value)) = row.try_get::<Option<String>, _>("column_default") {
+                    has_auto_increment_id = default_value.starts_with("nextval");
                 }
             }
             
@@ -632,7 +661,10 @@ impl DatabaseAdapter for PostgresAdapter {
                     FieldType::Double => "DOUBLE PRECISION".to_string(),
                     FieldType::Text => "TEXT".to_string(),
                     FieldType::Boolean => "BOOLEAN".to_string(),
-                    FieldType::DateTime => "TIMESTAMPTZ".to_string(),
+                    FieldType::DateTime => {
+                        info!("🔍 字段 {} 类型为 DateTime，required: {}", name, field_definition.required);
+                        "TIMESTAMPTZ".to_string()
+                    },
                     FieldType::Date => "DATE".to_string(),
                     FieldType::Time => "TIME".to_string(),
                     FieldType::Uuid => "UUID".to_string(),
@@ -643,7 +675,7 @@ impl DatabaseAdapter for PostgresAdapter {
                     FieldType::Object { .. } => "JSONB".to_string(),
                     FieldType::Reference { target_collection: _ } => "TEXT".to_string(),
                 };
-                
+
                 // 如果是id字段，根据ID策略创建正确的字段类型
                 if name == "id" {
                     let id_definition = match id_strategy {
@@ -661,6 +693,7 @@ impl DatabaseAdapter for PostgresAdapter {
                     } else {
                         "NULL"
                     };
+                    info!("🔍 字段 {} 定义: {} {}", name, sql_type, null_constraint);
                     field_definitions.push(format!("{} {} {}", name, sql_type, null_constraint));
                 }
             }
@@ -671,8 +704,9 @@ impl DatabaseAdapter for PostgresAdapter {
                 field_definitions.join(", ")
             );
 
-            debug!("执行PostgreSQL建表: {}", sql);
-            
+            info!("🔍 执行PostgreSQL建表SQL: {}", sql);
+            info!("🔍 字段定义详情: {:?}", field_definitions);
+
             self.execute_update(pool, &sql, &[]).await?;
             
             Ok(())

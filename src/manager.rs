@@ -617,6 +617,13 @@ pub async fn get_active_pools_status() -> std::collections::HashMap<String, serd
     get_global_pool_manager().get_active_pools_status().await
 }
 
+#[cfg(feature = "python-bindings")]
+#[doc(hidden)]
+/// 便捷函数 - 获取连接池映射（仅用于Python绑定，不推荐直接使用）
+pub fn get_connection_pools() -> Arc<DashMap<String, Arc<ConnectionPool>>> {
+    get_global_pool_manager().get_connection_pools()
+}
+
 /// 便捷函数 - 获取ID生成器
 pub fn get_id_generator(alias: &str) -> QuickDbResult<Arc<IdGenerator>> {
     get_global_pool_manager().get_id_generator(alias)
