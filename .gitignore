@@ -68,6 +68,15 @@ Thumbs.db
 # Claude settings
 .claude
 
+# Text files (except README files)
+*.txt
+!README*.txt
+
+# Markdown files (except README and docs folder)
+*.md
+!README*.md
+!docs/**/*.md
+
 # Shared libraries
 /**/*.so
 /**/*.dylib
