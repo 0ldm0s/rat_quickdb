@@ -1,0 +1,999 @@
+# rat_quickdb
+
+[![Crates.io](https://img.shields.io/crates/v/rat_quickdb.svg)](https://crates.io/crates/rat_quickdb)
+[![Documentation](https://docs.rs/rat_quickdb/badge.svg)](https://docs.rs/rat_quickdb)
+[![License: LGPL-3.0](https://img.shields.io/badge/License-LGPL--3.0-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
+[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://rust-lang.org)
+[![Downloads](https://img.shields.io/crates/d/rat_quickdb.svg)](https://crates.io/crates/rat_quickdb)
+
+🚀 强大的跨数据库ODM库，支持SQLite、PostgreSQL、MySQL、MongoDB的统一接口
+
+**🌐 语言版本**: [中文](README.md) | [English](README.en.md) | [日本語](README.ja.md)
+
+## ✨ 核心特性
+
+- **🎯 自动索引创建**: 基于模型定义自动创建表和索引，无需手动干预
+- **🗄️ 多数据库支持**: SQLite、PostgreSQL、MySQL、MongoDB
+- **🔗 统一API**: 一致的接口操作不同数据库
+- **🔒 SQLite布尔值兼容**: 自动处理SQLite布尔值存储差异，零配置兼容
+- **🏊 连接池管理**: 高效的连接池和无锁队列架构
+- **⚡ 异步支持**: 基于Tokio的异步运行时
+- **🧠 智能缓存**: 内置缓存支持（基于rat_memcache），支持TTL过期和回退机制
+- **🆔 多种ID生成策略**: AutoIncrement、UUID、Snowflake、ObjectId、Custom前缀
+- **📝 日志控制**: 由调用者完全控制日志初始化，避免库自动初始化冲突
+- **🐍 Python绑定**: 可选Python API支持
+- **📋 任务队列**: 内置异步任务队列系统
+- **🔍 类型安全**: 强类型模型定义和验证
+
+## 📦 安装
+
+在`Cargo.toml`中添加依赖：
+
+```toml
+[dependencies]
+rat_quickdb = "0.3.2"
+```
+
+### 🔧 特性控制
+
+rat_quickdb 使用 Cargo 特性来控制不同数据库的支持和功能。默认情况下只包含核心功能，你需要根据使用的数据库类型启用相应的特性：
+
+```toml
+[dependencies]
+rat_quickdb = { version = "0.3.2", features = [
+    "sqlite-support",    # 支持SQLite数据库
+    "postgres-support",  # 支持PostgreSQL数据库
+    "mysql-support",     # 支持MySQL数据库
+    "mongodb-support",   # 支持MongoDB数据库
+] }
+```
+
+#### 可用特性列表
+
+| 特性名称 | 描述 | 默认启用 |
+|---------|------|---------|
+| `sqlite-support` | SQLite数据库支持 | ❌ |
+| `postgres-support` | PostgreSQL数据库支持 | ❌ |
+| `mysql-support` | MySQL数据库支持 | ❌ |
+| `mongodb-support` | MongoDB数据库支持 | ❌ |
+| `melange-storage` | 已弃用：L2缓存功能已内置在rat_memcache中 | ❌ |
+| `python-bindings` | Python API绑定 | ❌ |
+| `full` | 启用所有数据库支持 | ❌ |
+
+#### 按需启用特性
+
+**仅使用SQLite**:
+```toml
+[dependencies]
+rat_quickdb = { version = "0.3.2", features = ["sqlite-support"] }
+```
+
+**使用PostgreSQL**:
+```toml
+[dependencies]
+rat_quickdb = { version = "0.3.2", features = ["postgres-support"] }
+```
+
+**使用所有数据库**:
+```toml
+[dependencies]
+rat_quickdb = { version = "0.3.2", features = ["full"] }
+```
+
+**L2缓存配置注意事项**:
+- L2缓存功能已内置在 `rat_memcache` 中，无需额外特性
+- L2缓存需要磁盘空间用于缓存持久化
+- 配置示例见下面的"缓存配置"部分
+
+#### 运行示例
+
+不同的示例需要不同的特性支持：
+
+```bash
+# 基础模型定义示例
+cargo run --example model_definition --features sqlite-support
+
+# 复杂查询示例
+cargo run --example complex_query_demo --features sqlite-support
+
+# 分页查询示例
+cargo run --example model_pagination_demo --features sqlite-support
+
+# 特殊类型测试示例
+cargo run --example special_types_test --features sqlite-support
+
+# ID生成策略示例
+cargo run --example id_strategy_test --features sqlite-support
+
+# 手动表管理示例
+cargo run --example manual_table_management --features sqlite-support
+
+# 其他数据库示例
+cargo run --example model_definition_mysql --features mysql-support
+cargo run --example model_definition_pgsql --features postgres-support
+cargo run --example model_definition_mongodb --features mongodb-support
+```
+
+## ⚠️ 重要架构说明
+
+### ODM层使用要求 (v0.3.0+)
+
+**从v0.3.0版本开始，强制使用define_model!宏定义模型，不再允许使用普通结构体进行数据库操作。**
+
+所有数据库操作必须通过以下方式：
+
+1. **推荐：使用模型API**
+```rust
+use rat_quickdb::*;
+use rat_quickdb::ModelOperations;
+
+// 定义模型
+define_model! {
+    struct User {
+        id: String,
+        username: String,
+        email: String,
+    }
+    // ... 字段定义
+}
+
+// 创建和保存
+let user = User {
+    id: String::new(), // 框架自动生成ID
+    username: "张三".to_string(),
+    email: "zhangsan@example.com".to_string(),
+};
+let user_id = user.save().await?;
+
+// 查询
+let found_user = ModelManager::<User>::find_by_id(&user_id).await?;
+```
+
+2. **备选：使用ODM API**
+```rust
+use rat_quickdb::*;
+
+// 通过add_database添加数据库配置
+let config = DatabaseConfig::builder()
+    .db_type(DatabaseType::SQLite)
+    .connection(ConnectionConfig::SQLite {
+        path: "test.db".to_string(),
+        create_if_missing: true,
+    })
+    .alias("main".to_string())
+    .build()?;
+add_database(config).await?;
+
+// 使用ODM操作数据库
+let mut user_data = HashMap::new();
+user_data.insert("username".to_string(), DataValue::String("张三".to_string()));
+create("users", user_data, Some("main")).await?;
+```
+
+3. **禁止的用法**
+```rust
+// ❌ 错误：不再允许直接访问连接池管理器
+// let pool_manager = get_global_pool_manager();
+// let pool = pool_manager.get_connection_pools().get("main");
+```
+
+这种设计确保了：
+- **架构完整性**: 统一的数据访问层
+- **安全性**: 防止直接操作底层连接池导致的资源泄漏
+- **一致性**: 所有操作都经过相同的ODM层处理
+- **维护性**: 统一的错误处理和日志记录
+
+## 📋 从旧版本升级
+
+### 从 v0.2.x 升级到 v0.3.0
+
+v0.3.0 是一个重大变更版本，包含破坏性更改。请查看详细的[迁移指南](MIGRATION_GUIDE_0_3_0.md)。
+
+**主要变更**：
+- ✅ 强制使用 `define_model!` 宏定义模型
+- ✅ 消除动态表结构推断的"保姆设置"问题
+- ✅ 提供更明确的类型安全和字段定义
+- ✅ 修复重大架构Bug
+
+### 从 v0.3.1 升级到 v0.3.2+
+
+**🚨 破坏性变更：便捷函数必须显式指定ID策略**
+
+从v0.3.2版本开始，所有数据库配置的便捷函数（`sqlite_config`、`postgres_config`、`mysql_config`、`mongodb_config`）现在要求必须显式传入`id_strategy`参数。
+
+**变更原因**：
+- 消除硬编码的"保姆设置"，确保用户完全控制ID生成策略
+- 所有数据库统一默认使用`AutoIncrement`策略
+- 避免不同数据库有不同默认策略导致的混淆
+
+**API变更**：
+```rust
+// v0.3.1及之前（已移除）
+let config = sqlite_config("sqlite_db", "./test.db", pool_config)?;
+
+// v0.3.2+（新API）
+let config = sqlite_config(
+    "sqlite_db",
+    "./test.db",
+    pool_config,
+    Some(IdStrategy::AutoIncrement)  // 必须显式指定
+)?;
+```
+
+**迁移指南**：
+1. **推荐方式**：迁移到构建器模式，获得更好的类型安全性和一致性
+```rust
+// 推荐使用构建器模式替代便捷函数：
+let config = DatabaseConfig::builder()
+    .db_type(DatabaseType::SQLite)
+    .connection(ConnectionConfig::SQLite {
+        path: "./test.db".to_string(),
+        create_if_missing: true,
+    })
+    .pool_config(pool_config)
+    .alias("sqlite_db".to_string())
+    .id_strategy(IdStrategy::AutoIncrement)
+    .build()?;
+
+// PostgreSQL使用UUID（PostgreSQL推荐）
+let config = DatabaseConfig::builder()
+    .db_type(DatabaseType::PostgreSQL)
+    .connection(ConnectionConfig::PostgreSQL {
+        host: "localhost".to_string(),
+        port: 5432,
+        database: "mydatabase".to_string(),
+        username: "username".to_string(),
+        password: "password".to_string(),
+    })
+    .pool_config(pool_config)
+    .alias("postgres_db".to_string())
+    .id_strategy(IdStrategy::Uuid)
+    .build()?;
+```
+
+2. **临时兼容**：如果必须暂时维护现有代码，请添加必需的`IdStrategy`参数，但尽快规划迁移到构建器模式
+
+**影响范围**：
+- 所有使用便捷函数配置数据库的代码
+- 使用`mongodb_config_with_builder`的代码（已移除重复函数）
+- 依赖特定数据库默认ID策略的应用
+
+这个变更确保了配置的一致性和用户控制权，符合"不做保姆设置"的设计原则。
+
+## 🚀 快速开始
+
+### 基本使用
+
+查看 `examples/model_definition.rs` 了解完整的模型定义和使用方法。
+
+### ID生成策略示例
+
+查看 `examples/id_strategy_test.rs` 了解不同ID生成策略的使用方法。
+
+### 数据库适配器示例
+
+- **SQLite**: `examples/model_definition.rs` (运行时使用 `--features sqlite-support`)
+- **PostgreSQL**: `examples/model_definition_pgsql.rs`
+- **MySQL**: `examples/model_definition_mysql.rs`
+- **MongoDB**: `examples/model_definition_mongodb.rs`
+
+### 模型定义（推荐方式）
+
+查看 `examples/model_definition.rs` 了解完整的模型定义、CRUD操作和复杂查询示例。
+
+### 字段类型和验证
+
+查看 `examples/model_definition.rs` 中包含的字段类型定义和验证示例。
+
+### 索引管理
+
+索引会根据模型定义自动创建，无需手动管理。参考 `examples/model_definition.rs` 了解索引定义方式。
+
+## 🔒 SQLite布尔值兼容性
+
+SQLite数据库将布尔值存储为整数（0和1），这可能导致serde反序列化错误。rat_quickdb提供了多种解决方案：
+
+### 方案1: sqlite_bool_field() - 推荐（零配置）
+
+```rust
+use rat_quickdb::*;
+
+rat_quickdb::define_model! {
+    struct User {
+        id: Option<i32>,
+        username: String,
+        is_active: bool,        // 自动SQLite兼容
+        is_pinned: bool,        // 自动SQLite兼容
+        is_verified: bool,      // 自动SQLite兼容
+    }
+
+    collection = "users",
+    fields = {
+        id: integer_field(None, None),
+        username: string_field(Some(50), Some(3), None).required(),
+        // 使用sqlite_bool_field() - 自动处理SQLite布尔值兼容性
+        is_active: sqlite_bool_field(),
+        is_pinned: sqlite_bool_field(),
+        is_verified: sqlite_bool_field_with_default(false),
+    }
+}
+```
+
+### 方案2: 手动serde属性 + 通用反序列化器
+
+```rust
+use rat_quickdb::*;
+use serde::Deserialize;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct User {
+    id: Option<i32>,
+    username: String,
+
+    // 手动指定反序列化器
+    #[serde(deserialize_with = "rat_quickdb::sqlite_bool::deserialize_bool_from_any")]
+    is_active: bool,
+
+    #[serde(deserialize_with = "rat_quickdb::sqlite_bool::deserialize_bool_from_int")]
+    is_pinned: bool,
+}
+
+rat_quickdb::define_model! {
+    struct User {
+        id: Option<i32>,
+        username: String,
+        is_active: bool,
+        is_pinned: bool,
+    }
+
+    collection = "users",
+    fields = {
+        id: integer_field(None, None),
+        username: string_field(Some(50), Some(3), None).required(),
+        // 使用传统boolean_field() - 配合手动serde属性
+        is_active: boolean_field(),
+        is_pinned: boolean_field(),
+    }
+}
+```
+
+### 方案3: 传统方式（需要手动处理）
+
+```rust
+// 对于已有代码，可以使用传统boolean_field()
+// 但需要确保数据源中的布尔值格式正确
+rat_quickdb::define_model! {
+    struct User {
+        id: Option<i32>,
+        username: String,
+        is_active: bool,        // 需要手动处理兼容性
+    }
+
+    collection = "users",
+    fields = {
+        id: integer_field(None, None),
+        username: string_field(Some(50), Some(3), None).required(),
+        is_active: boolean_field(),  // 传统方式
+    }
+}
+```
+
+### 反序列化器选择指南
+
+- `deserialize_bool_from_any()`: 支持整数、布尔值、字符串 "true"/"false"
+- `deserialize_bool_from_int()`: 支持整数和布尔值
+- `sqlite_bool_field()`: 自动选择最佳反序列化器
+
+### 迁移指南
+
+从传统`boolean_field()`迁移到`sqlite_bool_field()`：
+
+```rust
+// 之前（可能有兼容性问题）
+is_active: boolean_field(),
+
+// 之后（完全兼容）
+is_active: sqlite_bool_field(),
+```
+
+## 🆔 ID生成策略
+
+rat_quickdb支持多种ID生成策略，满足不同场景的需求：
+
+### AutoIncrement（自增ID）- 默认推荐
+```rust
+DatabaseConfig::builder()
+    .id_strategy(IdStrategy::AutoIncrement)
+    .build()?
+
+// 便捷函数使用
+let config = sqlite_config(
+    "sqlite_db",
+    "./test.db",
+    pool_config,
+    Some(IdStrategy::AutoIncrement)
+)?;
+```
+
+### UUID（通用唯一标识符）- PostgreSQL推荐
+```rust
+DatabaseConfig::builder()
+    .id_strategy(IdStrategy::Uuid)
+    .build()?
+
+// 便捷函数使用
+let config = postgres_config(
+    "postgres_db",
+    "localhost",
+    5432,
+    "mydatabase",
+    "username",
+    "password",
+    pool_config,
+    Some(IdStrategy::Uuid)
+)?;
+```
+
+#### ⚠️ PostgreSQL UUID策略特殊要求
+
+**重要提醒**：PostgreSQL对类型一致性有严格要求，如果使用UUID策略：
+
+1. **主键表**：ID字段将为UUID类型
+2. **关联表**：所有外键字段也必须为UUID类型
+3. **类型匹配**：不允许UUID类型与其他类型进行关联
+
+**示例**：
+```rust
+// 用户表使用UUID ID
+define_model! {
+    struct User {
+        id: String,  // 将映射为PostgreSQL UUID类型
+        username: String,
+    }
+    collection = "users",
+    fields = {
+        id: uuid_field(),
+        username: string_field(Some(50), Some(3), None).required(),
+    }
+}
+
+// 订单表的外键也必须使用UUID类型
+define_model! {
+    struct Order {
+        id: String,
+        user_id: String,  // 必须为UUID类型以匹配users.id
+        amount: f64,
+    }
+    collection = "orders",
+    fields = {
+        id: uuid_field(),
+        user_id: uuid_field().required(),  // 外键必须使用相同类型
+        amount: float_field(None, None),
+    }
+}
+```
+
+**解决方案**：
+- 对于新项目：PostgreSQL推荐全面使用UUID策略
+- 对于现有项目：可以使用`IdStrategy::Custom`手动生成UUID字符串作为兼容方案
+- 混合策略：主表使用UUID，关联表也必须使用UUID，保持类型一致性
+
+### Snowflake（雪花算法）
+```rust
+DatabaseConfig::builder()
+    .id_strategy(IdStrategy::Snowflake {
+        machine_id: 1,
+        datacenter_id: 1
+    })
+    .build()?
+```
+
+### ObjectId（MongoDB风格）
+```rust
+DatabaseConfig::builder()
+    .id_strategy(IdStrategy::ObjectId)
+    .build()?
+```
+
+### Custom（自定义前缀）
+```rust
+DatabaseConfig::builder()
+    .id_strategy(IdStrategy::Custom("user_".to_string()))
+    .build()?
+```
+
+## 🔄 ObjectId跨数据库处理
+
+rat_quickdb为ObjectId策略提供了跨数据库的一致性处理，确保在不同数据库后端都能正常工作。
+
+### 存储方式差异
+
+**MongoDB**：
+- 存储为原生`ObjectId`类型
+- 查询时返回MongoDB原生ObjectId对象
+- 性能最优，支持MongoDB所有ObjectId特性
+
+**其他数据库（SQLite、PostgreSQL、MySQL）**：
+- 存储为24位十六进制字符串（如：`507f1f77bcf86cd799439011`）
+- 查询时返回字符串格式的ObjectId
+- 保持与MongoDB ObjectId格式的兼容性
+
+### 使用示例
+
+```rust
+// MongoDB - 原生ObjectId支持
+let config = mongodb_config(
+    "mongodb_db",
+    "localhost",
+    27017,
+    "mydatabase",
+    Some("username"),
+    Some("password"),
+    pool_config,
+    Some(IdStrategy::ObjectId)
+)?;
+
+// SQLite/PostgreSQL/MySQL - 字符串格式ObjectId
+let config = sqlite_config(
+    "sqlite_db",
+    "./test.db",
+    pool_config,
+    Some(IdStrategy::ObjectId)
+)?;
+```
+
+### 模型定义
+
+ObjectId策略在模型定义中统一使用`String`类型：
+
+```rust
+define_model! {
+    struct Document {
+        id: String,  // MongoDB为ObjectId，其他数据库为字符串
+        title: String,
+        content: String,
+    }
+    collection = "documents",
+    fields = {
+        id: string_field(None, None),  // 统一使用string_field
+        title: string_field(Some(200), Some(1), None).required(),
+        content: string_field(Some(10000), None, None),
+    }
+}
+```
+
+### 查询和操作
+
+```rust
+// 创建文档
+let doc = Document {
+    id: String::new(),  // 自动生成ObjectId
+    title: "示例文档".to_string(),
+    content: "文档内容".to_string(),
+};
+let doc_id = doc.save().await?;
+
+// 查询文档
+let found_doc = ModelManager::<Document>::find_by_id(&doc_id).await?;
+
+// 注意：ObjectId为24位十六进制字符串格式
+assert_eq!(doc_id.len(), 24);  // 其他数据库
+// 在MongoDB中，这将是一个原生ObjectId对象
+```
+
+### 类型转换处理
+
+rat_quickdb自动处理ObjectId在不同数据库中的类型转换：
+
+1. **保存时**：自动生成ObjectId格式（字符串或原生对象）
+2. **查询时**：保持原格式返回，框架内部处理转换
+3. **迁移时**：数据格式在不同数据库间保持兼容
+
+### 性能考虑
+
+- **MongoDB**：原生ObjectId性能最优，支持索引优化
+- **其他数据库**：字符串索引性能良好，长度固定（24字符）
+- **跨数据库**：统一的字符串格式便于数据迁移和同步
+
+这种设计确保了ObjectId策略在所有支持的数据库中都能一致工作，同时充分利用各数据库的原生特性。
+
+## 🧠 缓存配置
+
+### 基本缓存配置（仅L1内存缓存）
+```rust
+use rat_quickdb::types::{CacheConfig, CacheStrategy, TtlConfig, L1CacheConfig};
+
+let cache_config = CacheConfig {
+    enabled: true,
+    strategy: CacheStrategy::Lru,
+    ttl_config: TtlConfig {
+        default_ttl_secs: 300,  // 5分钟缓存
+        max_ttl_secs: 3600,     // 最大1小时
+        check_interval_secs: 60, // 检查间隔
+    },
+    l1_config: L1CacheConfig {
+        max_capacity: 1000,     // 最多1000个条目
+        max_memory_mb: 64,       // 64MB内存限制
+        enable_stats: true,      // 启用统计
+    },
+    l2_config: None,           // 不使用L2磁盘缓存
+    compression_config: CompressionConfig::default(),
+    version: "1".to_string(),
+};
+
+DatabaseConfig::builder()
+    .cache(cache_config)
+    .build()?
+```
+
+### L1+L2缓存配置（内置L2缓存支持）
+```rust
+use rat_quickdb::types::{CacheConfig, CacheStrategy, TtlConfig, L1CacheConfig, L2CacheConfig};
+use std::path::PathBuf;
+
+let cache_config = CacheConfig {
+    enabled: true,
+    strategy: CacheStrategy::Lru,
+    ttl_config: TtlConfig {
+        default_ttl_secs: 1800, // 30分钟缓存
+        max_ttl_secs: 7200,     // 最大2小时
+        check_interval_secs: 120, // 检查间隔
+    },
+    l1_config: L1CacheConfig {
+        max_capacity: 5000,     // 最多5000个条目
+        max_memory_mb: 128,      // 128MB内存限制
+        enable_stats: true,      // 启用统计
+    },
+    l2_config: Some(L2CacheConfig {
+        max_size_mb: 1024,      // 1GB磁盘缓存
+        cache_dir: PathBuf::from("./cache"), // 缓存目录
+        enable_persistence: true, // 启用持久化
+        enable_compression: true, // 启用压缩
+        cleanup_interval_secs: 300, // 清理间隔
+    }),
+    compression_config: CompressionConfig::default(),
+    version: "1".to_string(),
+};
+
+DatabaseConfig::builder()
+    .cache(cache_config)
+    .build()?
+```
+
+**L2缓存特性说明**:
+- L2缓存功能已内置在 `rat_memcache` 中，无需额外特性
+- 需要磁盘空间存储缓存数据
+- 适合缓存大量数据或需要持久化的场景
+- 只需在 `CacheConfig` 中配置 `l2_config` 即可启用L2缓存
+
+### 缓存统计和管理
+```rust
+// 获取缓存统计信息
+let stats = get_cache_stats("default").await?;
+println!("缓存命中率: {:.2}%", stats.hit_rate * 100.0);
+println!("缓存条目数: {}", stats.entries);
+
+// 清理缓存
+clear_cache("default").await?;
+clear_all_caches().await?;
+```
+
+## 📝 日志控制
+
+rat_quickdb现在完全由调用者控制日志初始化：
+
+```rust
+use rat_logger::{Logger, LoggerBuilder, LevelFilter};
+
+// 调用者负责初始化日志系统
+let logger = LoggerBuilder::new()
+    .with_level(LevelFilter::Debug)
+    .with_file("app.log")
+    .build();
+
+logger.init().expect("日志初始化失败");
+
+// 然后初始化rat_quickdb（不再自动初始化日志）
+rat_quickdb::init();
+```
+
+## 🔧 数据库配置
+
+### 推荐方式：使用构建器模式
+
+**推荐**：使用`DatabaseConfig::builder()`模式，提供完整的配置控制和类型安全：
+
+```rust
+use rat_quickdb::*;
+use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig, IdStrategy};
+
+let pool_config = PoolConfig::builder()
+    .max_connections(10)
+    .min_connections(2)
+    .connection_timeout(5000)
+    .idle_timeout(300000)
+    .max_lifetime(1800000)
+    .build()?;
+
+// SQLite 配置
+let sqlite_config = DatabaseConfig::builder()
+    .db_type(DatabaseType::SQLite)
+    .connection(ConnectionConfig::SQLite {
+        path: "./test.db".to_string(),
+        create_if_missing: true,
+    })
+    .pool_config(pool_config.clone())
+    .alias("sqlite_db".to_string())
+    .id_strategy(IdStrategy::AutoIncrement)  // 推荐策略
+    .build()?;
+
+// PostgreSQL 配置
+let postgres_config = DatabaseConfig::builder()
+    .db_type(DatabaseType::PostgreSQL)
+    .connection(ConnectionConfig::PostgreSQL {
+        host: "localhost".to_string(),
+        port: 5432,
+        database: "mydatabase".to_string(),
+        username: "username".to_string(),
+        password: "password".to_string(),
+    })
+    .pool_config(pool_config.clone())
+    .alias("postgres_db".to_string())
+    .id_strategy(IdStrategy::Uuid)  // PostgreSQL推荐UUID策略
+    .build()?;
+
+// MySQL 配置
+let mysql_config = DatabaseConfig::builder()
+    .db_type(DatabaseType::MySQL)
+    .connection(ConnectionConfig::MySQL {
+        host: "localhost".to_string(),
+        port: 3306,
+        database: "mydatabase".to_string(),
+        username: "username".to_string(),
+        password: "password".to_string(),
+    })
+    .pool_config(pool_config.clone())
+    .alias("mysql_db".to_string())
+    .id_strategy(IdStrategy::AutoIncrement)  // MySQL推荐自增策略
+    .build()?;
+
+// MongoDB 配置
+let mongodb_config = DatabaseConfig::builder()
+    .db_type(DatabaseType::MongoDB)
+    .connection(ConnectionConfig::MongoDB(
+        MongoDbConnectionBuilder::new("localhost", 27017, "mydatabase")
+            .with_auth("username", "password")
+            .build()
+    ))
+    .pool_config(pool_config)
+    .alias("mongodb_db".to_string())
+    .id_strategy(IdStrategy::ObjectId)  // MongoDB推荐ObjectId策略
+    .build()?;
+
+// 添加到连接池管理器
+add_database(sqlite_config).await?;
+add_database(postgres_config).await?;
+add_database(mysql_config).await?;
+add_database(mongodb_config).await?;
+```
+
+### 高级MongoDB配置
+
+```rust
+use rat_quickdb::*;
+use rat_quickdb::types::{TlsConfig, ZstdConfig};
+
+let tls_config = TlsConfig {
+    enabled: true,
+    verify_server_cert: false,
+    verify_hostname: false,
+    ..Default::default()
+};
+
+let zstd_config = ZstdConfig {
+    enabled: true,
+    compression_level: Some(3),
+    compression_threshold: Some(1024),
+};
+
+let mongodb_builder = MongoDbConnectionBuilder::new("localhost", 27017, "mydatabase")
+    .with_auth("username", "password")
+    .with_auth_source("admin")
+    .with_direct_connection(true)
+    .with_tls_config(tls_config)
+    .with_zstd_config(zstd_config);
+
+let advanced_mongodb_config = DatabaseConfig::builder()
+    .db_type(DatabaseType::MongoDB)
+    .connection(ConnectionConfig::MongoDB(mongodb_builder))
+    .pool_config(pool_config)
+    .alias("advanced_mongodb".to_string())
+    .id_strategy(IdStrategy::ObjectId)
+    .build()?;
+
+add_database(advanced_mongodb_config).await?;
+```
+
+### 🚨 即将废弃的便捷函数（不推荐使用）
+
+> **重要警告**：以下便捷函数已标记为废弃，将在v0.4.0版本中移除。请使用上面推荐的构建器模式。
+
+```rust
+// 🚨 即将废弃 - 请勿在新项目中使用
+// 这些函数存在API不一致性和硬编码问题
+
+// 废弃的SQLite配置
+let config = sqlite_config(  // 🚨 即将废弃
+    "sqlite_db",
+    "./test.db",
+    pool_config,
+    Some(IdStrategy::AutoIncrement)  // 必须显式指定
+)?;
+
+// 废弃的PostgreSQL配置
+let config = postgres_config(  // 🚨 即将废弃
+    "postgres_db",
+    "localhost",
+    5432,
+    "mydatabase",
+    "username",
+    "password",
+    pool_config,
+    Some(IdStrategy::Uuid)
+)?;
+
+// 废弃的MySQL配置
+let config = mysql_config(  // 🚨 即将废弃
+    "mysql_db",
+    "localhost",
+    3306,
+    "mydatabase",
+    "username",
+    "password",
+    pool_config,
+    Some(IdStrategy::AutoIncrement)
+)?;
+
+// 废弃的MongoDB配置
+let config = mongodb_config(  // 🚨 即将废弃
+    "mongodb_db",
+    "localhost",
+    27017,
+    "mydatabase",
+    Some("username"),
+    Some("password"),
+    pool_config,
+    Some(IdStrategy::ObjectId)
+)?;
+```
+
+**废弃原因**：
+- ❌ API不一致性：不同数据库的便捷函数参数不统一
+- ❌ 硬编码默认值：违背"不做保姆设置"的设计原则
+- ❌ 功能限制：无法支持高级配置选项
+- ❌ 维护困难：重复代码增加维护成本
+
+**推荐替代方案**：
+- ✅ **构建器模式**：类型安全、配置完整、API统一
+- ✅ **完全控制**：用户完全控制所有配置选项
+- ✅ **扩展性强**：支持所有数据库的高级特性
+- ✅ **类型安全**：编译时检查配置正确性
+
+### ID策略推荐
+
+根据数据库特性选择最适合的ID策略：
+
+| 数据库 | 推荐策略 | 备选策略 | 说明 |
+|--------|----------|----------|------|
+| **SQLite** | AutoIncrement | ObjectId | AutoIncrement原生支持，性能最佳 |
+| **PostgreSQL** | UUID | AutoIncrement | UUID原生支持，类型安全 |
+| **MySQL** | AutoIncrement | ObjectId | AutoIncrement原生支持，性能最佳 |
+| **MongoDB** | ObjectId | AutoIncrement | ObjectId原生支持，MongoDB生态标准 |
+
+**重要提醒**：PostgreSQL使用UUID策略时，所有关联表的外键字段也必须使用UUID类型以保持类型一致性。
+
+## 🛠️ 核心API
+
+### 数据库管理
+- `init()` - 初始化库
+- `add_database(config)` - 添加数据库配置
+- `remove_database(alias)` - 移除数据库配置
+- `get_aliases()` - 获取所有数据库别名
+- `set_default_alias(alias)` - 设置默认数据库别名
+
+### 模型操作（推荐）
+```rust
+// 保存记录
+let user_id = user.save().await?;
+
+// 查询记录
+let found_user = ModelManager::<User>::find_by_id(&user_id).await?;
+let users = ModelManager::<User>::find(conditions, options).await?;
+
+// 更新记录
+let mut updates = HashMap::new();
+updates.insert("username".to_string(), DataValue::String("新名字".to_string()));
+let updated = user.update(updates).await?;
+
+// 删除记录
+let deleted = user.delete().await?;
+```
+
+### ODM操作（底层接口）
+- `create(collection, data, alias)` - 创建记录
+- `find_by_id(collection, id, alias)` - 根据ID查找
+- `find(collection, conditions, options, alias)` - 查询记录
+- `update(collection, id, data, alias)` - 更新记录
+- `delete(collection, id, alias)` - 删除记录
+- `count(collection, query, alias)` - 计数
+- `exists(collection, query, alias)` - 检查是否存在
+
+## 🏗️ 架构特点
+
+rat_quickdb采用现代化架构设计：
+
+1. **无锁队列架构**: 避免直接持有数据库连接的生命周期问题
+2. **模型自动注册**: 首次使用时自动注册模型元数据
+3. **自动索引管理**: 根据模型定义自动创建表和索引
+4. **跨数据库适配**: 统一的接口支持多种数据库类型
+5. **异步消息处理**: 基于Tokio的高效异步处理
+
+## 🔄 工作流程
+
+```
+应用层 → 模型操作 → ODM层 → 消息队列 → 连接池 → 数据库
+    ↑                                        ↓
+    └────────────── 结果返回 ←────────────────┘
+```
+
+## 📊 性能特性
+
+- **连接池管理**: 智能连接复用和管理
+- **异步操作**: 非阻塞的数据库操作
+- **批量处理**: 支持批量操作优化
+- **缓存集成**: 内置缓存减少数据库访问
+- **压缩支持**: MongoDB支持ZSTD压缩
+
+## 🎯 支持的字段类型
+
+- `integer_field` - 整数字段（支持范围和约束）
+- `string_field` - 字符串字段（支持长度限制，可设置大长度作为长文本使用）
+- `float_field` - 浮点数字段（支持范围和精度）
+- `boolean_field` - 布尔字段
+- `datetime_field` - 日期时间字段
+- `uuid_field` - UUID字段
+- `json_field` - JSON字段
+- `array_field` - 数组字段
+- `list_field` - 列表字段（array_field的别名）
+- `dict_field` - 字典/对象字段（基于Object类型）
+- `reference_field` - 引用字段（外键）
+
+## 📝 索引支持
+
+- **唯一索引**: `unique()` 约束
+- **复合索引**: 多字段组合索引
+- **普通索引**: 基础查询优化索引
+- **自动创建**: 基于模型定义自动创建
+- **跨数据库**: 支持所有数据库类型的索引
+
+## 🌟 版本信息
+
+**当前版本**: 0.3.2
+
+**支持Rust版本**: 1.70+
+
+**重要更新**: v0.3.0 强制使用define_model!宏定义模型，修复重大架构问题，提升类型安全性！
+
+## 📄 许可证
+
+本项目采用 [LGPL-v3](LICENSE) 许可证。
+
+## 🤝 贡献
+
+欢迎提交Issue和Pull Request来改进这个项目！
+
+## 📞 联系方式
+
+如有问题或建议，请通过以下方式联系：
+- 创建Issue: [GitHub Issues](https://github.com/your-repo/rat_quickdb/issues)
+- 邮箱: oldmos@gmail.com

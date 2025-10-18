@@ -1,0 +1,44 @@
+[package]
+name = "rat_quickdb_py"
+version = "0.3.2"
+edition = "2021"
+authors = ["0ldm0s <oldmos@gmail.com>"]
+description = "Python bindings for RAT QuickDB - A high-performance cross-database ODM library"
+license = "LGPL-3.0"
+repository = "https://github.com/0ldm0s/rat_quickdb"
+homepage = "https://github.com/0ldm0s/rat_quickdb"
+
+[lib]
+name = "rat_quickdb_py"
+crate-type = ["cdylib"]
+
+build = "build.rs"
+
+[dependencies]
+# 使用主库的完整特性 + python绑定支持
+rat_quickdb = { path = "..", features = ["full", "python-bindings"] }
+pyo3 = { version = "0.21.0", features = ["extension-module", "abi3-py312"] }
+chrono = { version = "0.4", features = ["serde"] }
+crossbeam-queue = "0.3"
+crossbeam = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+rat_logger = "0.2.8"
+# 暂时保持其他依赖注释状态
+# bytes = "1.0"
+# serde = { version = "1.0", features = ["derive"] }
+# serde_json = "1.0"
+# thiserror = "1.0"
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
+# futures = "0.3"
+
+[profile.release]
+# 启用静态链接以减少DLL依赖
+static = true
+panic = "abort"
+lto = true
+
+[profile.dev]
+# 开发模式也尽量静态链接
+static = true

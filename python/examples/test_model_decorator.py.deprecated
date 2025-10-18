@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+测试类装饰器模型定义功能
+"""
+
+import json
+import inspect
+from typing import Dict, Any, Optional
+
+try:
+    import rat_quickdb_py
+    from rat_quickdb_py import (
+        create_db_queue_bridge,
+        register_model,
+        string_field,
+        integer_field,
+        datetime_field,
+        FieldDefinition,
+        IndexDefinition,
+    )
+except ImportError as e:
+    print(f"错误：无法导入 rat_quickdb_py 模块: {e}")
+    exit(1)
+
+
+def model(table_name: Optional[str] = None,
+         database_alias: str = "default",
+         description: str = "",
+         enable_cache: bool = True,
+         cache_ttl: int = 300):
+    """
+    模型装饰器，将Python类转换为RAT QuickDB模型
+
+    Args:
+        table_name: 表名，默认为类名的小写
+        database_alias: 数据库别名
+        description: 模型描述
+        enable_cache: 是否启用缓存
+        cache_ttl: 缓存TTL
+    """
+    def decorator(cls):
+        # 收集字段定义
+        fields = {}
+
+        # 获取所有类属性
+        for name, value in cls.__dict__.items():
+            if name.startswith('_'):  # 跳过私有属性
+                continue
+
+            # 检查是否是字段定义
+            if hasattr(value, 'to_dict') and hasattr(value, 'field_type'):
+                fields[name] = value
+            elif hasattr(value, '__class__') and value.__class__.__name__ == 'PyFieldDefinition':
+                fields[name] = value
+
+        # 收集索引定义和处理Meta类配置
+        indexes = []
+        meta_class = getattr(cls, 'Meta', None)
+        final_table_name = table_name or cls.__name__.lower()
+        final_database_alias = database_alias
+        final_description = description
+
+        if meta_class:
+            indexes = getattr(meta_class, 'indexes', [])
+
+            # 从Meta类获取其他配置
+            table_name_from_meta = getattr(meta_class, 'table_name', None)
+            if table_name_from_meta:
+                final_table_name = table_name_from_meta
+
+            database_alias_from_meta = getattr(meta_class, 'database_alias', None)
+            if database_alias_from_meta:
+                final_database_alias = database_alias_from_meta
+
+            description_from_meta = getattr(meta_class, 'description', None)
+            if description_from_meta:
+                final_description = description_from_meta
+
+        # 转换字段为字典格式
+        fields_dict = []
+        for field_name, field_def in fields.items():
+            if hasattr(field_def, 'to_dict'):
+                field_dict = field_def.to_dict()
+                field_dict['name'] = field_name
+                fields_dict.append(field_dict)
+            else:
+                # 创建基本的字段字典
+                fields_dict.append({
+                    'name': field_name,
+                    'field_type': {
+                        'type': 'String',
+                        'required': True,
+                        'unique': False,
+                        'indexed': False
+                    },
+                    'description': f'{field_name}字段'
+                })
+
+        # 转换索引为字典格式
+        indexes_dict = []
+        for index in indexes:
+            if isinstance(index, dict):
+                indexes_dict.append(index)
+            elif hasattr(index, 'to_dict'):
+                indexes_dict.append(index.to_dict())
+
+        # 创建模型元数据
+        model_meta = {
+            "table_name": final_table_name,
+            "database_alias": final_database_alias,
+            "description": final_description or f"{cls.__name__}模型",
+            "fields": fields_dict,
+            "indexes": indexes_dict,
+            "enable_cache": enable_cache,
+            "cache_ttl": cache_ttl,
+        }
+
+        # 注册模型
+        try:
+            response = register_model(model_meta)
+            result = json.loads(response)
+
+            if result.get("success"):
+                print(f"✅ 模型 {cls.__name__} 注册成功")
+            else:
+                print(f"❌ 模型 {cls.__name__} 注册失败: {result.get('error')}")
+
+        except Exception as e:
+            print(f"❌ 注册模型 {cls.__name__} 时发生错误: {e}")
+
+        # 为类添加有用的属性和方法
+        cls._model_meta = model_meta
+        cls._fields = fields
+        cls._table_name = final_table_name
+        cls._database_alias = final_database_alias
+
+        # 添加类方法
+        @classmethod
+        def get_table_name(cls):
+            return cls._table_name
+
+        @classmethod
+        def get_fields(cls):
+            return cls._fields
+
+        @classmethod
+        def get_model_meta(cls):
+            return cls._model_meta
+
+        cls.get_table_name = get_table_name
+        cls.get_fields = get_fields
+        cls.get_model_meta = get_model_meta
+
+        return cls
+
+    return decorator
+
+
+# 测试用例
+if __name__ == "__main__":
+    print("🚀 测试类装饰器模型定义功能")
+    print("=" * 50)
+
+    # 测试1：简单装饰器方式
+    @model(table_name="test_users", database_alias="default", description="测试用户表")
+    class TestUser:
+        name = string_field(required=True, unique=False, description="用户姓名")
+        age = integer_field(required=False, unique=False, description="用户年龄")
+        email = string_field(required=True, unique=True, description="用户邮箱")
+
+        class Meta:
+            table_name = "users_from_meta"  # 这个应该覆盖装饰器参数
+            description = "用户表（来自Meta类）"
+            indexes = [
+                {'fields': ['name'], 'unique': False},
+                {'fields': ['email'], 'unique': True},
+                {'fields': ['name', 'age'], 'unique': False}
+            ]
+
+    print(f"表名: {TestUser.get_table_name()}")
+    print(f"字段数量: {len(TestUser.get_fields())}")
+    print(f"模型元数据: {json.dumps(TestUser.get_model_meta(), indent=2, ensure_ascii=False)}")
+
+    # 测试2：更复杂的模型
+    @model(description="文章表")
+    class Article:
+        title = string_field(required=True, unique=False, description="文章标题")
+        content = string_field(required=False, unique=False, description="文章内容")
+        author_id = string_field(required=True, unique=False, description="作者ID")
+        created_at = datetime_field(required=True, unique=False, description="创建时间")
+
+        class Meta:
+            database_alias = "article_db"
+            indexes = [
+                {'fields': ['title'], 'unique': True},
+                {'fields': ['author_id', 'created_at'], 'unique': False}
+            ]
+
+    print(f"\n文章表名: {Article.get_table_name()}")
+    print(f"文章表数据库别名: {Article._database_alias}")
+
+    # 测试3：最简单的模型
+    @model()
+    class SimpleModel:
+        name = string_field(required=True)
+
+    print(f"\n简单模型表名: {SimpleModel.get_table_name()}")
+
+    print("\n✅ 装饰器测试完成！")
