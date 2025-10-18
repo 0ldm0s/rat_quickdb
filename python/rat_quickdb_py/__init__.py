@@ -199,6 +199,51 @@ class NativeDataBridge:
         response_str = self.bridge.count(table, conditions_json, alias)
         return self._convert_response(response_str)
 
+    # 包装数据库配置方法，确保返回dict格式
+    def add_sqlite_database(self, alias, path, create_if_missing=None, max_connections=None,
+                           min_connections=None, connection_timeout=None, idle_timeout=None,
+                           max_lifetime=None, cache_config=None, id_strategy=None):
+        """添加SQLite数据库（返回dict格式）"""
+        response_str = self.bridge.add_sqlite_database(alias, path, create_if_missing,
+                                                     max_connections, min_connections,
+                                                     connection_timeout, idle_timeout,
+                                                     max_lifetime, cache_config, id_strategy)
+        return self._convert_response(response_str)
+
+    def add_postgresql_database(self, alias, host, port, database, username, password,
+                            max_connections=None, min_connections=None, connection_timeout=None,
+                            idle_timeout=None, max_lifetime=None, cache_config=None, id_strategy=None):
+        """添加PostgreSQL数据库（返回dict格式）"""
+        response_str = self.bridge.add_postgresql_database(alias, host, port, database,
+                                                         username, password, max_connections,
+                                                         min_connections, connection_timeout,
+                                                         idle_timeout, max_lifetime, cache_config,
+                                                         id_strategy)
+        return self._convert_response(response_str)
+
+    def add_mysql_database(self, alias, host, port, database, username, password,
+                          max_connections=None, min_connections=None, connection_timeout=None,
+                          idle_timeout=None, max_lifetime=None, cache_config=None, id_strategy=None):
+        """添加MySQL数据库（返回dict格式）"""
+        response_str = self.bridge.add_mysql_database(alias, host, port, database,
+                                                     username, password, max_connections,
+                                                     min_connections, connection_timeout,
+                                                     idle_timeout, max_lifetime, cache_config,
+                                                     id_strategy)
+        return self._convert_response(response_str)
+
+    def add_mongodb_database(self, alias, host, port, database, username=None, password=None,
+                            max_connections=None, min_connections=None, connection_timeout=None,
+                            idle_timeout=None, max_lifetime=None, cache_config=None,
+                            id_strategy=None, tls_config=None, zstd_config=None):
+        """添加MongoDB数据库（返回dict格式）"""
+        response_str = self.bridge.add_mongodb_database(alias, host, port, database,
+                                                       username, password, max_connections,
+                                                       min_connections, connection_timeout,
+                                                       idle_timeout, max_lifetime, cache_config,
+                                                       id_strategy, tls_config, zstd_config)
+        return self._convert_response(response_str)
+
     # 转发其他方法到原始桥接器
     def __getattr__(self, name):
         """转发未包装的方法到原始桥接器"""

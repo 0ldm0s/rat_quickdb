@@ -504,14 +504,25 @@ impl SimpleQueueBridge {
             let model_meta: ModelMeta = serde_json::from_value(model_meta_value.clone())
                 .map_err(|e| format!("解析模型元数据失败: {}", e))?;
 
+            let collection_name = model_meta.collection_name.clone();
+            let database_alias = model_meta.database_alias.clone()
+                .ok_or("模型元数据缺少数据库别名")?;
+
             // 使用全局连接池管理器注册模型
             get_global_pool_manager().register_model(model_meta)
                 .map_err(|e| format!("模型注册失败: {}", e))?;
 
-            info!("模型注册成功");
+            info!("模型元数据注册成功，开始创建表和索引");
+
+            // 立即创建表和索引
+            get_global_pool_manager().ensure_table_and_indexes(&collection_name, &database_alias)
+                .await
+                .map_err(|e| format!("创建表和索引失败: {}", e))?;
+
+            info!("✅ 模型注册成功，表和索引已创建: {}", collection_name);
             Ok(serde_json::json!({
                 "success": true,
-                "message": "模型注册成功"
+                "message": "模型注册成功，表和索引已创建"
             }).to_string())
         } else {
             Err("缺少模型元数据".to_string())
