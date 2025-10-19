@@ -244,6 +244,11 @@ class NativeDataBridge:
                                                        id_strategy, tls_config, zstd_config)
         return self._convert_response(response_str)
 
+    def drop_table(self, table, alias=None):
+        """删除数据表（返回dict格式）"""
+        response_str = self.bridge.drop_table(table, alias)
+        return self._convert_response(response_str)
+
     # 转发其他方法到原始桥接器
     def __getattr__(self, name):
         """转发未包装的方法到原始桥接器"""

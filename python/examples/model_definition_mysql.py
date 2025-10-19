@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RatQuickDB Python模型定义示例
+RatQuickDB Python模型定义示例（MySQL版本）
 
 本示例展示了如何使用RatQuickDB的应用模式进行模型定义，
-包括字段定义、索引创建、模型验证等功能，对应主库model_definition.rs示例。
+包括字段定义、索引创建、模型验证等功能，对应主库model_definition_mysql.rs示例。
 """
 
 import sys
@@ -295,6 +295,8 @@ def demonstrate_json_serialization():
 
         # 创建用户数据
         print("创建用户数据...")
+        # MySQL兼容的datetime格式（去掉时区信息）
+        now = datetime.now()
         user_data = {
             "id": f"user_{uuid.uuid4().hex[:8]}",
             "username": f"zhangsan_{uuid.uuid4().hex[:8]}",
@@ -305,8 +307,8 @@ def demonstrate_json_serialization():
             "phone": "+8613812345678",
             "avatar_url": "https://avatar.example.com/zhangsan.jpg",
             "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "last_login": None,
             "profile": {
                 "preferences": {
@@ -449,6 +451,8 @@ def demonstrate_json_field_types():
             }
         }
 
+        # MySQL兼容的datetime格式
+        now = datetime.now()
         user_with_complex_profile = {
             "id": f"json_user_{uuid.uuid4().hex[:8]}",
             "username": f"json_user_{uuid.uuid4().hex[:8]}",
@@ -459,8 +463,8 @@ def demonstrate_json_field_types():
             "phone": "+8613812345678",
             "avatar_url": "https://avatar.example.com/json_user.jpg",
             "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "last_login": None,
             "profile": user_profile,
             "tags": ["JSON示例", "复杂配置", "开发者"]
@@ -546,7 +550,7 @@ def demonstrate_json_field_types():
 
                     update_data = {
                         "profile": updated_profile,
-                        "updated_at": datetime.now(timezone.utc).isoformat()
+                        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
 
                     conditions = [{"id": created_id}]
@@ -642,6 +646,8 @@ def demonstrate_json_field_types():
             }
         }
 
+        # MySQL兼容的datetime格式
+        now = datetime.now()
         article_with_metadata = {
             "id": f"article_{uuid.uuid4().hex[:8]}",
             "title": "RatQuickDB JSON字段完全指南",
@@ -654,9 +660,9 @@ def demonstrate_json_field_types():
             "view_count": 150,
             "like_count": 42,
             "is_featured": True,
-            "published_at": datetime.now(timezone.utc).isoformat(),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "published_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "metadata": article_metadata,
             "tags": ["Rust", "JSON", "数据库", "教程"]
         }
@@ -722,6 +728,8 @@ def demonstrate_basic_crud():
 
         # 1. 创建用户
         print("\n1. 创建用户...")
+        # MySQL兼容的datetime格式
+        now = datetime.now()
         user_data = {
             "id": f"demo_user_{uuid.uuid4().hex[:8]}",
             "username": f"demo_user_{uuid.uuid4().hex[:8]}",
@@ -732,8 +740,8 @@ def demonstrate_basic_crud():
             "phone": "+8613811111111",
             "avatar_url": "https://avatar.example.com/demo.jpg",
             "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "last_login": None,
             "profile": {
                 "preferences": {
@@ -763,7 +771,7 @@ def demonstrate_basic_crud():
                     print("\n3. 更新用户...")
                     update_data = {
                         "age": 26,
-                        "updated_at": datetime.now(timezone.utc).isoformat()
+                        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
 
                     conditions = [{"id": created_id}]
@@ -802,6 +810,8 @@ def demonstrate_error_handling():
 
         # 1. 创建无效用户数据（违反字段约束）
         print("\n1. 创建无效用户数据...")
+        # MySQL兼容的datetime格式
+        now = datetime.now()
         invalid_user = {
             "id": "",  # 空ID，应该违反必填约束
             "username": "",  # 空用户名，应该违反必填约束
@@ -812,8 +822,8 @@ def demonstrate_error_handling():
             "phone": None,
             "avatar_url": None,
             "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "last_login": None,
             "profile": None,
             "tags": None
@@ -857,6 +867,8 @@ def demonstrate_error_handling():
         print("\n3. 创建重复数据...")
 
         # 第一次创建
+        # MySQL兼容的datetime格式
+        now = datetime.now()
         first_user = {
             "id": f"unique_user_{uuid.uuid4().hex[:8]}",
             "username": f"unique_user_{uuid.uuid4().hex[:8]}",
@@ -867,8 +879,8 @@ def demonstrate_error_handling():
             "phone": "+8613811111111",
             "avatar_url": "https://avatar.example.com/unique1.jpg",
             "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "last_login": None,
             "profile": None,
             "tags": None
@@ -881,6 +893,8 @@ def demonstrate_error_handling():
             print(f"✅ 第一次创建成功: {first_id}")
 
             # 第二次创建相同用户名的用户
+            # MySQL兼容的datetime格式
+            now = datetime.now()
             duplicate_user = {
                 "id": f"duplicate_user_{uuid.uuid4().hex[:8]}",
                 "username": first_user["username"],  # 重复用户名
@@ -891,8 +905,8 @@ def demonstrate_error_handling():
                 "phone": "+8613822222222",
                 "avatar_url": "https://avatar.example.com/unique2.jpg",
                 "is_active": True,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "last_login": None,
                 "profile": None,
                 "tags": None
@@ -991,6 +1005,7 @@ def demonstrate_batch_operations():
         # 1. 批量创建用户
         print("\n1. 批量创建用户...")
         batch_users = []
+        now = datetime.now()
         for i in range(1, 5):
             user = {
                 "id": f"batch{i}_{uuid.uuid4().hex[:8]}",
@@ -1002,8 +1017,8 @@ def demonstrate_batch_operations():
                 "phone": f"+861381111111{i}",
                 "avatar_url": f"https://avatar.example.com/batch{i}.jpg",
                 "is_active": True,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "last_login": None,
                 "profile": None,
                 "tags": ["批量用户"]
@@ -1052,7 +1067,7 @@ def demonstrate_batch_operations():
         print("\n3. 批量更新用户状态...")
         update_data = {
             "is_active": False,
-            "updated_at": datetime.now(timezone.utc).isoformat()
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
 
         update_conditions = [
@@ -1126,23 +1141,22 @@ def demonstrate_batch_operations():
 
 def main():
     """主函数"""
-    print("=== RatQuickDB Python 模型定义系统演示 ===")
-
-    # 清理旧数据库文件
-    db_path = "./test_model.db"
-    if os.path.exists(db_path):
-        os.remove(db_path)
-        print("🧹 清理旧数据库文件完成")
+    print("RAT QuickDB Python绑定 - 模型定义示例（MySQL版本）")
+    print("=" * 60)
 
     try:
         # 初始化日志系统
         rq.init_logging_with_level("info")
         print("✅ 日志系统初始化成功")
 
-        # 添加SQLite数据库到应用
-        result = app.add_sqlite_database(
+        # 添加MySQL数据库到应用
+        result = app.add_mysql_database(
             alias="default",
-            path=db_path,
+            host="172.16.0.21",
+            port=3306,
+            database="testdb",
+            username="testdb",
+            password="yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^",
             max_connections=10,
             min_connections=2,
             connection_timeout=5,
@@ -1152,7 +1166,21 @@ def main():
         )
 
         if result.get("success"):
-            print("✅ SQLite数据库配置成功")
+            print("✅ MySQL数据库配置成功")
+
+            # 清理旧的测试表，确保干净的测试环境
+            print("🧹 清理旧测试表...")
+
+            # 删除可能存在的旧表
+            old_tables = ["users", "articles", "comments"]
+            for table_name in old_tables:
+                drop_result = app.drop_table(table_name, "default")
+                if drop_result.get("success"):
+                    print(f"✅ 删除旧表: {table_name}")
+                else:
+                    print(f"ℹ️ 表 {table_name} 不存在或已删除")
+
+            print("✅ 测试环境清理完成")
 
             print("\n1. 演示JSON序列化功能")
             demonstrate_json_serialization()
@@ -1172,7 +1200,7 @@ def main():
             print("\n=== 演示完成 ===")
             return True
         else:
-            print(f"❌ 数据库配置失败: {result.get('error')}")
+            print(f"❌ MySQL数据库配置失败: {result.get('error')}")
             return False
 
     except Exception as e:
@@ -1184,8 +1212,8 @@ def main():
 if __name__ == "__main__":
     success = main()
     if success:
-        print("\n✅ Python模型定义示例演示完成！")
+        print("\n✅ Python模型定义示例（MySQL版本）演示完成！")
         sys.exit(0)
     else:
-        print("\n❌ Python模型定义示例演示失败！")
+        print("\n❌ Python模型定义示例（MySQL版本）演示失败！")
         sys.exit(1)

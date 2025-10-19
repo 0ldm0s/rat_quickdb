@@ -296,6 +296,26 @@ class RatQuickDB:
             self.bridge = create_native_db_queue_bridge()
         return self.bridge
 
+    def drop_table(self, table_name: str, alias: str = "default"):
+        """删除数据表
+
+        Args:
+            table_name: 表名
+            alias: 数据库别名，默认为"default"
+
+        Returns:
+            删除结果字典
+        """
+        bridge = self.get_bridge()
+        try:
+            result = bridge.drop_table(table_name, alias)
+            return result
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"删除表失败: {str(e)}"
+            }
+
 
 # 全局应用实例
 _app = None
