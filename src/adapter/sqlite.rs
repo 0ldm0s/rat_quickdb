@@ -436,7 +436,7 @@ impl DatabaseAdapter for SqliteAdapter {
         if !conditions.is_empty() {
             let (where_clause, mut where_params) = SqlQueryBuilder::new()
                 .database_type(crate::types::DatabaseType::SQLite)
-                .build_where_clause(conditions)?;
+                .build_where_clause_with_offset(conditions, params.len() + 1)?;
 
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);

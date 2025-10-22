@@ -402,7 +402,7 @@ impl SqlQueryBuilder {
     }
 
     /// 构建WHERE子句
-    fn build_where_clause(&self, conditions: &[QueryCondition]) -> QuickDbResult<(String, Vec<DataValue>)> {
+    pub(crate) fn build_where_clause(&self, conditions: &[QueryCondition]) -> QuickDbResult<(String, Vec<DataValue>)> {
         self.build_where_clause_with_offset(conditions, 1)
     }
 

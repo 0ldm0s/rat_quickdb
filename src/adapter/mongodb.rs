@@ -845,11 +845,11 @@ impl DatabaseAdapter for MongoAdapter {
             for operation in operations {
                 match &operation.operation {
                     crate::types::UpdateOperator::Set => {
-                        let bson_value = self.data_value_to_bson(&operation.value)?;
+                        let bson_value = self.data_value_to_bson(&operation.value);
                         set_doc.insert(&operation.field, bson_value);
                     }
                     crate::types::UpdateOperator::Increment => {
-                        let bson_value = self.data_value_to_bson(&operation.value)?;
+                        let bson_value = self.data_value_to_bson(&operation.value);
                         inc_doc.insert(&operation.field, bson_value);
                     }
                     crate::types::UpdateOperator::Decrement => {
@@ -862,12 +862,12 @@ impl DatabaseAdapter for MongoAdapter {
                                 message: "Decrement操作只支持数值类型".to_string(),
                             }),
                         };
-                        let bson_value = self.data_value_to_bson(&neg_value)?;
+                        let bson_value = self.data_value_to_bson(&neg_value);
                         inc_doc.insert(&operation.field, bson_value);
                     }
                     crate::types::UpdateOperator::Multiply => {
                         // MongoDB使用$multiply操作符
-                        let bson_value = self.data_value_to_bson(&operation.value)?;
+                        let bson_value = self.data_value_to_bson(&operation.value);
                         if !set_doc.contains_key("$mul") {
                             set_doc.insert("$mul", Document::new());
                         }
@@ -884,7 +884,7 @@ impl DatabaseAdapter for MongoAdapter {
                                 message: "Divide操作只支持数值类型".to_string(),
                             }),
                         };
-                        let bson_value = self.data_value_to_bson(&crate::types::DataValue::Float(divisor))?;
+                        let bson_value = self.data_value_to_bson(&crate::types::DataValue::Float(divisor));
                         if !set_doc.contains_key("$mul") {
                             set_doc.insert("$mul", Document::new());
                         }
@@ -902,7 +902,7 @@ impl DatabaseAdapter for MongoAdapter {
                             }),
                         };
                         let multiplier = 1.0 + percentage / 100.0;
-                        let bson_value = self.data_value_to_bson(&crate::types::DataValue::Float(multiplier))?;
+                        let bson_value = self.data_value_to_bson(&crate::types::DataValue::Float(multiplier));
                         if !set_doc.contains_key("$mul") {
                             set_doc.insert("$mul", Document::new());
                         }
@@ -920,7 +920,7 @@ impl DatabaseAdapter for MongoAdapter {
                             }),
                         };
                         let multiplier = 1.0 - percentage / 100.0;
-                        let bson_value = self.data_value_to_bson(&crate::types::DataValue::Float(multiplier))?;
+                        let bson_value = self.data_value_to_bson(&crate::types::DataValue::Float(multiplier));
                         if !set_doc.contains_key("$mul") {
                             set_doc.insert("$mul", Document::new());
                         }
@@ -954,7 +954,7 @@ impl DatabaseAdapter for MongoAdapter {
 
             let result = collection.update_many(query, update_doc, None)
                 .await
-                .map_err(|e| QuickDbError::DatabaseError {
+                .map_err(|e| QuickDbError::QueryError {
                     message: format!("MongoDB更新失败: {}", e),
                 })?;
 
