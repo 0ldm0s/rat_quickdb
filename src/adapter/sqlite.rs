@@ -102,6 +102,46 @@ impl SqliteAdapter {
         
         Ok(map)
     }
+
+    /// 执行更新操作
+    async fn execute_update(
+        &self,
+        pool: &sqlx::Pool<sqlx::Sqlite>,
+        sql: &str,
+        params: &[DataValue],
+    ) -> QuickDbResult<u64> {
+        let mut query = sqlx::query(sql);
+
+        // 绑定参数
+        for param in params {
+            query = match param {
+                DataValue::String(s) => {
+                    // SQLite中字符串直接绑定
+                    query.bind(s)
+                },
+                DataValue::Int(i) => query.bind(*i),
+                DataValue::Float(f) => query.bind(*f),
+                DataValue::Bool(b) => query.bind(i32::from(*b)), // SQLite使用整数表示布尔值
+                DataValue::DateTime(dt) => query.bind(*dt),
+                DataValue::Uuid(uuid) => query.bind(uuid.to_string()),
+                DataValue::Json(json) => query.bind(json.to_string()),
+                DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
+                DataValue::Null => query.bind(Option::<String>::None),
+                DataValue::Array(arr) => query.bind(serde_json::to_string(arr).unwrap_or_default()),
+                DataValue::Object(obj) => query.bind(serde_json::to_string(obj).unwrap_or_default()),
+            };
+        }
+
+        debug!("执行SQLite更新SQL: {}", sql);
+
+        let result = query.execute(pool)
+            .await
+            .map_err(|e| QuickDbError::QueryError {
+                message: format!("SQLite更新失败: {}", e),
+            })?;
+
+        Ok(result.rows_affected())
+    }
 }
 
 #[async_trait]
