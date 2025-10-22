@@ -294,6 +294,13 @@ impl AsyncOdmManager {
         };
         debug!("处理创建请求: collection={}, alias={}", collection, actual_alias);
 
+        // 调试打印：主库ODM层接收到的数据
+        println!("🔍 主库ODM层 - 接收到的数据 collection: {}", collection);
+        println!("🔍 主库ODM层 - 接收到的data_map:");
+        for (key, data_value) in &data {
+            println!("  {}: {:?}", key, data_value);
+        }
+
         // 确保表和索引存在（基于注册的模型元数据）
         if let Err(e) = manager.ensure_table_and_indexes(collection, &actual_alias).await {
             debug!("自动创建表和索引失败: {}", e);
@@ -322,13 +329,30 @@ impl AsyncOdmManager {
                 },
                 _ => {
                     // 检查是否有有效的ID字段（非空、非零）
+                    println!("🔍 ODM ID检查 - 检查id字段有效性");
                     let id_is_valid = match processed_data.get("id") {
-                        Some(crate::types::DataValue::String(s)) => !s.is_empty(),
-                        Some(crate::types::DataValue::Int(i)) => *i > 0,
-                        Some(crate::types::DataValue::Null) => false,
-                        Some(_) => true, // 其他非空类型认为是有效ID
-                        None => false,
+                        Some(crate::types::DataValue::String(s)) => {
+                            println!("🔍 ODM ID检查 - 找到String类型ID: '{}', 长度: {}, is_empty: {}", s, s.len(), s.is_empty());
+                            !s.is_empty()
+                        },
+                        Some(crate::types::DataValue::Int(i)) => {
+                            println!("🔍 ODM ID检查 - 找到Int类型ID: {}, >0: {}", i, *i > 0);
+                            *i > 0
+                        },
+                        Some(crate::types::DataValue::Null) => {
+                            println!("🔍 ODM ID检查 - 找到Null类型ID");
+                            false
+                        },
+                        Some(other) => {
+                            println!("🔍 ODM ID检查 - 找到其他类型ID: {:?}", other);
+                            true // 其他非空类型认为是有效ID
+                        },
+                        None => {
+                            println!("🔍 ODM ID检查 - 没有找到id字段");
+                            false
+                        },
                     };
+                    println!("🔍 ODM ID检查 - id_is_valid: {}", id_is_valid);
                     let _id_is_valid = match processed_data.get("_id") {
                         Some(crate::types::DataValue::String(s)) => !s.is_empty(),
                         Some(crate::types::DataValue::Int(i)) => *i > 0,
@@ -339,6 +363,7 @@ impl AsyncOdmManager {
                     let has_valid_id = id_is_valid || _id_is_valid;
 
                     if !has_valid_id {
+                        println!("🔍 ODM ID生成 - 没有有效ID，开始生成ID");
                         debug!("数据中没有有效ID字段，使用IdGenerator生成ID");
                         match id_generator.generate().await {
                             Ok(id_type) => {
@@ -346,6 +371,7 @@ impl AsyncOdmManager {
                                     crate::types::IdType::Number(n) => DataValue::Int(*n),
                                     crate::types::IdType::String(s) => DataValue::String(s.clone()),
                                 };
+                                println!("🔍 ODM ID生成 - ✅ 成功生成ID: {:?}, 转换后: {:?}", id_type, id_value);
                                 debug!("✅ 成功生成ID: {:?}, 转换后: {:?}", id_type, id_value);
                                 // 根据数据库类型决定使用"id"还是"_id"字段
                                 match connection_pool.db_config.db_type {
@@ -375,6 +401,11 @@ impl AsyncOdmManager {
         let (response_tx, response_rx) = oneshot::channel();
 
         // 发送DatabaseOperation::Create请求到连接池
+        println!("🔍 ODM最终数据 - 发送给适配器的processed_data:");
+        for (key, data_value) in &processed_data {
+            println!("  {}: {:?}", key, data_value);
+        }
+
         let operation = crate::pool::DatabaseOperation::Create {
             table: collection.to_string(),
             data: processed_data,

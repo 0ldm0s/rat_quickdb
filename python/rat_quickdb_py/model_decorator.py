@@ -199,7 +199,7 @@ class RatQuickDB:
 
     def add_sqlite_database(self, *args, **kwargs):
         """添加SQLite数据库并注册模型"""
-        from . import create_native_db_queue_bridge
+        from . import create_db_queue_bridge as create_native_db_queue_bridge
 
         if self.bridge is None:
             self.bridge = create_native_db_queue_bridge()
@@ -222,12 +222,8 @@ class RatQuickDB:
 
     def add_postgresql_database(self, *args, **kwargs):
         """添加PostgreSQL数据库并注册模型"""
-        from . import create_native_db_queue_bridge
-
-        if self.bridge is None:
-            self.bridge = create_native_db_queue_bridge()
-
-        result = self.bridge.add_postgresql_database(*args, **kwargs)
+        bridge = self.get_bridge()
+        result = bridge.add_postgresql_database(*args, **kwargs)
 
         if result.get("success"):
             alias = kwargs.get('alias', 'default')
@@ -245,7 +241,7 @@ class RatQuickDB:
 
     def add_mysql_database(self, *args, **kwargs):
         """添加MySQL数据库并注册模型"""
-        from . import create_native_db_queue_bridge
+        from . import create_db_queue_bridge as create_native_db_queue_bridge
 
         if self.bridge is None:
             self.bridge = create_native_db_queue_bridge()
@@ -268,7 +264,7 @@ class RatQuickDB:
 
     def add_mongodb_database(self, *args, **kwargs):
         """添加MongoDB数据库并注册模型"""
-        from . import create_native_db_queue_bridge
+        from . import create_db_queue_bridge as create_native_db_queue_bridge
 
         if self.bridge is None:
             self.bridge = create_native_db_queue_bridge()
@@ -292,8 +288,9 @@ class RatQuickDB:
     def get_bridge(self):
         """获取数据库桥接器"""
         if self.bridge is None:
-            from . import create_native_db_queue_bridge
-            self.bridge = create_native_db_queue_bridge()
+            from . import create_db_queue_bridge, NativeDataBridge
+            raw_bridge = create_db_queue_bridge()
+            self.bridge = NativeDataBridge(raw_bridge)
         return self.bridge
 
     def drop_table(self, table_name: str, alias: str = "default"):
@@ -329,8 +326,10 @@ def get_app():
 
 
 # 自动创建全局桥接器并注册到__all__中
-from . import create_native_db_queue_bridge
-_global_bridge = create_native_db_queue_bridge()
+from . import create_db_queue_bridge as create_native_db_queue_bridge
+from . import NativeDataBridge
+_raw_bridge = create_native_db_queue_bridge()
+_global_bridge = NativeDataBridge(_raw_bridge)
 
 
 def add_model_find_methods(cls):
@@ -345,8 +344,9 @@ def add_model_find_methods(cls):
             alias = cls._database_alias
 
         try:
-            response = _global_bridge.find(cls._table_name, json.dumps(conditions), alias)
-            return json.loads(response) if isinstance(response, str) else response
+            # 直接传递conditions参数，让NativeDataBridge处理JSON序列化
+            response = _global_bridge.find(cls._table_name, conditions, None, None, None, alias)
+            return _global_bridge._convert_response(response) if isinstance(response, str) else response
         except RuntimeError as e:
             return {
                 "success": False,
@@ -361,7 +361,7 @@ def add_model_find_methods(cls):
 
         try:
             response = _global_bridge.find_by_id(cls._table_name, id, alias)
-            return json.loads(response) if isinstance(response, str) else response
+            return _global_bridge._convert_response(response) if isinstance(response, str) else response
         except RuntimeError as e:
             return {
                 "success": False,
@@ -372,18 +372,26 @@ def add_model_find_methods(cls):
     def create(cls, data, alias=None):
         """创建记录"""
         import json
+        from .utils import convert_dict_to_datavalue
+
         if alias is None:
             alias = cls._database_alias
 
         if isinstance(data, dict):
-            data_str = json.dumps(data)
+            # 使用模型元数据将Python原生类型转换为带标签的DataValue格式
+            model_meta = cls.get_model_meta()
+            converted_data = convert_dict_to_datavalue(data, model_meta)
+            print(f"🔍 Python端 - 转换前的数据: {data}")
+            print(f"🔍 Python端 - 转换后的带标签数据: {converted_data}")
+            data_str = json.dumps(converted_data)
+            print(f"🔍 Python端 - 发送的JSON字符串: {data_str}")
         else:
             data_str = str(data)
 
         try:
             response = _global_bridge.create(cls._table_name, data_str, alias)
-            return json.loads(response) if isinstance(response, str) else response
-        except RuntimeError as e:
+            return _global_bridge._convert_response(response) if isinstance(response, str) else response
+        except (RuntimeError, ValueError) as e:
             return {
                 "success": False,
                 "error": str(e),
@@ -393,16 +401,23 @@ def add_model_find_methods(cls):
     def update(cls, conditions, updates, alias=None):
         """更新记录"""
         import json
+        from .utils import convert_dict_to_datavalue
+
         if alias is None:
             alias = cls._database_alias
 
-        conditions_str = json.dumps(conditions)
-        updates_str = json.dumps(updates)
+        # 转换conditions和updates数据
+        model_meta = cls.get_model_meta()
+        converted_conditions = convert_dict_to_datavalue(conditions, model_meta) if isinstance(conditions, dict) else conditions
+        converted_updates = convert_dict_to_datavalue(updates, model_meta) if isinstance(updates, dict) else updates
+
+        conditions_str = json.dumps(converted_conditions)
+        updates_str = json.dumps(converted_updates)
 
         try:
             response = _global_bridge.update(cls._table_name, conditions_str, updates_str, alias)
-            return json.loads(response) if isinstance(response, str) else response
-        except RuntimeError as e:
+            return _global_bridge._convert_response(response) if isinstance(response, str) else response
+        except (RuntimeError, ValueError) as e:
             return {
                 "success": False,
                 "error": str(e),
@@ -419,7 +434,7 @@ def add_model_find_methods(cls):
 
         try:
             response = _global_bridge.delete(cls._table_name, conditions_str, alias)
-            return json.loads(response) if isinstance(response, str) else response
+            return _global_bridge._convert_response(response) if isinstance(response, str) else response
         except RuntimeError as e:
             return {
                 "success": False,
@@ -439,7 +454,7 @@ def add_model_find_methods(cls):
 
         try:
             response = _global_bridge.count(cls._table_name, conditions_str, alias)
-            return json.loads(response) if isinstance(response, str) else response
+            return _global_bridge._convert_response(response) if isinstance(response, str) else response
         except RuntimeError as e:
             return {
                 "success": False,

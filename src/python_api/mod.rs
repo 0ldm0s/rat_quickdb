@@ -11,6 +11,10 @@ pub mod simple_queue_bridge;
 #[cfg(feature = "python-bindings")]
 pub mod json_queue_bridge;
 
+// 数据库特定的JSON处理器
+#[cfg(feature = "python-bindings")]
+pub mod database_processors;
+
 // 完整的队列桥接器（支持所有数据库操作）
 // 注释掉queue_bridge模块，因为它使用了DataValue类型导致链接问题
 // #[cfg(feature = "python-bindings")]

@@ -1543,11 +1543,20 @@ macro_rules! define_model {
                 let alias = database_alias.as_deref().unwrap_or("default");
                 let _ = $crate::manager::ensure_table_and_indexes(&collection_name, alias).await;
 
+                // 调试输出：主库save方法调用
+                println!("🔍 主库save方法 - 调用odm::create, collection: {}", collection_name);
+                println!("🔍 主库save方法 - 原始data:");
+                for (key, data_value) in &data {
+                    println!("  {}: {:?}", key, data_value);
+                }
+
                 let result = $crate::odm::create(
                     &collection_name,
                     data,
                     database_alias.as_deref(),
                 ).await?;
+
+                println!("🔍 主库save方法 - odm::create结果: {:?}", result);
                 
                 // 将 DataValue 转换为 String（通常是 ID）
                 match result {

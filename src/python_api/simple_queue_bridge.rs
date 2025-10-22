@@ -9,6 +9,7 @@ use serde_json;
 use uuid::Uuid;
 use std::collections::HashMap;
 use rat_logger::{info, warn, error};
+use chrono;
 
 // 导入必要的模块和类型
 use crate::types::{DataValue, DatabaseConfig, QueryOperator, QueryCondition};
@@ -171,12 +172,31 @@ impl SimpleQueueBridge {
             return Err("缺少记录数据".to_string());
         };
 
+        // 调试打印：总是打印record的类型
+        println!("🔍 Python集成层 - record类型: {:?}", record);
+
         // 转换为ODM格式的数据
         let mut data_map = std::collections::HashMap::new();
-        if let serde_json::Value::Object(obj) = record {
+        if let serde_json::Value::Object(ref obj) = record {
+            // 调试打印：解析后的JSON对象
+            println!("🔍 Python集成层 - 原始record JSON: {}", serde_json::to_string(obj).unwrap_or_else(|_| "JSON序列化失败".to_string()));
+
+            // 处理带标签的DataValue格式
+            println!("🔍 处理带标签的DataValue格式");
             for (key, value) in obj {
-                data_map.insert(key, self.json_value_to_data_value(value));
+                // 直接解析带标签的DataValue，无需类型推断
+                let data_value = self.parse_labeled_data_value(value.clone())?;
+                data_map.insert(key.clone(), data_value);
             }
+            println!("🔍 带标签DataValue解析完成");
+
+            // 调试打印：转换后的DataValue
+            println!("🔍 Python集成层 - 转换后的data_map:");
+            for (key, data_value) in &data_map {
+                println!("  {}: {:?}", key, data_value);
+            }
+        } else {
+            println!("🔍 Python集成层 - record不是Object类型!");
         }
 
         // 通过ODM层执行创建操作
@@ -253,13 +273,23 @@ impl SimpleQueueBridge {
                 .map_err(|e| format!("解析更新数据失败: {}", e))?;
             if let serde_json::Value::Object(obj) = updates_value {
                 for (key, value) in obj {
-                    updates.insert(key, self.json_value_to_data_value(value));
+                    // 使用带标签DataValue解析方法，而不是普通的json_value_to_data_value
+                    match self.parse_labeled_data_value(value.clone()) {
+                        Ok(datavalue) => {
+                            info!("🔍 更新字段 {} - 使用带标签DataValue解析: {:?}", key, datavalue);
+                            updates.insert(key, datavalue);
+                        },
+                        Err(e) => {
+                            warn!("🔍 更新字段 {} - 带标签解析失败，使用传统方法: {} - 原值: {:?}", key, e, value);
+                            updates.insert(key, self.json_value_to_data_value(value));
+                        }
+                    }
                 }
             }
         } else {
             // 默认添加更新时间
-            updates.insert("updated_at".to_string(), DataValue::String(
-                chrono::Utc::now().to_rfc3339()
+            updates.insert("updated_at".to_string(), DataValue::DateTime(
+                chrono::Utc::now()
             ));
         }
 
@@ -627,7 +657,106 @@ impl SimpleQueueBridge {
         }
     }
 
-    /// 辅助函数：将JSON值转换为ODM DataValue
+    /// 获取数据库特定的JSON处理器
+    /// 解析带标签的DataValue格式
+    fn parse_labeled_data_value(&self, value: serde_json::Value) -> Result<DataValue, String> {
+        match value {
+            serde_json::Value::Object(obj) => {
+                if obj.len() == 1 {
+                    // 带标签的DataValue格式
+                    for (tag, val) in &obj {
+                        return match tag.as_str() {
+                            "String" => Ok(DataValue::String(val.as_str().unwrap_or_default().to_string())),
+                            "Int" => {
+                                if let Some(i) = val.as_i64() {
+                                    Ok(DataValue::Int(i))
+                                } else {
+                                    Err(format!("Int字段包含无效的整数: {:?}", val))
+                                }
+                            },
+                            "Float" => {
+                                if let Some(f) = val.as_f64() {
+                                    Ok(DataValue::Float(f))
+                                } else {
+                                    Err(format!("Float字段包含无效的浮点数: {:?}", val))
+                                }
+                            },
+                            "Bool" => {
+                                if let Some(b) = val.as_bool() {
+                                    Ok(DataValue::Bool(b))
+                                } else {
+                                    Err(format!("Bool字段包含无效的布尔值: {:?}", val))
+                                }
+                            },
+                            "DateTime" => {
+                                if let Some(dt_str) = val.as_str() {
+                                    // 解析ISO 8601格式的datetime字符串
+                                    match chrono::DateTime::parse_from_rfc3339(dt_str) {
+                                        Ok(dt) => Ok(DataValue::DateTime(dt.with_timezone(&chrono::Utc))),
+                                        Err(e) => Err(format!("DateTime字段包含无效的ISO格式: {} - {}", dt_str, e))
+                                    }
+                                } else {
+                                    Err(format!("DateTime字段包含无效的字符串: {:?}", val))
+                                }
+                            },
+                            "Uuid" => {
+                                if let Some(uuid_str) = val.as_str() {
+                                    // 解析UUID字符串
+                                    match uuid::Uuid::parse_str(uuid_str) {
+                                        Ok(uuid) => Ok(DataValue::Uuid(uuid)),
+                                        Err(e) => Err(format!("Uuid字段包含无效的UUID格式: {} - {}", uuid_str, e))
+                                    }
+                                } else {
+                                    Err(format!("Uuid字段包含无效的字符串: {:?}", val))
+                                }
+                            },
+                            "Null" => Ok(DataValue::Null),
+                            "Object" => {
+                                if let serde_json::Value::Object(inner_obj) = val {
+                                    let mut data_map = std::collections::HashMap::new();
+                                    for (k, v) in inner_obj {
+                                        data_map.insert(k.clone(), self.parse_labeled_data_value(v.clone())?);
+                                    }
+                                    Ok(DataValue::Object(data_map))
+                                } else {
+                                    Err(format!("Object字段包含无效的对象: {:?}", val))
+                                }
+                            },
+                            "Array" => {
+                                if let serde_json::Value::Array(arr) = val {
+                                    let data_array: Result<Vec<_>, _> = arr.iter()
+                                        .map(|v| self.parse_labeled_data_value(v.clone()))
+                                        .collect();
+                                    Ok(DataValue::Array(data_array?))
+                                } else {
+                                    Err(format!("Array字段包含无效的数组: {:?}", val))
+                                }
+                            },
+                            _ => Err(format!("不支持的DataValue标签: {}", tag)),
+                        };
+                    }
+                }
+                Err(format!("无效的带标签DataValue格式: {:?}", obj))
+            },
+            _ => Err(format!("期望带标签的DataValue格式，但得到: {:?}", value)),
+        }
+    }
+
+    fn get_database_processor(&self, db_alias: Option<&str>) -> Result<Box<dyn super::database_processors::DatabaseJsonProcessor>, String> {
+        use super::database_processors::create_database_json_processor;
+
+        if let Some(alias) = db_alias {
+            // 获取数据库类型
+            let db_type = crate::manager::get_global_pool_manager().get_database_type(alias)
+                .map_err(|e| format!("无法获取数据库'{}'的类型: {}, 请检查数据库配置是否正确", alias, e))?;
+
+            println!("🔍 获取数据库处理器: {} -> {:?}", alias, db_type);
+            Ok(create_database_json_processor(&db_type))
+        } else {
+            Err("未指定数据库别名，无法获取数据库处理器".to_string())
+        }
+    }
+
     fn json_value_to_data_value(&self, value: serde_json::Value) -> DataValue {
         match value {
             serde_json::Value::Null => DataValue::Null,

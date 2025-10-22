@@ -31,6 +31,5 @@ Documentation = "https://git.sukiyaki.su/0ldm0s/rat_quickdb/src/branch/master/py
 
 [tool.maturin]
 module-name = "rat_quickdb_py"
-python-source = "."
 version-from-cargo = true
 features = ["pyo3/extension-module"]

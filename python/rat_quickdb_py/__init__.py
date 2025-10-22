@@ -1,3 +1,4 @@
+""
 """
 rat_quickdb_py - RAT QuickDB Python Bindings
 
@@ -55,10 +56,7 @@ try:
         "list_field", "float_field", "dict_field",
 
         # 模型管理函数
-        "register_model",
-
-        # Python框架层功能
-        "convert_datavalue_to_python", "NativeDataBridge", "create_native_db_queue_bridge"
+        "register_model"
     ]
 except ImportError:
     # 如果Rust模块不可用（例如在开发环境中），提供友好的错误信息
@@ -69,204 +67,88 @@ except ImportError:
         ImportWarning
     )
 
-# Python框架层工具
-from .utils import convert_datavalue_to_python
+# NativeDataBridge类定义（在成功导入时定义）
+if 'DbQueueBridge' in locals():
+    class NativeDataBridge:
+        """原生数据桥接器，自动处理DataValue到Python类型的转换"""
 
-# 自动转换DataValue为Python原生类型的包装器
-class NativeDataBridge:
-    """
-    Python框架层：自动转换DataValue格式的桥接器包装器
+        def __init__(self, bridge):
+            self.bridge = bridge
 
-    这个类包装了原始的DbQueueBridge，自动将Rust返回的DataValue格式
-    转换为Python开发者期望的原生类型。
-    """
+        def _convert_response(self, response_str):
+            """转换响应中的DataValue格式为Python原生类型"""
+            import json
+            from .utils import convert_datavalue_to_python
+            response = json.loads(response_str)
 
-    def __init__(self, bridge):
-        """
-        初始化原生数据桥接器
+            if response.get("success") and "data" in response:
+                response["data"] = convert_datavalue_to_python(response["data"])
 
-        Args:
-            bridge: 原始的DbQueueBridge实例
-        """
-        self.bridge = bridge
+            return response
 
-    def _convert_response(self, response_str):
-        """
-        转换响应中的DataValue格式为Python原生类型
+        def add_postgresql_database(self, alias, host, port, database, username, password,
+                                  max_connections=None, min_connections=None, connection_timeout=None,
+                                  idle_timeout=None, max_lifetime=None, cache_config=None, id_strategy=None):
+            """添加PostgreSQL数据库（返回dict格式）"""
+            response_str = self.bridge.add_postgresql_database(alias, host, port, database,
+                                                             username, password, max_connections,
+                                                             min_connections, connection_timeout,
+                                                             idle_timeout, max_lifetime, cache_config,
+                                                             id_strategy)
+            return self._convert_response(response_str)
 
-        Args:
-            response_str: JSON格式的响应字符串
+        def drop_table(self, table, alias=None):
+            """删除数据表（返回dict格式）"""
+            response_str = self.bridge.drop_table(table, alias)
+            return self._convert_response(response_str)
 
-        Returns:
-            转换后的响应字典
-        """
-        import json
-        response = json.loads(response_str)
+        def create(self, table, data, alias=None):
+            """创建记录（返回Python原生格式）"""
+            import json
+            data_json = json.dumps(data)
+            response_str = self.bridge.create(table, data_json, alias)
+            return self._convert_response(response_str)
 
-        if response.get("success") and "data" in response:
-            response["data"] = convert_datavalue_to_python(response["data"])
+        def find_by_id(self, table, id, alias=None):
+            """根据ID查找记录（返回Python原生格式）"""
+            response_str = self.bridge.find_by_id(table, id, alias)
+            return self._convert_response(response_str)
 
-        return response
+        def find(self, table, conditions=None, sort=None, limit=None, offset=None, alias=None):
+            """查询记录（返回Python原生格式）"""
+            # 构建查询对象
+            query = {}
+            if conditions is not None:
+                query["conditions"] = conditions
+            if sort is not None:
+                query["sort"] = sort
+            if limit is not None:
+                query["limit"] = limit
+            if offset is not None:
+                query["offset"] = offset
 
-    def find_by_id(self, table, id, alias=None):
-        """
-        根据ID查找记录（返回Python原生格式）
+            import json
+            query_json = json.dumps(query) if query else "{}"
 
-        Args:
-            table: 表名
-            id: 记录ID
-            alias: 数据库别名
+            response_str = self.bridge.find(table, query_json, alias)
+            return self._convert_response(response_str)
 
-        Returns:
-            Python原生格式的记录数据
-        """
-        response_str = self.bridge.find_by_id(table, id, alias)
-        return self._convert_response(response_str)
+        def update(self, table, conditions, data, alias=None):
+            """更新记录（返回Python原生格式）"""
+            response_str = self.bridge.update(table, conditions, data, alias)
+            return self._convert_response(response_str)
 
-    def find(self, table, query_json, alias=None):
-        """
-        查找记录（返回Python原生格式）
+        def delete(self, table, conditions, alias=None):
+            """删除记录（返回Python原生格式）"""
+            response_str = self.bridge.delete(table, conditions, alias)
+            return self._convert_response(response_str)
 
-        Args:
-            table: 表名
-            query_json: 查询条件JSON字符串
-            alias: 数据库别名
-
-        Returns:
-            Python原生格式的记录列表
-        """
-        response_str = self.bridge.find(table, query_json, alias)
-        return self._convert_response(response_str)
-
-    def create(self, table, data_json, alias=None):
-        """
-        创建记录（返回Python原生格式）
-
-        Args:
-            table: 表名
-            data_json: 数据JSON字符串
-            alias: 数据库别名
-
-        Returns:
-            Python原生格式的创建结果
-        """
-        response_str = self.bridge.create(table, data_json, alias)
-        return self._convert_response(response_str)
-
-    def update(self, table, conditions_json, updates_json, alias=None):
-        """
-        更新记录（返回Python原生格式）
-
-        Args:
-            table: 表名
-            conditions_json: 条件JSON字符串
-            updates_json: 更新数据JSON字符串
-            alias: 数据库别名
-
-        Returns:
-            Python原生格式的更新结果
-        """
-        response_str = self.bridge.update(table, conditions_json, updates_json, alias)
-        return self._convert_response(response_str)
-
-    def delete(self, table, conditions_json, alias=None):
-        """
-        删除记录（返回Python原生格式）
-
-        Args:
-            table: 表名
-            conditions_json: 条件JSON字符串
-            alias: 数据库别名
-
-        Returns:
-            Python原生格式的删除结果
-        """
-        response_str = self.bridge.delete(table, conditions_json, alias)
-        return self._convert_response(response_str)
-
-    def count(self, table, conditions_json, alias=None):
-        """
-        统计记录数量（返回Python原生格式）
-
-        Args:
-            table: 表名
-            conditions_json: 条件JSON字符串
-            alias: 数据库别名
-
-        Returns:
-            Python原生格式的统计结果
-        """
-        response_str = self.bridge.count(table, conditions_json, alias)
-        return self._convert_response(response_str)
-
-    # 包装数据库配置方法，确保返回dict格式
-    def add_sqlite_database(self, alias, path, create_if_missing=None, max_connections=None,
-                           min_connections=None, connection_timeout=None, idle_timeout=None,
-                           max_lifetime=None, cache_config=None, id_strategy=None):
-        """添加SQLite数据库（返回dict格式）"""
-        response_str = self.bridge.add_sqlite_database(alias, path, create_if_missing,
-                                                     max_connections, min_connections,
-                                                     connection_timeout, idle_timeout,
-                                                     max_lifetime, cache_config, id_strategy)
-        return self._convert_response(response_str)
-
-    def add_postgresql_database(self, alias, host, port, database, username, password,
-                            max_connections=None, min_connections=None, connection_timeout=None,
-                            idle_timeout=None, max_lifetime=None, cache_config=None, id_strategy=None):
-        """添加PostgreSQL数据库（返回dict格式）"""
-        response_str = self.bridge.add_postgresql_database(alias, host, port, database,
-                                                         username, password, max_connections,
-                                                         min_connections, connection_timeout,
-                                                         idle_timeout, max_lifetime, cache_config,
-                                                         id_strategy)
-        return self._convert_response(response_str)
-
-    def add_mysql_database(self, alias, host, port, database, username, password,
-                          max_connections=None, min_connections=None, connection_timeout=None,
-                          idle_timeout=None, max_lifetime=None, cache_config=None, id_strategy=None):
-        """添加MySQL数据库（返回dict格式）"""
-        response_str = self.bridge.add_mysql_database(alias, host, port, database,
-                                                     username, password, max_connections,
-                                                     min_connections, connection_timeout,
-                                                     idle_timeout, max_lifetime, cache_config,
-                                                     id_strategy)
-        return self._convert_response(response_str)
-
-    def add_mongodb_database(self, alias, host, port, database, username=None, password=None,
-                            max_connections=None, min_connections=None, connection_timeout=None,
-                            idle_timeout=None, max_lifetime=None, cache_config=None,
-                            id_strategy=None, tls_config=None, zstd_config=None):
-        """添加MongoDB数据库（返回dict格式）"""
-        response_str = self.bridge.add_mongodb_database(alias, host, port, database,
-                                                       username, password, max_connections,
-                                                       min_connections, connection_timeout,
-                                                       idle_timeout, max_lifetime, cache_config,
-                                                       id_strategy, tls_config, zstd_config)
-        return self._convert_response(response_str)
-
-    def drop_table(self, table, alias=None):
-        """删除数据表（返回dict格式）"""
-        response_str = self.bridge.drop_table(table, alias)
-        return self._convert_response(response_str)
-
-    # 转发其他方法到原始桥接器
-    def __getattr__(self, name):
-        """转发未包装的方法到原始桥接器"""
-        return getattr(self.bridge, name)
-
-
-def create_native_db_queue_bridge():
-    """
-    创建自动转换DataValue格式的数据库桥接器
-
-    Returns:
-        NativeDataBridge实例
-    """
-    return NativeDataBridge(create_db_queue_bridge())
-
-
-# 模型装饰器
-from .model_decorator import rat_dbmodel, rat_dbmetaclass
+        def count(self, table, conditions=None, alias=None):
+            """计数记录（返回Python原生格式）"""
+            response_str = self.bridge.count(table, conditions, alias)
+            return self._convert_response(response_str)
+else:
+    NativeDataBridge = None
 
 # 便捷的别名 (仅在成功导入时定义)
 try:
