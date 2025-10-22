@@ -360,7 +360,7 @@ async fn demonstrate_batch_delete() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 2. 按部门批量删除
+    // 2. 按部门批量删除 - 测试高效delete_many方法
     println!("\n2️⃣ 按部门批量删除（删除Temp部门的所有用户）");
     let temp_dept_conditions = vec![
         QueryCondition {
@@ -370,28 +370,51 @@ async fn demonstrate_batch_delete() -> Result<(), Box<dyn std::error::Error>> {
         },
     ];
 
-    // 先查询要删除的用户
+    // 先显示要删除的用户（仅用于演示）
     match ModelManager::<User>::find(temp_dept_conditions.clone(), None).await {
         Ok(temp_dept_users) => {
             println!("  找到 {} 个Temp部门的用户待删除", temp_dept_users.len());
-
-            let mut deleted_count = 0;
-            for user in temp_dept_users {
-                println!("    - 删除用户: {} ({})", user.username, user.full_name);
-                match user.delete().await {
-                    Ok(_) => {
-                        deleted_count += 1;
-                        println!("      ✅ 删除成功");
-                    },
-                    Err(e) => println!("      ❌ 删除失败: {}", e),
-                }
+            for user in &temp_dept_users {
+                println!("    - 将删除: {} ({})", user.username, user.full_name);
             }
-            println!("  🗑️ Temp部门批量删除完成，删除了 {} 个用户", deleted_count);
         },
-        Err(e) => println!("  ❌ 查询Temp部门失败: {}", e),
+        Err(e) => {
+            println!("  ❌ 查询Temp部门失败: {}", e);
+        }
     }
 
-    // 3. 按状态批量删除
+    // 🔥 测试真正的高效批量删除！
+    println!("  🔥 测试User::delete_many高效批量删除...");
+    match User::delete_many(temp_dept_conditions.clone()).await {
+        Ok(affected_rows) => {
+            println!("  ✅ 高效批量删除成功！删除了 {} 条记录", affected_rows);
+            println!("  🎉 一次SQL操作：DELETE FROM users WHERE department = 'Temp'");
+        },
+        Err(e) => {
+            println!("  ❌ User::delete_many失败: {}", e);
+            println!("  🔄 降级使用逐个删除方式...");
+
+            // 降级方案：使用原来的逐个删除方式
+            match ModelManager::<User>::find(temp_dept_conditions.clone(), None).await {
+                Ok(temp_dept_users) => {
+                    let mut deleted_count = 0;
+                    for user in temp_dept_users {
+                        match user.delete().await {
+                            Ok(_) => {
+                                deleted_count += 1;
+                                println!("    - 逐个删除成功: {}", user.username);
+                            },
+                            Err(e) => println!("    ❌ 逐个删除失败 {}: {}", user.username, e),
+                        }
+                    }
+                    println!("  📊 逐个删除完成，删除了 {} 个用户", deleted_count);
+                },
+                Err(e) => println!("  ❌ 降级删除也失败: {}", e),
+            }
+        }
+    }
+
+    // 3. 按状态批量删除 - 使用高效delete_many方法
     println!("\n3️⃣ 按状态批量删除（删除非活跃用户）");
     let inactive_conditions = vec![
         QueryCondition {
@@ -401,24 +424,36 @@ async fn demonstrate_batch_delete() -> Result<(), Box<dyn std::error::Error>> {
         },
     ];
 
-    match ModelManager::<User>::find(inactive_conditions.clone(), None).await {
-        Ok(inactive_users) => {
-            println!("  找到 {} 个非活跃用户待删除", inactive_users.len());
-
-            let mut deleted_count = 0;
-            for user in inactive_users {
-                println!("    - 删除非活跃用户: {} ({})", user.username, user.full_name);
-                match user.delete().await {
-                    Ok(_) => {
-                        deleted_count += 1;
-                        println!("      ✅ 删除成功");
-                    },
-                    Err(e) => println!("      ❌ 删除失败: {}", e),
-                }
-            }
-            println!("  🔒 非活跃用户批量删除完成，删除了 {} 个用户", deleted_count);
+    // 🔥 使用高效的批量删除！
+    println!("  🔥 使用User::delete_many删除非活跃用户...");
+    match User::delete_many(inactive_conditions.clone()).await {
+        Ok(affected_rows) => {
+            println!("  ✅ 非活跃用户批量删除成功！删除了 {} 条记录", affected_rows);
+            println!("  🎉 一次SQL操作：DELETE FROM users WHERE is_active = false");
         },
-        Err(e) => println!("  ❌ 查询非活跃用户失败: {}", e),
+        Err(e) => {
+            println!("  ❌ User::delete_many失败: {}", e);
+            println!("  🔄 降级使用逐个删除方式...");
+
+            // 降级方案
+            match ModelManager::<User>::find(inactive_conditions.clone(), None).await {
+                Ok(inactive_users) => {
+                    println!("  找到 {} 个非活跃用户待删除", inactive_users.len());
+                    let mut deleted_count = 0;
+                    for user in inactive_users {
+                        match user.delete().await {
+                            Ok(_) => {
+                                deleted_count += 1;
+                                println!("    - 逐个删除非活跃用户: {}", user.username);
+                            },
+                            Err(e) => println!("    ❌ 逐个删除失败 {}: {}", user.username, e),
+                        }
+                    }
+                    println!("  🔒 逐个删除完成，删除了 {} 个用户", deleted_count);
+                },
+                Err(e) => println!("  ❌ 降级删除也失败: {}", e),
+            }
+        }
     }
 
     Ok(())
