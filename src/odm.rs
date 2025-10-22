@@ -6,7 +6,7 @@ use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
 use crate::manager::get_global_pool_manager;
 use crate::adapter::{DatabaseAdapter, create_adapter};
-use crate::pool::DatabaseOperation;
+use crate::pool::{DatabaseOperation, DatabaseConnection};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -61,7 +61,16 @@ pub trait OdmOperations {
         updates: HashMap<String, DataValue>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64>;
-    
+
+    /// 使用操作数组更新记录
+    async fn update_with_operations(
+        &self,
+        collection: &str,
+        conditions: Vec<QueryCondition>,
+        operations: Vec<crate::types::UpdateOperation>,
+        alias: Option<&str>,
+    ) -> QuickDbResult<u64>;
+
     /// 根据ID更新记录
     async fn update_by_id(
         &self,
@@ -143,6 +152,13 @@ pub enum OdmRequest {
         collection: String,
         conditions: Vec<QueryCondition>,
         updates: HashMap<String, DataValue>,
+        alias: Option<String>,
+        response: oneshot::Sender<QuickDbResult<u64>>,
+    },
+    UpdateWithOperations {
+        collection: String,
+        conditions: Vec<QueryCondition>,
+        operations: Vec<crate::types::UpdateOperation>,
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
@@ -245,6 +261,10 @@ impl AsyncOdmManager {
                 },
                 OdmRequest::Update { collection, conditions, updates, alias, response } => {
                     let result = Self::handle_update(&collection, conditions, updates, alias).await;
+                    let _ = response.send(result);
+                },
+                OdmRequest::UpdateWithOperations { collection, conditions, operations, alias, response } => {
+                    let result = Self::handle_update_with_operations(&collection, conditions, operations, alias).await;
                     let _ = response.send(result);
                 },
                 OdmRequest::UpdateById { collection, id, updates, alias, response } => {
@@ -630,7 +650,56 @@ impl AsyncOdmManager {
         
         Ok(affected_rows)
     }
-    
+
+    /// 处理使用操作数组更新请求
+    async fn handle_update_with_operations(
+        collection: &str,
+        conditions: Vec<QueryCondition>,
+        operations: Vec<crate::types::UpdateOperation>,
+        alias: Option<String>,
+    ) -> QuickDbResult<u64> {
+        let manager = get_global_pool_manager();
+        let actual_alias = match alias {
+            Some(a) => a,
+            None => {
+                manager.get_default_alias().await
+                    .unwrap_or_else(|| "default".to_string())
+            }
+        };
+        debug!("处理操作更新请求: collection={}, alias={}", collection, actual_alias);
+
+        let manager = get_global_pool_manager();
+        let connection_pools = manager.get_connection_pools();
+        let connection_pool = connection_pools.get(&actual_alias)
+            .ok_or_else(|| QuickDbError::AliasNotFound {
+                alias: actual_alias.clone(),
+            })?;
+
+        // 创建oneshot通道用于接收响应
+        let (response_tx, response_rx) = oneshot::channel();
+
+        // 发送DatabaseOperation::UpdateWithOperations请求到连接池
+        let operation = DatabaseOperation::UpdateWithOperations {
+            table: collection.to_string(),
+            conditions,
+            operations,
+            response: response_tx,
+        };
+
+        connection_pool.operation_sender.send(operation)
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "连接池操作通道已关闭".to_string(),
+            })?;
+
+        // 等待响应
+        let affected_rows = response_rx.await
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "等待连接池响应超时".to_string(),
+            })??;
+
+        Ok(affected_rows)
+    }
+
     /// 处理根据ID更新请求
     async fn handle_update_by_id(
         collection: &str,
@@ -1064,7 +1133,35 @@ impl OdmOperations for AsyncOdmManager {
                 message: "ODM请求处理失败".to_string(),
             })?
     }
-    
+
+    async fn update_with_operations(
+        &self,
+        collection: &str,
+        conditions: Vec<QueryCondition>,
+        operations: Vec<crate::types::UpdateOperation>,
+        alias: Option<&str>,
+    ) -> QuickDbResult<u64> {
+        let (sender, receiver) = oneshot::channel();
+
+        let request = OdmRequest::UpdateWithOperations {
+            collection: collection.to_string(),
+            conditions,
+            operations,
+            alias: alias.map(|s| s.to_string()),
+            response: sender,
+        };
+
+        self.request_sender.send(request)
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "ODM后台任务已停止".to_string(),
+            })?;
+
+        receiver.await
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "ODM请求处理失败".to_string(),
+            })?
+    }
+
     async fn update_by_id(
         &self,
         collection: &str,
@@ -1323,6 +1420,21 @@ pub async fn update_by_id(
 ) -> QuickDbResult<bool> {
     let manager = get_odm_manager().await;
     manager.update_by_id(collection, id, updates, alias).await
+}
+
+/// 便捷函数：使用操作数组更新记录
+///
+/// 【注意】这是一个内部函数，建议通过ModelManager或模型的update_many_with_operations方法进行操作
+/// 除非您明确知道自己在做什么，否则不要直接调用此函数
+#[doc(hidden)]
+pub async fn update_with_operations(
+    collection: &str,
+    conditions: Vec<QueryCondition>,
+    operations: Vec<crate::types::UpdateOperation>,
+    alias: Option<&str>,
+) -> QuickDbResult<u64> {
+    let manager = get_odm_manager().await;
+    manager.update_with_operations(collection, conditions, operations, alias).await
 }
 
 /// 便捷函数：删除记录

@@ -826,6 +826,146 @@ impl DatabaseAdapter for MongoAdapter {
         Ok(affected > 0)
     }
 
+    async fn update_with_operations(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        conditions: &[QueryCondition],
+        operations: &[crate::types::UpdateOperation],
+    ) -> QuickDbResult<u64> {
+        if let DatabaseConnection::MongoDB(db) = connection {
+            let collection = self.get_collection(db, table);
+
+            let query = self.build_query_document(conditions)?;
+            let mut update_doc = Document::new();
+
+            let mut set_doc = Document::new();
+            let mut inc_doc = Document::new();
+
+            for operation in operations {
+                match &operation.operation {
+                    crate::types::UpdateOperator::Set => {
+                        let bson_value = self.data_value_to_bson(&operation.value)?;
+                        set_doc.insert(&operation.field, bson_value);
+                    }
+                    crate::types::UpdateOperator::Increment => {
+                        let bson_value = self.data_value_to_bson(&operation.value)?;
+                        inc_doc.insert(&operation.field, bson_value);
+                    }
+                    crate::types::UpdateOperator::Decrement => {
+                        // 对于减少操作，使用负数的inc操作
+                        let neg_value = match &operation.value {
+                            crate::types::DataValue::Int(i) => crate::types::DataValue::Int(-i),
+                            crate::types::DataValue::Float(f) => crate::types::DataValue::Float(-f),
+                            _ => return Err(QuickDbError::ValidationError {
+                                field: operation.field.clone(),
+                                message: "Decrement操作只支持数值类型".to_string(),
+                            }),
+                        };
+                        let bson_value = self.data_value_to_bson(&neg_value)?;
+                        inc_doc.insert(&operation.field, bson_value);
+                    }
+                    crate::types::UpdateOperator::Multiply => {
+                        // MongoDB使用$multiply操作符
+                        let bson_value = self.data_value_to_bson(&operation.value)?;
+                        if !set_doc.contains_key("$mul") {
+                            set_doc.insert("$mul", Document::new());
+                        }
+                        let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
+                        mul_doc.insert(&operation.field, bson_value);
+                    }
+                    crate::types::UpdateOperator::Divide => {
+                        // MongoDB不支持直接除法，但可以使用乘法配合小数
+                        let divisor = match &operation.value {
+                            crate::types::DataValue::Int(i) => 1.0 / *i as f64,
+                            crate::types::DataValue::Float(f) => 1.0 / f,
+                            _ => return Err(QuickDbError::ValidationError {
+                                field: operation.field.clone(),
+                                message: "Divide操作只支持数值类型".to_string(),
+                            }),
+                        };
+                        let bson_value = self.data_value_to_bson(&crate::types::DataValue::Float(divisor))?;
+                        if !set_doc.contains_key("$mul") {
+                            set_doc.insert("$mul", Document::new());
+                        }
+                        let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
+                        mul_doc.insert(&operation.field, bson_value);
+                    }
+                    crate::types::UpdateOperator::PercentIncrease => {
+                        // 百分比增加：转换为乘法 (1 + percentage/100)
+                        let percentage = match &operation.value {
+                            crate::types::DataValue::Float(f) => *f,
+                            crate::types::DataValue::Int(i) => *i as f64,
+                            _ => return Err(QuickDbError::ValidationError {
+                                field: operation.field.clone(),
+                                message: "PercentIncrease操作只支持数值类型".to_string(),
+                            }),
+                        };
+                        let multiplier = 1.0 + percentage / 100.0;
+                        let bson_value = self.data_value_to_bson(&crate::types::DataValue::Float(multiplier))?;
+                        if !set_doc.contains_key("$mul") {
+                            set_doc.insert("$mul", Document::new());
+                        }
+                        let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
+                        mul_doc.insert(&operation.field, bson_value);
+                    }
+                    crate::types::UpdateOperator::PercentDecrease => {
+                        // 百分比减少：转换为乘法 (1 - percentage/100)
+                        let percentage = match &operation.value {
+                            crate::types::DataValue::Float(f) => *f,
+                            crate::types::DataValue::Int(i) => *i as f64,
+                            _ => return Err(QuickDbError::ValidationError {
+                                field: operation.field.clone(),
+                                message: "PercentDecrease操作只支持数值类型".to_string(),
+                            }),
+                        };
+                        let multiplier = 1.0 - percentage / 100.0;
+                        let bson_value = self.data_value_to_bson(&crate::types::DataValue::Float(multiplier))?;
+                        if !set_doc.contains_key("$mul") {
+                            set_doc.insert("$mul", Document::new());
+                        }
+                        let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
+                        mul_doc.insert(&operation.field, bson_value);
+                    }
+                }
+            }
+
+            if !set_doc.is_empty() {
+                // 将$mul操作从set_doc中分离出来
+                let mut mul_doc = Document::new();
+                if let Some(bson_value) = set_doc.remove("$mul") {
+                    update_doc.insert("$mul", bson_value);
+                }
+                update_doc.insert("$set", set_doc);
+            }
+
+            if !inc_doc.is_empty() {
+                update_doc.insert("$inc", inc_doc);
+            }
+
+            if update_doc.is_empty() {
+                return Err(QuickDbError::ValidationError {
+                    field: "operations".to_string(),
+                    message: "更新操作不能为空".to_string(),
+                });
+            }
+
+            debug!("执行MongoDB操作更新: query={:?}, update={:?}", query, update_doc);
+
+            let result = collection.update_many(query, update_doc, None)
+                .await
+                .map_err(|e| QuickDbError::DatabaseError {
+                    message: format!("MongoDB更新失败: {}", e),
+                })?;
+
+            Ok(result.modified_count)
+        } else {
+            Err(QuickDbError::ConnectionError {
+                message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            })
+        }
+    }
+
     async fn delete(
         &self,
         connection: &DatabaseConnection,

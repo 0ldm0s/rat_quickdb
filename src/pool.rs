@@ -66,6 +66,13 @@ pub enum DatabaseOperation {
         data: HashMap<String, DataValue>,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
+    /// 使用操作数组更新记录
+    UpdateWithOperations {
+        table: String,
+        conditions: Vec<QueryCondition>,
+        operations: Vec<crate::types::UpdateOperation>,
+        response: oneshot::Sender<QuickDbResult<u64>>,
+    },
     /// 根据ID更新记录
     UpdateById {
         table: String,
@@ -490,6 +497,11 @@ impl SqliteWorker {
                 let _ = response.send(result);
                 Ok(())
             },
+            DatabaseOperation::UpdateWithOperations { table, conditions, operations, response } => {
+                let result = self.adapter.update_with_operations(&self.connection, &table, &conditions, &operations).await;
+                let _ = response.send(result);
+                Ok(())
+            },
             DatabaseOperation::UpdateById { table, id, data, response } => {
                 let result = self.adapter.update_by_id(&self.connection, &table, &id, &data).await;
                 let _ = response.send(result);
@@ -789,6 +801,11 @@ impl MultiConnectionManager {
             },
             DatabaseOperation::Update { table, conditions, data, response } => {
                 let result = worker.adapter.update(&worker.connection, &table, &conditions, &data).await;
+                let _ = response.send(result);
+                Ok(())
+            },
+            DatabaseOperation::UpdateWithOperations { table, conditions, operations, response } => {
+                let result = worker.adapter.update_with_operations(&worker.connection, &table, &conditions, &operations).await;
                 let _ = response.send(result);
                 Ok(())
             },

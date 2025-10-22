@@ -1642,7 +1642,135 @@ mod tests {
             _ => panic!("Expected MongoDB config"),
         }
     }
-    
+}
+
+    /// 更新操作类型
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum UpdateOperator {
+    /// 直接设置值
+    Set,
+    /// 原子性增加
+    Increment,
+    /// 原子性减少
+    Decrement,
+    /// 原子性乘法
+    Multiply,
+    /// 原子性除法
+    Divide,
+    /// 百分比增加 (值是百分比，如10表示增加10%)
+    PercentIncrease,
+    /// 百分比减少 (值是百分比，如10表示减少10%)
+    PercentDecrease,
+}
+
+/// 更新操作定义
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdateOperation {
+    /// 要更新的字段名
+    pub field: String,
+    /// 更新操作类型
+    pub operation: UpdateOperator,
+    /// 更新的值
+    pub value: DataValue,
+}
+
+impl UpdateOperation {
+    /// 创建一个设置操作
+    pub fn set(field: impl Into<String>, value: impl Into<DataValue>) -> Self {
+        Self {
+            field: field.into(),
+            operation: UpdateOperator::Set,
+            value: value.into(),
+        }
+    }
+
+    /// 创建一个增加操作
+    pub fn increment(field: impl Into<String>, value: impl Into<DataValue>) -> Self {
+        Self {
+            field: field.into(),
+            operation: UpdateOperator::Increment,
+            value: value.into(),
+        }
+    }
+
+    /// 创建一个减少操作
+    pub fn decrement(field: impl Into<String>, value: impl Into<DataValue>) -> Self {
+        Self {
+            field: field.into(),
+            operation: UpdateOperator::Decrement,
+            value: value.into(),
+        }
+    }
+
+    /// 创建一个乘法操作
+    pub fn multiply(field: impl Into<String>, value: impl Into<DataValue>) -> Self {
+        Self {
+            field: field.into(),
+            operation: UpdateOperator::Multiply,
+            value: value.into(),
+        }
+    }
+
+    /// 创建一个除法操作
+    pub fn divide(field: impl Into<String>, value: impl Into<DataValue>) -> Self {
+        Self {
+            field: field.into(),
+            operation: UpdateOperator::Divide,
+            value: value.into(),
+        }
+    }
+
+    /// 创建一个百分比增加操作
+    pub fn percent_increase(field: impl Into<String>, percentage: f64) -> Self {
+        Self {
+            field: field.into(),
+            operation: UpdateOperator::PercentIncrease,
+            value: DataValue::Float(percentage),
+        }
+    }
+
+    /// 创建一个百分比减少操作
+    pub fn percent_decrease(field: impl Into<String>, percentage: f64) -> Self {
+        Self {
+            field: field.into(),
+            operation: UpdateOperator::PercentDecrease,
+            value: DataValue::Float(percentage),
+        }
+    }
+  #[test]
+    fn test_update_operations() {
+        let set_op = UpdateOperation::set("name", "John");
+        assert_eq!(set_op.field, "name");
+        assert_eq!(set_op.operation, UpdateOperator::Set);
+        assert_eq!(set_op.value, DataValue::String("John".to_string()));
+
+        let inc_op = UpdateOperation::increment("age", 5);
+        assert_eq!(inc_op.field, "age");
+        assert_eq!(inc_op.operation, UpdateOperator::Increment);
+        assert_eq!(inc_op.value, DataValue::Int(5));
+
+        let dec_op = UpdateOperation::decrement("balance", 100.50);
+        assert_eq!(dec_op.field, "balance");
+        assert_eq!(dec_op.operation, UpdateOperator::Decrement);
+        assert_eq!(dec_op.value, DataValue::Float(100.50));
+    }
+
+    #[test]
+    fn test_data_value_conversions() {
+        // 测试基础类型转换
+        let int_val: DataValue = 42.into();
+        assert_eq!(int_val, DataValue::Int(42));
+
+        let float_val: DataValue = 3.14f64.into();
+        assert_eq!(float_val, DataValue::Float(3.14));
+
+        let string_val: DataValue = "hello".into();
+        assert_eq!(string_val, DataValue::String("hello".to_string()));
+
+        let bool_val: DataValue = true.into();
+        assert_eq!(bool_val, DataValue::Bool(true));
+    }
+
     #[test]
     fn test_mongodb_uri_generation() {
         let builder = MongoDbConnectionBuilder::new("localhost", 27017, "testdb")
@@ -1651,7 +1779,7 @@ mod tests {
             .with_direct_connection(true)
             .with_tls_config(TlsConfig::enabled())
             .with_zstd_config(ZstdConfig::enabled());
-            
+
         let uri = builder.build_uri();
         assert!(uri.contains("mongodb://"));
         assert!(uri.contains("user:pass%40word%23123@"));

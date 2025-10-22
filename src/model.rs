@@ -1049,6 +1049,21 @@ pub trait ModelOperations<T: Model> {
     /// 使用条件组查找多个模型（支持复杂的AND/OR逻辑组合）
     async fn find_with_groups(condition_groups: Vec<QueryConditionGroup>, options: Option<QueryOptions>) -> QuickDbResult<Vec<T>>;
 
+    /// 批量更新模型
+    ///
+    /// 根据条件批量更新多条记录，返回受影响的行数
+    async fn update_many(conditions: Vec<QueryCondition>, updates: HashMap<String, DataValue>) -> QuickDbResult<u64>;
+
+    /// 使用操作数组批量更新模型
+    ///
+    /// 根据条件使用操作数组批量更新多条记录，支持原子性增减操作，返回受影响的行数
+    async fn update_many_with_operations(conditions: Vec<QueryCondition>, operations: Vec<crate::types::UpdateOperation>) -> QuickDbResult<u64>;
+
+    /// 批量删除模型
+    ///
+    /// 根据条件批量删除多条记录，返回受影响的行数
+    async fn delete_many(conditions: Vec<QueryCondition>) -> QuickDbResult<u64>;
+
     /// 创建表
     ///
     /// 使用模型的元数据直接创建表，无需插入数据
@@ -1221,6 +1236,57 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
             models.push(model);
         }
         Ok(models)
+    }
+
+    /// 批量更新模型
+    ///
+    /// 根据条件批量更新多条记录，返回受影响的行数
+    async fn update_many(conditions: Vec<QueryCondition>, updates: HashMap<String, DataValue>) -> QuickDbResult<u64> {
+        let collection_name = T::collection_name();
+        let database_alias = T::database_alias();
+
+        debug!("批量更新模型: collection={}, 条件数量={}", collection_name, conditions.len());
+
+        odm::update(
+            &collection_name,
+            conditions,
+            updates,
+            database_alias.as_deref(),
+        ).await
+    }
+
+    /// 使用操作数组批量更新模型
+    ///
+    /// 根据条件使用操作数组批量更新多条记录，支持原子性增减操作，返回受影响的行数
+    async fn update_many_with_operations(conditions: Vec<QueryCondition>, operations: Vec<crate::types::UpdateOperation>) -> QuickDbResult<u64> {
+        let collection_name = T::collection_name();
+        let database_alias = T::database_alias();
+
+        debug!("使用操作数组批量更新模型: collection={}, 条件数量={}, 操作数量={}",
+               collection_name, conditions.len(), operations.len());
+
+        odm::update_with_operations(
+            &collection_name,
+            conditions,
+            operations,
+            database_alias.as_deref(),
+        ).await
+    }
+
+    /// 批量删除模型
+    ///
+    /// 根据条件批量删除多条记录，返回受影响的行数
+    async fn delete_many(conditions: Vec<QueryCondition>) -> QuickDbResult<u64> {
+        let collection_name = T::collection_name();
+        let database_alias = T::database_alias();
+
+        debug!("批量删除模型: collection={}, 条件数量={}", collection_name, conditions.len());
+
+        odm::delete(
+            &collection_name,
+            conditions,
+            database_alias.as_deref(),
+        ).await
     }
 
     /// 创建表
@@ -1668,6 +1734,50 @@ macro_rules! define_model {
                 let database_alias = Self::database_alias();
 
                 $crate::odm::delete_by_id(&collection_name, &id_str, database_alias.as_deref()).await
+            }
+
+            /// 批量更新模型（静态方法）
+            ///
+            /// 根据条件批量更新多条记录，返回受影响的行数
+            pub async fn update_many(conditions: Vec<$crate::types::QueryCondition>, updates: std::collections::HashMap<String, $crate::types::DataValue>) -> $crate::error::QuickDbResult<u64> {
+                let collection_name = Self::collection_name();
+                let database_alias = Self::database_alias();
+
+                $crate::odm::update(
+                    &collection_name,
+                    conditions,
+                    updates,
+                    database_alias.as_deref(),
+                ).await
+            }
+
+            /// 使用操作数组批量更新模型（静态方法）
+            ///
+            /// 根据条件使用操作数组批量更新多条记录，支持原子性增减操作，返回受影响的行数
+            pub async fn update_many_with_operations(conditions: Vec<$crate::types::QueryCondition>, operations: Vec<$crate::types::UpdateOperation>) -> $crate::error::QuickDbResult<u64> {
+                let collection_name = Self::collection_name();
+                let database_alias = Self::database_alias();
+
+                $crate::odm::update_with_operations(
+                    &collection_name,
+                    conditions,
+                    operations,
+                    database_alias.as_deref(),
+                ).await
+            }
+
+            /// 批量删除模型（静态方法）
+            ///
+            /// 根据条件批量删除多条记录，返回受影响的行数
+            pub async fn delete_many(conditions: Vec<$crate::types::QueryCondition>) -> $crate::error::QuickDbResult<u64> {
+                let collection_name = Self::collection_name();
+                let database_alias = Self::database_alias();
+
+                $crate::odm::delete(
+                    &collection_name,
+                    conditions,
+                    database_alias.as_deref(),
+                ).await
             }
         }
     };

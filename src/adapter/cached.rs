@@ -187,6 +187,30 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         result
     }
 
+    /// 使用操作数组更新记录 - 更新成功后智能清理相关缓存
+    async fn update_with_operations(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        conditions: &[QueryCondition],
+        operations: &[crate::types::UpdateOperation],
+    ) -> QuickDbResult<u64> {
+        // 直接调用内部适配器更新记录
+        let result = self.inner.update_with_operations(connection, table, conditions, operations).await;
+
+        // 更新成功后只清理查询缓存，避免过度清理
+        if let Ok(updated_count) = result {
+            if updated_count > 0 {
+                if let Err(e) = self.cache_manager.clear_table_query_cache(table).await {
+                    warn!("清理表查询缓存失败: {}", e);
+                }
+                debug!("已清理表查询缓存: table={}, updated_count={}", table, updated_count);
+            }
+        }
+
+        result
+    }
+
     /// 根据ID更新记录 - 更新成功后精确清理相关缓存
     async fn update_by_id(
         &self,

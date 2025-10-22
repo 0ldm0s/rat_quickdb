@@ -634,7 +634,7 @@ impl SqlQueryBuilder {
     }
 
     /// 构建WHERE子句，从指定的参数索引开始
-    fn build_where_clause_with_offset(&self, conditions: &[QueryCondition], start_index: usize) -> QuickDbResult<(String, Vec<DataValue>)> {
+    pub(crate) fn build_where_clause_with_offset(&self, conditions: &[QueryCondition], start_index: usize) -> QuickDbResult<(String, Vec<DataValue>)> {
         if conditions.is_empty() {
             return Ok((String::new(), Vec::new()));
         }

@@ -923,6 +923,79 @@ impl DatabaseAdapter for MysqlAdapter {
         }
     }
 
+    async fn update_with_operations(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        conditions: &[QueryCondition],
+        operations: &[crate::types::UpdateOperation],
+    ) -> QuickDbResult<u64> {
+        if let DatabaseConnection::MySQL(pool) = connection {
+            let mut set_clauses = Vec::new();
+            let mut params = Vec::new();
+
+            for operation in operations {
+                match &operation.operation {
+                    crate::types::UpdateOperator::Set => {
+                        set_clauses.push(format!("{} = ?", operation.field));
+                        params.push(operation.value.clone());
+                    }
+                    crate::types::UpdateOperator::Increment => {
+                        set_clauses.push(format!("{} = {} + ?", operation.field, operation.field));
+                        params.push(operation.value.clone());
+                    }
+                    crate::types::UpdateOperator::Decrement => {
+                        set_clauses.push(format!("{} = {} - ?", operation.field, operation.field));
+                        params.push(operation.value.clone());
+                    }
+                    crate::types::UpdateOperator::Multiply => {
+                        set_clauses.push(format!("{} = {} * ?", operation.field, operation.field));
+                        params.push(operation.value.clone());
+                    }
+                    crate::types::UpdateOperator::Divide => {
+                        set_clauses.push(format!("{} = {} / ?", operation.field, operation.field));
+                        params.push(operation.value.clone());
+                    }
+                    crate::types::UpdateOperator::PercentIncrease => {
+                        set_clauses.push(format!("{} = {} * (1.0 + ?/100.0)", operation.field, operation.field));
+                        params.push(operation.value.clone());
+                    }
+                    crate::types::UpdateOperator::PercentDecrease => {
+                        set_clauses.push(format!("{} = {} * (1.0 - ?/100.0)", operation.field, operation.field));
+                        params.push(operation.value.clone());
+                    }
+                }
+            }
+
+            if set_clauses.is_empty() {
+                return Err(QuickDbError::ValidationError {
+                    field: "operations".to_string(),
+                    message: "更新操作不能为空".to_string(),
+                });
+            }
+
+            let mut sql = format!("UPDATE {} SET {}", table, set_clauses.join(", "));
+
+            // 添加WHERE条件
+            if !conditions.is_empty() {
+                let (where_clause, mut where_params) = SqlQueryBuilder::new()
+                    .database_type(crate::types::DatabaseType::MySQL)
+                    .build_where_clause(conditions)?;
+
+                sql.push_str(&format!(" WHERE {}", where_clause));
+                params.extend(where_params);
+            }
+
+            debug!("执行MySQL操作更新: {}", sql);
+
+            self.execute_update(pool, &sql, &params).await
+        } else {
+            Err(QuickDbError::ConnectionError {
+                message: "连接类型不匹配，期望MySQL连接".to_string(),
+            })
+        }
+    }
+
     async fn delete(
         &self,
         connection: &DatabaseConnection,

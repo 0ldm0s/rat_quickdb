@@ -373,6 +373,80 @@ impl DatabaseAdapter for SqliteAdapter {
         Ok(affected_rows > 0)
     }
 
+    async fn update_with_operations(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        conditions: &[QueryCondition],
+        operations: &[crate::types::UpdateOperation],
+    ) -> QuickDbResult<u64> {
+        let pool = match connection {
+            DatabaseConnection::SQLite(pool) => pool,
+            _ => return Err(QuickDbError::ConnectionError {
+                message: "Invalid connection type for SQLite".to_string(),
+            }),
+        };
+
+        let mut set_clauses = Vec::new();
+        let mut params = Vec::new();
+
+        for operation in operations {
+            match &operation.operation {
+                crate::types::UpdateOperator::Set => {
+                    set_clauses.push(format!("{} = ?", operation.field));
+                    params.push(operation.value.clone());
+                }
+                crate::types::UpdateOperator::Increment => {
+                    set_clauses.push(format!("{} = {} + ?", operation.field, operation.field));
+                    params.push(operation.value.clone());
+                }
+                crate::types::UpdateOperator::Decrement => {
+                    set_clauses.push(format!("{} = {} - ?", operation.field, operation.field));
+                    params.push(operation.value.clone());
+                }
+                crate::types::UpdateOperator::Multiply => {
+                    set_clauses.push(format!("{} = {} * ?", operation.field, operation.field));
+                    params.push(operation.value.clone());
+                }
+                crate::types::UpdateOperator::Divide => {
+                    set_clauses.push(format!("{} = {} / ?", operation.field, operation.field));
+                    params.push(operation.value.clone());
+                }
+                crate::types::UpdateOperator::PercentIncrease => {
+                    set_clauses.push(format!("{} = {} * (1.0 + ?/100.0)", operation.field, operation.field));
+                    params.push(operation.value.clone());
+                }
+                crate::types::UpdateOperator::PercentDecrease => {
+                    set_clauses.push(format!("{} = {} * (1.0 - ?/100.0)", operation.field, operation.field));
+                    params.push(operation.value.clone());
+                }
+            }
+        }
+
+        if set_clauses.is_empty() {
+            return Err(QuickDbError::ValidationError {
+                field: "operations".to_string(),
+                message: "更新操作不能为空".to_string(),
+            });
+        }
+
+        let mut sql = format!("UPDATE {} SET {}", table, set_clauses.join(", "));
+
+        // 添加WHERE条件
+        if !conditions.is_empty() {
+            let (where_clause, mut where_params) = SqlQueryBuilder::new()
+                .database_type(crate::types::DatabaseType::SQLite)
+                .build_where_clause(conditions)?;
+
+            sql.push_str(&format!(" WHERE {}", where_clause));
+            params.extend(where_params);
+        }
+
+        debug!("执行SQLite操作更新: {}", sql);
+
+        self.execute_update(pool, &sql, &params).await
+    }
+
     async fn delete(
         &self,
         connection: &DatabaseConnection,

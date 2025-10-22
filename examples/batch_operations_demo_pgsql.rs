@@ -4,6 +4,7 @@
 
 use rat_quickdb::*;
 use rat_quickdb::model::{ModelManager, Model, string_field, integer_field, float_field, boolean_field, datetime_field};
+use rat_quickdb::types::{UpdateOperation, QueryOperator, QueryCondition, DataValue};
 use rat_logger::debug;
 use chrono::Utc;
 use std::collections::HashMap;
@@ -180,7 +181,7 @@ async fn create_test_data() -> Result<(), Box<dyn std::error::Error>> {
 async fn demonstrate_batch_update() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n🔄 批量更新操作演示");
 
-    // 1. 演示按部门批量加薪
+    // 1. 演示按部门批量加薪 - 使用新的update_many_with_operations方法
     println!("\n1️⃣ 按部门批量加薪（Engineering部门薪资增加10%）");
     let engineering_conditions = vec![
         QueryCondition {
@@ -198,27 +199,33 @@ async fn demonstrate_batch_update() -> Result<(), Box<dyn std::error::Error>> {
                 println!("    - {}: 当前薪资 ${:.2}", eng.username, eng.salary.unwrap_or(0.0));
             }
 
-            // 批量更新薪资
-            let mut update_data = HashMap::new();
-            update_data.insert("updated_at".to_string(), DataValue::DateTime(Utc::now()));
+            // 使用新的批量操作方法进行原子性更新！
+            println!("  🔥 使用新的update_many_with_operations方法进行高效批量更新...");
+            let operations = vec![
+                // 更新时间戳
+                UpdateOperation::set("updated_at", DataValue::DateTime(Utc::now())),
+                // 真正的百分比增加！直接在SQL中计算salary = salary * (1.0 + 10.0/100.0)
+                UpdateOperation::percent_increase("salary", 10.0), // 增加10%
+            ];
 
-            let mut updated_count = 0;
-            for mut engineer in engineers {
-                if let Some(current_salary) = engineer.salary {
-                    let new_salary = current_salary * 1.1; // 增加10%
-                    update_data.insert("salary".to_string(), DataValue::Float(new_salary));
-
-                    match engineer.update(update_data.clone()).await {
-                        Ok(_) => {
-                            updated_count += 1;
-                            println!("    ✅ 更新 {} 薪资: ${:.2} -> ${:.2}",
-                                   engineer.username, current_salary, new_salary);
-                        },
-                        Err(e) => println!("    ❌ 更新 {} 失败: {}", engineer.username, e),
-                    }
-                }
+            match User::update_many_with_operations(engineering_conditions.clone(), operations).await {
+                Ok(affected_rows) => {
+                    println!("  ✅ 高效批量加薪完成！影响了 {} 条记录", affected_rows);
+                    println!("  🎉 这是真正的高效SQL操作：UPDATE users SET updated_at = ?, salary = salary * (1.0 + 10.0/100.0) WHERE department = ?");
+                },
+                Err(e) => println!("  ❌ 批量加薪失败: {}", e),
             }
-            println!("  📈 Engineering部门批量加薪完成，更新了 {} 个员工", updated_count);
+
+            // 查询更新后的结果验证
+            println!("  🔍 验证更新结果...");
+            match ModelManager::<User>::find(engineering_conditions.clone(), None).await {
+                Ok(updated_engineers) => {
+                    for eng in &updated_engineers {
+                        println!("    - {}: 更新后薪资 ${:.2}", eng.username, eng.salary.unwrap_or(0.0));
+                    }
+                },
+                Err(e) => println!("  ❌ 验证失败: {}", e),
+            }
         },
         Err(e) => println!("  ❌ 查询Engineering部门失败: {}", e),
     }
@@ -255,8 +262,8 @@ async fn demonstrate_batch_update() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("  ❌ 查询资深用户失败: {}", e),
     }
 
-    // 3. 演示复杂条件的批量操作
-    println!("\n3️⃣ 复杂条件批量更新（特定部门且薪资低于某个值的员工）");
+    // 3. 演示复杂条件的批量操作 - 使用多种新操作类型
+    println!("\n3️⃣ 复杂条件批量更新（Sales部门低薪员工多重调整）");
     let complex_conditions = vec![
         QueryCondition {
             field: "department".to_string(),
@@ -270,21 +277,45 @@ async fn demonstrate_batch_update() -> Result<(), Box<dyn std::error::Error>> {
         },
     ];
 
-    let mut update_data = HashMap::new();
-    update_data.insert("updated_at".to_string(), DataValue::DateTime(Utc::now()));
-
     match ModelManager::<User>::find(complex_conditions.clone(), None).await {
         Ok(target_users) => {
-            println!("  找到 {} 个符合条件的Sales部门员工", target_users.len());
+            println!("  找到 {} 个符合条件的Sales部门低薪员工", target_users.len());
+            for user in &target_users {
+                println!("    - 调整前 {}: 薪资=${:.2}, 活跃={}",
+                       user.username, user.salary.unwrap_or(0.0), user.is_active);
+            }
 
-            for user in target_users {
-                println!("    - 更新 {}: 部门={}, 薪资=${:.2}",
-                       user.username, user.department, user.salary.unwrap_or(0.0));
+            // 使用多种新操作类型进行复杂的批量更新！
+            println!("  🔥 使用多种新操作类型进行复杂批量更新...");
+            let operations = vec![
+                // 更新时间戳
+                UpdateOperation::set("updated_at", DataValue::DateTime(Utc::now())),
+                // 薪资增加37.5% (合并25%加薪 + 10%奖金，1.25 * 1.1 = 1.375，即增加37.5%)
+                UpdateOperation::percent_increase("salary", 37.5),
+                // 年龄加1岁 (模拟生日批量更新)
+                UpdateOperation::increment("age", DataValue::Int(1)),
+                // 设置为活跃用户
+                UpdateOperation::set("is_active", DataValue::Bool(true)),
+            ];
 
-                match user.update(update_data.clone()).await {
-                    Ok(_) => println!("      ✅ 更新成功"),
-                    Err(e) => println!("      ❌ 更新失败: {}", e),
-                }
+            match User::update_many_with_operations(complex_conditions.clone(), operations).await {
+                Ok(affected_rows) => {
+                    println!("  ✅ 复杂批量更新完成！影响了 {} 条记录", affected_rows);
+                    println!("  🎉 生成的复杂SQL操作包含多个原子操作！");
+                },
+                Err(e) => println!("  ❌ 复杂批量更新失败: {}", e),
+            }
+
+            // 验证更新结果
+            println!("  🔍 验证复杂更新结果...");
+            match ModelManager::<User>::find(complex_conditions.clone(), None).await {
+                Ok(updated_users) => {
+                    for user in &updated_users {
+                        println!("    - 调整后 {}: 薪资=${:.2}, 活跃={}, 年龄={}",
+                               user.username, user.salary.unwrap_or(0.0), user.is_active, user.age.unwrap_or(0));
+                    }
+                },
+                Err(e) => println!("  ❌ 验证失败: {}", e),
             }
         },
         Err(e) => println!("  ❌ 查询失败: {}", e),

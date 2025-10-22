@@ -83,6 +83,15 @@ pub trait DatabaseAdapter: Send + Sync {
         data: &HashMap<String, DataValue>,
     ) -> QuickDbResult<u64>;
 
+    /// 使用操作数组更新记录
+    async fn update_with_operations(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        conditions: &[QueryCondition],
+        operations: &[crate::types::UpdateOperation],
+    ) -> QuickDbResult<u64>;
+
     /// 根据ID更新记录
     async fn update_by_id(
         &self,
