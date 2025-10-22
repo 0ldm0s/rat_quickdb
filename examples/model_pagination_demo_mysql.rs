@@ -11,7 +11,7 @@ use rat_quickdb::*;
 use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig, DataValue, QueryCondition, QueryOperator, SortDirection, SortConfig, PaginationConfig};
 use rat_quickdb::manager::health_check;
 use rat_quickdb::{ModelManager, ModelOperations, string_field, integer_field, float_field, boolean_field, datetime_field};
-use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
+use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig, debug};
 use std::collections::HashMap;
 use std::time::Duration;
 use chrono::{Utc, DateTime};

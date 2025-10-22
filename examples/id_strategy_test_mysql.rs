@@ -9,7 +9,7 @@
 use rat_quickdb::*;
 use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig, IdStrategy};
 use rat_quickdb::{ModelManager, ModelOperations, string_field, integer_field, datetime_field};
-use rat_logger::{LoggerBuilder, handler::term::TermConfig};
+use rat_logger::{LoggerBuilder, handler::term::TermConfig, debug};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use chrono::{Utc, DateTime};

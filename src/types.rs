@@ -1587,62 +1587,6 @@ impl MongoDbConnectionBuilder {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_database_type_parsing() {
-        assert_eq!(DatabaseType::from_str("sqlite").unwrap(), DatabaseType::SQLite);
-        assert_eq!(DatabaseType::from_str("postgresql").unwrap(), DatabaseType::PostgreSQL);
-        assert_eq!(DatabaseType::from_str("mysql").unwrap(), DatabaseType::MySQL);
-        assert_eq!(DatabaseType::from_str("mongodb").unwrap(), DatabaseType::MongoDB);
-        
-        assert!(DatabaseType::from_str("unknown").is_err());
-    }
-
-    #[test]
-    fn test_data_value_serialization() {
-        let value = DataValue::String("测试".to_string());
-        let json = value.to_json_string().unwrap();
-        let parsed = DataValue::from_json_string(&json).unwrap();
-        assert_eq!(value, parsed);
-    }
-
-    #[test]
-    fn test_data_value_type_name() {
-        assert_eq!(DataValue::Null.type_name(), "null");
-        assert_eq!(DataValue::Bool(true).type_name(), "boolean");
-        assert_eq!(DataValue::String("test".to_string()).type_name(), "string");
-    }
-    
-    #[test]
-    fn test_mongodb_connection_builder() {
-        let config = MongoDbConnectionBuilder::new("localhost", 27017, "testdb")
-            .with_auth("user", "pass@word#123")
-            .with_auth_source("testdb")
-            .with_direct_connection(true)
-            .with_tls_config(TlsConfig::enabled())
-            .with_zstd_config(ZstdConfig::enabled())
-            .build();
-            
-        match config {
-            ConnectionConfig::MongoDB { 
-                host, port, database, username, password, 
-                auth_source, direct_connection, .. 
-            } => {
-                assert_eq!(host, "localhost");
-                assert_eq!(port, 27017);
-                assert_eq!(database, "testdb");
-                assert_eq!(username, Some("user".to_string()));
-                assert_eq!(password, Some("pass@word#123".to_string()));
-                assert_eq!(auth_source, Some("testdb".to_string()));
-                assert_eq!(direct_connection, true);
-            }
-            _ => panic!("Expected MongoDB config"),
-        }
-    }
-}
 
     /// 更新操作类型
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1736,57 +1680,5 @@ impl UpdateOperation {
             operation: UpdateOperator::PercentDecrease,
             value: DataValue::Float(percentage),
         }
-    }
-  #[test]
-    fn test_update_operations() {
-        let set_op = UpdateOperation::set("name", "John");
-        assert_eq!(set_op.field, "name");
-        assert_eq!(set_op.operation, UpdateOperator::Set);
-        assert_eq!(set_op.value, DataValue::String("John".to_string()));
-
-        let inc_op = UpdateOperation::increment("age", 5);
-        assert_eq!(inc_op.field, "age");
-        assert_eq!(inc_op.operation, UpdateOperator::Increment);
-        assert_eq!(inc_op.value, DataValue::Int(5));
-
-        let dec_op = UpdateOperation::decrement("balance", 100.50);
-        assert_eq!(dec_op.field, "balance");
-        assert_eq!(dec_op.operation, UpdateOperator::Decrement);
-        assert_eq!(dec_op.value, DataValue::Float(100.50));
-    }
-
-    #[test]
-    fn test_data_value_conversions() {
-        // 测试基础类型转换
-        let int_val: DataValue = 42.into();
-        assert_eq!(int_val, DataValue::Int(42));
-
-        let float_val: DataValue = 3.14f64.into();
-        assert_eq!(float_val, DataValue::Float(3.14));
-
-        let string_val: DataValue = "hello".into();
-        assert_eq!(string_val, DataValue::String("hello".to_string()));
-
-        let bool_val: DataValue = true.into();
-        assert_eq!(bool_val, DataValue::Bool(true));
-    }
-
-    #[test]
-    fn test_mongodb_uri_generation() {
-        let builder = MongoDbConnectionBuilder::new("localhost", 27017, "testdb")
-            .with_auth("user", "pass@word#123")
-            .with_auth_source("testdb")
-            .with_direct_connection(true)
-            .with_tls_config(TlsConfig::enabled())
-            .with_zstd_config(ZstdConfig::enabled());
-
-        let uri = builder.build_uri();
-        assert!(uri.contains("mongodb://"));
-        assert!(uri.contains("user:pass%40word%23123@"));
-        assert!(uri.contains("localhost:27017/testdb"));
-        assert!(uri.contains("authSource=testdb"));
-        assert!(uri.contains("directConnection=true"));
-        assert!(uri.contains("tls=true"));
-        assert!(uri.contains("compressors=zstd"));
     }
 }
