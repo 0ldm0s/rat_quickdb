@@ -1344,19 +1344,14 @@ async fn demonstrate_model_validation() -> QuickDbResult<()> {
     // 5. 验证数据完整性
     println!("\n5. 验证数据完整性...");
 
-    // 检查用户和文章的关联性
+    // 检查用户和文章的关联性 - 测试PostgreSQL UUID自动转换
     if let Some(ref user_id) = created_user_id {
-        // 将字符串UUID转换为UUID类型以匹配数据库中的类型
-        let uuid_value = match user_id.parse::<uuid::Uuid>() {
-            Ok(uuid) => DataValue::Uuid(uuid),
-            Err(_) => DataValue::String(user_id.clone()), // 如果解析失败，回退到字符串
-        };
-
+        // 直接使用字符串UUID，让PostgreSQL适配器自动转换为UUID类型
         let article_conditions = vec![
             QueryCondition {
                 field: "author_id".to_string(),
                 operator: QueryOperator::Eq,
-                value: uuid_value,
+                value: DataValue::String(user_id.clone()), // 测试UUID自动转换功能
             }
         ];
 
@@ -1369,6 +1364,25 @@ async fn demonstrate_model_validation() -> QuickDbResult<()> {
                 }
             },
             Err(e) => println!("❌ 查询用户文章失败: {}", e),
+        }
+
+        // 额外测试：使用无效UUID格式查询author_id（应该失败）
+        println!("\n5a. 测试无效UUID格式的author_id查询...");
+        let invalid_uuid_conditions = vec![
+            QueryCondition {
+                field: "author_id".to_string(),
+                operator: QueryOperator::Eq,
+                value: DataValue::String("invalid-uuid-format".to_string()),
+            }
+        ];
+
+        match ModelManager::<Article>::find(invalid_uuid_conditions, None).await {
+            Ok(_) => {
+                println!("❌ 无效UUID查询应该失败但却成功了");
+            },
+            Err(e) => {
+                println!("✅ 无效UUID格式查询正确失败: {}", e);
+            }
         }
     }
 
