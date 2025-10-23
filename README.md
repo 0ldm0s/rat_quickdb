@@ -31,7 +31,7 @@
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.2"
+rat_quickdb = "0.3.4"
 ```
 
 ### 🔧 特性控制
@@ -40,7 +40,7 @@ rat_quickdb 使用 Cargo 特性来控制不同数据库的支持和功能。默�
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = [
+rat_quickdb = { version = "0.3.4", features = [
     "sqlite-support",    # 支持SQLite数据库
     "postgres-support",  # 支持PostgreSQL数据库
     "mysql-support",     # 支持MySQL数据库
@@ -65,19 +65,19 @@ rat_quickdb = { version = "0.3.2", features = [
 **仅使用SQLite**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.3.4", features = ["sqlite-support"] }
 ```
 
 **使用PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = ["postgres-support"] }
+rat_quickdb = { version = "0.3.4", features = ["postgres-support"] }
 ```
 
 **使用所有数据库**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = ["full"] }
+rat_quickdb = { version = "0.3.4", features = ["full"] }
 ```
 
 **L2缓存配置注意事项**:
@@ -477,6 +477,102 @@ define_model! {
 - 对于新项目：PostgreSQL推荐全面使用UUID策略
 - 对于现有项目：可以使用`IdStrategy::Custom`手动生成UUID字符串作为兼容方案
 - 混合策略：主表使用UUID，关联表也必须使用UUID，保持类型一致性
+
+#### ✨ PostgreSQL UUID自动转换功能
+
+从v0.3.4版本开始，PostgreSQL适配器支持UUID字段的**自动转换**，让用户可以使用字符串UUID进行查询操作。
+
+**功能特点**：
+- **自动转换**：查询时传入字符串UUID，适配器自动转换为UUID类型
+- **严格验证**：无效UUID格式直接报错，不做容错修复
+- **用户友好**：保持API一致性，无需手动转换UUID类型
+- **类型安全**：确保数据库层面的UUID类型一致性
+
+**使用示例**：
+```rust
+// 用户模型定义（注意：结构体中用String，字段定义中用uuid_field）
+define_model! {
+    struct User {
+        id: String,  // ⚠️ 结构体中必须使用String
+        username: String,
+    }
+    collection = "users",
+    fields = {
+        id: uuid_field(),  // ⚠️ 字段定义中必须使用uuid_field
+        username: string_field(Some(50), Some(3), None).required(),
+    }
+}
+
+// 文章模型，author_id为UUID外键
+define_model! {
+    struct Article {
+        id: String,
+        title: String,
+        author_id: String,  // ⚠️ 结构体中必须使用String
+    }
+    collection = "articles",
+    fields = {
+        id: uuid_field(),
+        title: string_field(Some(200), Some(1), None).required(),
+        author_id: uuid_field().required(),  // ⚠️ 字段定义中必须使用uuid_field
+    }
+}
+
+// 查询：直接使用字符串UUID，自动转换！
+let conditions = vec![
+    QueryCondition {
+        field: "author_id".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("550e8400-e29b-41d4-a716-446655440000".to_string()),
+    }
+];
+
+let articles = ModelManager::<Article>::find(conditions, None).await?;
+// PostgreSQL适配器自动将字符串转换为UUID类型进行查询
+```
+
+#### ⚠️ 反直觉的设计要求（重要！）
+
+**当前限制**：使用UUID策略时，模型定义存在一个**反直觉**的设计要求：
+
+```rust
+define_model! {
+    struct User {
+        id: String,           // ⚠️ 结构体中必须使用String类型
+        // 不能写成：id: uuid::Uuid
+    }
+    fields = {
+        id: uuid_field(),     // ⚠️ 但字段定义中必须使用uuid_field()
+        // 不能写成：id: string_field(...)
+    }
+}
+```
+
+**为什么会这样？**
+1. **Rust类型系统限制**：宏系统在生成模型时需要统一的基础类型
+2. **数据库类型映射**：`uuid_field()`告诉适配器创建UUID数据库列
+3. **查询转换**：运行时字符串UUID自动转换为UUID数据库类型
+
+**正确用法**：
+- ✅ **结构体字段**：始终使用`String`类型
+- ✅ **字段定义**：UUID字段使用`uuid_field()`，其他字段使用对应函数
+- ✅ **查询操作**：直接使用`DataValue::String("uuid-string")`，自动转换
+- ✅ **类型安全**：PostgreSQL数据库层面保持UUID类型一致性
+
+**错误用法**：
+- ❌ 结构体中使用`uuid::Uuid`类型（编译错误）
+- ❌ UUID字段使用`string_field()`定义（失去UUID类型支持）
+- ❌ 混用不同数据库的UUID策略（类型不匹配）
+
+**暂时无法解决的原因**：
+- Rust宏系统的类型推导限制
+- 需要保持与现有代码的向后兼容
+- 跨数据库的统一API设计要求
+
+**未来改进方向**：
+- v0.4.0计划引入更直观的类型安全的UUID字段定义
+- 考虑使用编译时类型推导减少这种不一致性
+- 提供更清晰的编译时错误提示
 
 ### Snowflake（雪花算法）
 ```rust
@@ -978,7 +1074,7 @@ rat_quickdb采用现代化架构设计：
 
 ## 🌟 版本信息
 
-**当前版本**: 0.3.2
+**当前版本**: 0.3.4
 
 **支持Rust版本**: 1.70+
 

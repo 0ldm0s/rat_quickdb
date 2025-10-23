@@ -31,7 +31,7 @@
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.2"
+rat_quickdb = "0.3.4"
 ```
 
 ### 🔧 特性制御
@@ -40,7 +40,7 @@ rat_quickdbはCargo機能を使用して異なるデータベースサポート�
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = [
+rat_quickdb = { version = "0.3.4", features = [
     "sqlite-support",    # SQLiteデータベースサポート
     "postgres-support",  # PostgreSQLデータベースサポート
     "mysql-support",     # MySQLデータベースサポート
@@ -48,7 +48,7 @@ rat_quickdb = { version = "0.3.2", features = [
 ] }
 ```
 
-#### 利用可能な機能
+#### 利用可能な機能一覧
 
 | 機能名 | 説明 | デフォルト |
 |--------|------|-----------|
@@ -65,19 +65,19 @@ rat_quickdb = { version = "0.3.2", features = [
 **SQLiteのみ**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.3.4", features = ["sqlite-support"] }
 ```
 
 **PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = ["postgres-support"] }
+rat_quickdb = { version = "0.3.4", features = ["postgres-support"] }
 ```
 
 **すべてのデータベース**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = ["full"] }
+rat_quickdb = { version = "0.3.4", features = ["full"] }
 ```
 
 **L2キャッシュ設定に関する注意事項**:
@@ -400,19 +400,179 @@ is_active: sqlite_bool_field(),
 
 rat_quickdbは複数のID生成戦略をサポートし、異なるシーンのニーズに対応します：
 
-### AutoIncrement（自動増分ID）
+### AutoIncrement（自動増分ID）- デフォルト推奨
 ```rust
 DatabaseConfig::builder()
     .id_strategy(IdStrategy::AutoIncrement)
     .build()?
+
+// コンビニエンス関数使用
+let config = sqlite_config(
+    "sqlite_db",
+    "./test.db",
+    pool_config,
+    Some(IdStrategy::AutoIncrement)
+)?;
 ```
 
-### UUID（ユニバーサル一意識別子）
+### UUID（ユニバーサル一意識別子）- PostgreSQL推奨
 ```rust
 DatabaseConfig::builder()
     .id_strategy(IdStrategy::Uuid)
     .build()?
+
+// コンビニエンス関数使用
+let config = postgres_config(
+    "postgres_db",
+    "localhost",
+    5432,
+    "mydatabase",
+    "username",
+    "password",
+    pool_config,
+    Some(IdStrategy::Uuid)
+)?;
 ```
+
+#### ⚠️ PostgreSQL UUID戦略特殊要件
+
+**重要リマインダー**：PostgreSQLはタイプ一貫性に厳格な要件があります。UUID戦略を使用する場合：
+
+1. **主キーテーブル**：IDフィールドはUUIDタイプになります
+2. **関連テーブル**：すべての外部キーフィールドもUUIDタイプである必要があります
+3. **タイプマッチング**：UUIDタイプは他のタイプとの関連付けを許可しません
+
+**例**：
+```rust
+// UUID IDを使用するユーザーテーブル
+define_model! {
+    struct User {
+        id: String,  // PostgreSQL UUIDタイプにマップされます
+        username: String,
+    }
+    collection = "users",
+    fields = {
+        id: uuid_field(),
+        username: string_field(Some(50), Some(3), None).required(),
+    }
+}
+
+// 注文テーブルの外部キーもUUIDタイプを使用する必要があります
+define_model! {
+    struct Order {
+        id: String,
+        user_id: String,  // users.idと一致するためにUUIDタイプである必要があります
+        amount: f64,
+    }
+    collection = "orders",
+    fields = {
+        id: uuid_field(),
+        user_id: uuid_field().required(),  // 外部キーは同じタイプを使用する必要があります
+        amount: float_field(None, None),
+    }
+}
+```
+
+**ソリューション**：
+- 新規プロジェクト用：PostgreSQLはUUID戦略の全面的な使用を推奨
+- 既存プロジェクト用：互換性ソリューションとして`IdStrategy::Custom`を使用してUUID文字列を手動生成できます
+- 混合戦略：主テーブルはUUIDを使用、関連テーブルもタイプ一貫性を保つためにUUIDを使用
+
+#### ✨ PostgreSQL UUID自動変換機能
+
+v0.3.4バージョンから、PostgreSQLアダプタはUUIDフィールドの**自動変換**をサポートします。UUID ID戦略を使用する場合にUUIDフィールドで文字列UUID値を使用してクエリを行うことができます。
+
+**機能詳細**:
+- **自動変換**: UUIDフィールドに対して文字列UUID値をクエリする際、アダプタが自動的に適切なUUIDタイプに変換します
+- **厳格検証**: 無効なUUID形式は明瞭なエラーメッセージで拒否され、「お世話」な修正は行いません
+- **ユーザーフレンドリー**: APIの一貫性を維持し、UUIDタイプの手動変換が不要です
+- **タイプセーフティ**: データベースレベルでのUUIDタイプ一貫性を保証します
+
+**使用例**：
+```rust
+// ユーザーモデル定義（注意：構造体ではString、フィールド定義ではuuid_fieldを使用）
+define_model! {
+    struct User {
+        id: String,  // ⚠️ 構造体ではStringタイプを使用する必要があります
+        username: String,
+    }
+    collection = "users",
+    fields = {
+        id: uuid_field(),  // ⚠️ フィールド定義ではuuid_fieldを使用する必要があります
+        username: string_field(Some(50), Some(3), None).required(),
+    }
+}
+
+// 記事モデル、author_idはUUID外部キー
+define_model! {
+    struct Article {
+        id: String,
+        title: String,
+        author_id: String,  // ⚠️ 構造体ではStringタイプを使用する必要があります
+    }
+    collection = "articles",
+    fields = {
+        id: uuid_field(),
+        title: string_field(Some(200), Some(1), None).required(),
+        author_id: uuid_field().required(),  // ⚠️ フィールド定義ではuuid_fieldを使用する必要があります
+    }
+}
+
+// クエリ：文字列UUIDを直接使用、自動変換！
+let conditions = vec![
+    QueryCondition {
+        field: "author_id".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("550e8400-e29b-41d4-a716-446655440000".to_string()),
+    }
+];
+
+let articles = ModelManager::<Article>::find(conditions, None).await?;
+// PostgreSQLアダプタが文字列をUUIDタイプに自動変換してデータベースクエリを実行
+```
+
+#### ⚠️ 反直感的な設計要件（重要！）
+
+**現在の制限**：UUID戦略を使用する場合、モデル定義には**反直感的**な設計要件があります：
+
+```rust
+define_model! {
+    struct User {
+        id: String,           // ⚠️ 構造体ではStringタイプを使用する必要があります
+        // 次のように書けません：id: uuid::Uuid
+    }
+    fields = {
+        id: uuid_field(),     // ⚠️ しかしフィールド定義ではuuid_field()を使用する必要があります
+        // 次のように書けません：id: string_field(...)
+    }
+}
+```
+
+**なぜこうなっているのか？**
+1. **Rustマクロシステムの制約**: マクロがモデルを生成する際に統一されたベースタイプを必要とします
+2. **データベースタイプマッピング**: `uuid_field()`がアダプタにUUIDデータベース列を作成するように指示します
+3. **クエリ変換**: 実行時に文字列UUIDをデータベースUUIDタイプに自動変換します
+
+**正しい使用法**：
+- ✅ **構造体フィールド**: 常に`String`タイプを使用
+- ✅ **フィールド定義**: UUIDフィールドは`uuid_field()`を使用、他のフィールドは対応する関数を使用
+- ✅ **クエリ操作**: 直接`DataValue::String("uuid-string")`を使用、自動変換
+- ✅ **タイプセーフティ**: PostgreSQLデータベースレベルでUUIDタイプ一貫性を維持
+
+**間違った使用法**：
+- ❌ 構造体で`uuid::Uuid`タイプを使用（コンパイルエラー）
+- ❌ UUIDフィールドを`string_field()`で定義（UUIDタイプサポートを失う）
+- ❌ 異なるデータベースでUUID戦略を混在（タイプ不一致）
+
+**一時的に解決できない理由**：
+- Rustマクロシステムの型推論制約
+- 既存コードとの後方互換性を維持する必要
+- クロスデータベースの統一API設計要件
+
+**将来の改善方向**：
+- v0.4.0：より直感的なタイプセーフなUUIDフィールド定義を導入予定
+- コンパイル時型推論の改善
+- タイプ不一致に関する明瞭なエラーメッセージの提供
 
 ### Snowflake（スノーフレークアルゴリズム）
 ```rust
@@ -437,6 +597,101 @@ DatabaseConfig::builder()
     .id_strategy(IdStrategy::Custom("user_".to_string()))
     .build()?
 ```
+
+## 🔄 ObjectIdクロスデータベース処理
+
+rat_quickdbはObjectId戦略のクロスデータベースでの一貫した処理を提供し、異なるデータベースバックエンドでの正常な動作を確保します。
+
+### 保存方式の違い
+
+**MongoDB**：
+- ネイティブ`ObjectId`タイプとして保存
+- クエリ時にMongoDBネイティブObjectIdオブジェクトを返す
+- 最適なパフォーマンス、MongoDBのすべてのObjectId機能をサポート
+
+**その他のデータベース（SQLite、PostgreSQL、MySQL）**：
+- 24桁の16進文字列として保存（例：`507f1f77bcf86cd799439011`）
+- クエリ時に文字列形式のObjectIdを返す
+- MongoDB ObjectIdフォーマットとの互換性を維持
+
+### 使用例
+
+```rust
+// MongoDB - ネイティブObjectIdサポート
+let config = mongodb_config(
+    "mongodb_db",
+    "localhost",
+    27017,
+    "mydatabase",
+    Some("username"),
+    Some("password"),
+    pool_config,
+    Some(IdStrategy::ObjectId)
+)?;
+
+// SQLite/PostgreSQL/MySQL - 文字列形式ObjectId
+let config = sqlite_config(
+    "sqlite_db",
+    "./test.db",
+    pool_config,
+    Some(IdStrategy::ObjectId)
+)?;
+```
+
+### モデル定義
+
+ObjectId戦略はモデル定義で統一して`String`タイプを使用します：
+
+```rust
+define_model! {
+    struct Document {
+        id: String,  // MongoDBはObjectId、その他のデータベースは文字列
+        title: String,
+        content: String,
+    }
+    collection = "documents",
+    fields = {
+        id: string_field(None, None),  // 統一してstring_fieldを使用
+        title: string_field(Some(200), Some(1), None).required(),
+        content: string_field(Some(10000), None, None),
+    }
+}
+```
+
+### クエリと操作
+
+```rust
+// ドキュメントを作成
+let doc = Document {
+    id: String::new(),  // ObjectIdを自動生成
+    title: "サンプルドキュメント".to_string(),
+    content: "ドキュメント内容".to_string(),
+};
+let doc_id = doc.save().await?;
+
+// ドキュメントをクエリ
+let found_doc = ModelManager::<Document>::find_by_id(&doc_id).await?;
+
+// 注意：ObjectIdは24桁の16進文字列形式
+assert_eq!(doc_id.len(), 24);  // その他のデータベース
+// MongoDBでは、これはネイティブObjectIdオブジェクトになります
+```
+
+### タイプ変換処理
+
+rat_quickdbは異なるデータベースでのObjectIdタイプ変換を自動的に処理します：
+
+1. **保存時**：ObjectIdフォーマット（文字列またはネイティブオブジェクト）を自動生成
+2. **クエリ時**：元のフォーマットで返信、フレームワーク内部で変換を処理
+3. **移行時**：データフォーマットが異なるデータベース間で互換性を維持
+
+### パフォーマンス考慮事項
+
+- **MongoDB**：ネイティブObjectIdが最適なパフォーマンス、インデックス最適化をサポート
+- **その他のデータベース**：文字列インデックスのパフォーマンスは良好、長さが固定（24文字）
+- **クロスデータベース**：統一された文字列フォーマットがデータ移行と同期を容易にします
+
+この設計により、ObjectId戦略はすべてのサポート対象データベースで一貫して動作し、各データベースのネイティブ機能を最大限に活用できます。
 
 ## 🧠 キャッシュ設定
 
@@ -659,12 +914,54 @@ add_database(advanced_mongodb_config).await?;
 
 > **重要警告**：以下のコンビニエンス関数は非推奨としてマークされており、v0.4.0で削除されます。上記の推奨ビルダーパターンを使用してください。
 
-**非推奨の関数**：
-- `sqlite_config()` - 非推奨
-- `postgres_config()` - 非推奨
-- `mysql_config()` - 非推奨
-- `mongodb_config()` - 非推奨
-- `mongodb_config_with_builder()` - 非推奨
+```rust
+// 🚨 非推奨 - 新規プロジェクトでは使用しないでください
+// これらの関数にはAPI一貫性の問題とハードコーディングの問題があります
+
+// 非推奨のSQLite設定
+let config = sqlite_config(  // 🚨 非推奨
+    "sqlite_db",
+    "./test.db",
+    pool_config,
+    Some(IdStrategy::AutoIncrement)  // 明示的に指定必須
+)?;
+
+// 非推奨のPostgreSQL設定
+let config = postgres_config(  // 🚨 非推奨
+    "postgres_db",
+    "localhost",
+    5432,
+    "mydatabase",
+    "username",
+    "password",
+    pool_config,
+    Some(IdStrategy::Uuid)
+)?;
+
+// 非推奨のMySQL設定
+let config = mysql_config(  // 🚨 非推奨
+    "mysql_db",
+    "localhost",
+    3306,
+    "mydatabase",
+    "username",
+    "password",
+    pool_config,
+    Some(IdStrategy::AutoIncrement)
+)?;
+
+// 非推奨のMongoDB設定
+let config = mongodb_config(  // 🚨 非推奨
+    "mongodb_db",
+    "localhost",
+    27017,
+    "mydatabase",
+    Some("username"),
+    Some("password"),
+    pool_config,
+    Some(IdStrategy::ObjectId)
+)?;
+```
 
 **非推奨の理由**：
 - ❌ APIの一貫性がない：データベースごとに異なる関数パラメータ
@@ -777,7 +1074,7 @@ rat_quickdbはモダンアーキテクチャ設計を採用：
 
 ## 🌟 バージョン情報
 
-**現在のバージョン**: 0.3.2
+**現在のバージョン**: 0.3.4
 
 **サポートRustバージョン**: 1.70+
 

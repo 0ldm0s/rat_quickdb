@@ -31,7 +31,7 @@ Add dependency in `Cargo.toml`:
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.2"
+rat_quickdb = "0.3.4"
 ```
 
 ### 🔧 Feature Control
@@ -40,7 +40,7 @@ rat_quickdb uses Cargo features to control different database support and functi
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = [
+rat_quickdb = { version = "0.3.4", features = [
     "sqlite-support",    # Support SQLite database
     "postgres-support",  # Support PostgreSQL database
     "mysql-support",     # Support MySQL database
@@ -48,42 +48,42 @@ rat_quickdb = { version = "0.3.2", features = [
 ] }
 ```
 
-#### Available Features
+#### Available Features List
 
-| Feature Name | Description | Default |
-|-------------|-------------|---------|
+| Feature Name | Description | Default Enabled |
+|-------------|-------------|-----------------|
 | `sqlite-support` | SQLite database support | ❌ |
 | `postgres-support` | PostgreSQL database support | ❌ |
 | `mysql-support` | MySQL database support | ❌ |
 | `mongodb-support` | MongoDB database support | ❌ |
-| `melange-storage` | Deprecated: L2 cache functionality has been built into rat_memcache | ❌ |
+| `melange-storage` | Deprecated: L2 cache functionality is built into rat_memcache | ❌ |
 | `python-bindings` | Python API bindings | ❌ |
 | `full` | Enable all database support | ❌ |
 
-#### Enable Features by Need
+#### Enable Features as Needed
 
 **SQLite only**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.3.4", features = ["sqlite-support"] }
 ```
 
 **PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = ["postgres-support"] }
+rat_quickdb = { version = "0.3.4", features = ["postgres-support"] }
 ```
 
 **All databases**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.2", features = ["full"] }
+rat_quickdb = { version = "0.3.4", features = ["full"] }
 ```
 
 **L2 Cache Configuration Notes**:
 - L2 cache functionality is built-in to `rat_memcache`, no additional features needed
 - L2 cache requires disk space for cache persistence
-- See "Cache Configuration" section below for configuration examples
+- Configuration examples are in the "Cache Configuration" section below
 
 #### Running Examples
 
@@ -112,7 +112,6 @@ cargo run --example manual_table_management --features sqlite-support
 cargo run --example model_definition_mysql --features mysql-support
 cargo run --example model_definition_pgsql --features postgres-support
 cargo run --example model_definition_mongodb --features mongodb-support
-
 ```
 
 ## ⚠️ Important Architecture Notice
@@ -140,7 +139,7 @@ define_model! {
 
 // Create and save
 let user = User {
-    id: String::new(), // Framework auto-generates ID
+    id: String::new(), // Framework automatically generates ID
     username: "张三".to_string(),
     email: "zhangsan@example.com".to_string(),
 };
@@ -222,9 +221,9 @@ let config = sqlite_config(
 ```
 
 **Migration Guide**:
-1. **Recommended**: Migrate to the builder pattern for better type safety and consistency
+1. **Recommended**: Migrate to builder pattern for better type safety and consistency
 ```rust
-// Instead of deprecated convenience functions, use builder pattern:
+// Recommended to use builder pattern instead of convenience functions:
 let config = DatabaseConfig::builder()
     .db_type(DatabaseType::SQLite)
     .connection(ConnectionConfig::SQLite {
@@ -236,7 +235,7 @@ let config = DatabaseConfig::builder()
     .id_strategy(IdStrategy::AutoIncrement)
     .build()?;
 
-// PostgreSQL with UUID (recommended for PostgreSQL)
+// PostgreSQL using UUID (PostgreSQL recommended)
 let config = DatabaseConfig::builder()
     .db_type(DatabaseType::PostgreSQL)
     .connection(ConnectionConfig::PostgreSQL {
@@ -252,14 +251,14 @@ let config = DatabaseConfig::builder()
     .build()?;
 ```
 
-2. **Temporary Compatibility**: If you must temporarily maintain existing code, add the required `IdStrategy` parameter, but plan migration to builder pattern ASAP
+2. **Temporary Compatibility**: If you must temporarily maintain existing code, please add the required `IdStrategy` parameter, but plan migration to builder pattern as soon as possible
 
-**Impact Scope**:
+**Affected Scope**:
 - All code using convenience functions for database configuration
 - Code using `mongodb_config_with_builder` (duplicate function removed)
 - Applications relying on specific database default ID strategies
 
-This change ensures configuration consistency and user control, adhering to the "no nanny settings" design principle.
+This change ensures configuration consistency and user control, aligning with the "no nanny settings" design principle.
 
 ## 🚀 Quick Start
 
@@ -280,11 +279,11 @@ See `examples/id_strategy_test.rs` for different ID generation strategy usage.
 
 ### Model Definition (Recommended)
 
-See `examples/model_definition.rs` for complete model definition, CRUD operations, and complex query examples.
+See `examples/model_definition.rs` for complete model definitions, CRUD operations, and complex query examples.
 
 ### Field Types and Validation
 
-See `examples/model_definition.rs` for field type definitions and validation examples.
+See field type definitions and validation examples in `examples/model_definition.rs`.
 
 ### Index Management
 
@@ -292,7 +291,7 @@ Indexes are automatically created based on model definitions, no manual manageme
 
 ## 🔒 SQLite Boolean Compatibility
 
-SQLite databases store boolean values as integers (0 and 1), which can cause serde deserialization errors. rat_quickdb provides multiple solutions:
+SQLite database stores boolean values as integers (0 and 1), which may cause serde deserialization errors. rat_quickdb provides multiple solutions:
 
 ### Solution 1: sqlite_bool_field() - Recommended (Zero Configuration)
 
@@ -312,7 +311,7 @@ rat_quickdb::define_model! {
     fields = {
         id: integer_field(None, None),
         username: string_field(Some(50), Some(3), None).required(),
-        // Use sqlite_bool_field() - Automatically handles SQLite boolean compatibility
+        // Use sqlite_bool_field() - automatically handles SQLite boolean compatibility
         is_active: sqlite_bool_field(),
         is_pinned: sqlite_bool_field(),
         is_verified: sqlite_bool_field_with_default(false),
@@ -351,7 +350,7 @@ rat_quickdb::define_model! {
     fields = {
         id: integer_field(None, None),
         username: string_field(Some(50), Some(3), None).required(),
-        // Use traditional boolean_field() - with manual serde attributes
+        // Use traditional boolean_field() - combined with manual serde attributes
         is_active: boolean_field(),
         is_pinned: boolean_field(),
     }
@@ -362,12 +361,12 @@ rat_quickdb::define_model! {
 
 ```rust
 // For existing code, you can use traditional boolean_field()
-// But need to ensure boolean value format is correct in data source
+// But need to ensure boolean value format in data source is correct
 rat_quickdb::define_model! {
     struct User {
         id: Option<i32>,
         username: String,
-        is_active: bool,        // Requires manual compatibility handling
+        is_active: bool,        // Need to manually handle compatibility
     }
 
     collection = "users",
@@ -383,7 +382,7 @@ rat_quickdb::define_model! {
 
 - `deserialize_bool_from_any()`: Supports integers, booleans, strings "true"/"false"
 - `deserialize_bool_from_int()`: Supports integers and booleans
-- `sqlite_bool_field()`: Automatically selects the best deserializer
+- `sqlite_bool_field()`: Automatically selects best deserializer
 
 ### Migration Guide
 
@@ -399,21 +398,181 @@ is_active: sqlite_bool_field(),
 
 ## 🆔 ID Generation Strategies
 
-rat_quickdb supports multiple ID generation strategies for different use cases:
+rat_quickdb supports multiple ID generation strategies to meet different scenario needs:
 
-### AutoIncrement (Auto-increment ID)
+### AutoIncrement (Auto-increment ID) - Default Recommended
 ```rust
 DatabaseConfig::builder()
     .id_strategy(IdStrategy::AutoIncrement)
     .build()?
+
+// Convenience function usage
+let config = sqlite_config(
+    "sqlite_db",
+    "./test.db",
+    pool_config,
+    Some(IdStrategy::AutoIncrement)
+)?;
 ```
 
-### UUID (Universally Unique Identifier)
+### UUID (Universal Unique Identifier) - PostgreSQL Recommended
 ```rust
 DatabaseConfig::builder()
     .id_strategy(IdStrategy::Uuid)
     .build()?
+
+// Convenience function usage
+let config = postgres_config(
+    "postgres_db",
+    "localhost",
+    5432,
+    "mydatabase",
+    "username",
+    "password",
+    pool_config,
+    Some(IdStrategy::Uuid)
+)?;
 ```
+
+#### ⚠️ PostgreSQL UUID Strategy Special Requirements
+
+**Important Reminder**: PostgreSQL has strict requirements for type consistency. If using UUID strategy:
+
+1. **Primary Key Table**: ID field will be UUID type
+2. **Related Tables**: All foreign key fields must also be UUID type
+3. **Type Matching**: UUID types cannot be associated with other types
+
+**Example**:
+```rust
+// User table using UUID ID
+define_model! {
+    struct User {
+        id: String,  // Will be mapped to PostgreSQL UUID type
+        username: String,
+    }
+    collection = "users",
+    fields = {
+        id: uuid_field(),
+        username: string_field(Some(50), Some(3), None).required(),
+    }
+}
+
+// Order table's foreign key must also use UUID type
+define_model! {
+    struct Order {
+        id: String,
+        user_id: String,  // Must be UUID type to match users.id
+        amount: f64,
+    }
+    collection = "orders",
+    fields = {
+        id: uuid_field(),
+        user_id: uuid_field().required(),  // Foreign key must use same type
+        amount: float_field(None, None),
+    }
+}
+```
+
+**Solutions**:
+- For new projects: PostgreSQL recommends comprehensive use of UUID strategy
+- For existing projects: Can use `IdStrategy::Custom` to manually generate UUID strings as compatibility solution
+- Mixed strategy: Primary table uses UUID, related tables must also use UUID, maintaining type consistency
+
+#### ✨ PostgreSQL UUID Auto-conversion Feature
+
+Starting from v0.3.4 version, PostgreSQL adapter supports **auto-conversion** for UUID fields, allowing users to use string UUIDs for query operations.
+
+**Feature Highlights**:
+- **Auto-conversion**: Pass string UUID during query, adapter automatically converts to UUID type
+- **Strict validation**: Invalid UUID formats directly error, no fault-tolerant fixes
+- **User-friendly**: Maintains API consistency, no need to manually convert UUID types
+- **Type safety**: Ensures UUID type consistency at database level
+
+**Usage Example**:
+```rust
+// User model definition (Note: use String in struct, uuid_field in field definition)
+define_model! {
+    struct User {
+        id: String,  // ⚠️ Must use String in struct
+        username: String,
+    }
+    collection = "users",
+    fields = {
+        id: uuid_field(),  // ⚠️ Must use uuid_field in field definition
+        username: string_field(Some(50), Some(3), None).required(),
+    }
+}
+
+// Article model, author_id is UUID foreign key
+define_model! {
+    struct Article {
+        id: String,
+        title: String,
+        author_id: String,  // ⚠️ Must use String in struct
+    }
+    collection = "articles",
+    fields = {
+        id: uuid_field(),
+        title: string_field(Some(200), Some(1), None).required(),
+        author_id: uuid_field().required(),  // ⚠️ Must use uuid_field in field definition
+    }
+}
+
+// Query: directly use string UUID, auto-convert!
+let conditions = vec![
+    QueryCondition {
+        field: "author_id".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("550e8400-e29b-41d4-a716-446655440000".to_string()),
+    }
+];
+
+let articles = ModelManager::<Article>::find(conditions, None).await?;
+// PostgreSQL adapter automatically converts string to UUID type for query
+```
+
+#### ⚠️ Counter-intuitive Design Requirements (Important!)
+
+**Current Limitation**: When using UUID strategy, model definition has a **counter-intuitive** design requirement:
+
+```rust
+define_model! {
+    struct User {
+        id: String,           // ⚠️ Must use String type in struct
+        // Cannot write: id: uuid::Uuid
+    }
+    fields = {
+        id: uuid_field(),     // ⚠️ But must use uuid_field() in field definition
+        // Cannot write: id: string_field(...)
+    }
+}
+```
+
+**Why is this like this?**
+1. **Rust type system limitations**: Macro system needs unified base types when generating models
+2. **Database type mapping**: `uuid_field()` tells adapter to create UUID database column
+3. **Query conversion**: Runtime string UUID automatically converted to UUID database type
+
+**Correct Usage**:
+- ✅ **Struct fields**: Always use `String` type
+- ✅ **Field definitions**: UUID fields use `uuid_field()`, other fields use corresponding functions
+- ✅ **Query operations**: Directly use `DataValue::String("uuid-string")`, auto-convert
+- ✅ **Type safety**: PostgreSQL database level maintains UUID type consistency
+
+**Incorrect Usage**:
+- ❌ Use `uuid::Uuid` type in struct (compilation error)
+- ❌ Define UUID fields with `string_field()` (lose UUID type support)
+- ❌ Mix UUID strategies across different databases (type mismatch)
+
+**Reasons it cannot be resolved temporarily**:
+- Rust macro system type inference limitations
+- Need to maintain backward compatibility with existing code
+- Cross-database unified API design requirements
+
+**Future improvement directions**:
+- v0.4.0 plans to introduce more intuitive type-safe UUID field definitions
+- Consider using compile-time type inference to reduce this inconsistency
+- Provide clearer compile-time error messages
 
 ### Snowflake (Snowflake Algorithm)
 ```rust
@@ -439,6 +598,101 @@ DatabaseConfig::builder()
     .build()?
 ```
 
+## 🔄 ObjectId Cross-database Handling
+
+rat_quickdb provides consistent handling for ObjectId strategy across databases, ensuring normal operation under different database backends.
+
+### Storage Method Differences
+
+**MongoDB**:
+- Stored as native `ObjectId` type
+- Returns MongoDB native ObjectId object when querying
+- Best performance, supports all MongoDB ObjectId features
+
+**Other databases (SQLite, PostgreSQL, MySQL)**:
+- Stored as 24-digit hexadecimal string (e.g., `507f1f77bcf86cd799439011`)
+- Returns string format ObjectId when querying
+- Maintains compatibility with MongoDB ObjectId format
+
+### Usage Example
+
+```rust
+// MongoDB - Native ObjectId support
+let config = mongodb_config(
+    "mongodb_db",
+    "localhost",
+    27017,
+    "mydatabase",
+    Some("username"),
+    Some("password"),
+    pool_config,
+    Some(IdStrategy::ObjectId)
+)?;
+
+// SQLite/PostgreSQL/MySQL - String format ObjectId
+let config = sqlite_config(
+    "sqlite_db",
+    "./test.db",
+    pool_config,
+    Some(IdStrategy::ObjectId)
+)?;
+```
+
+### Model Definition
+
+ObjectId strategy uniformly uses `String` type in model definitions:
+
+```rust
+define_model! {
+    struct Document {
+        id: String,  // MongoDB is ObjectId, other databases are string
+        title: String,
+        content: String,
+    }
+    collection = "documents",
+    fields = {
+        id: string_field(None, None),  // Uniformly use string_field
+        title: string_field(Some(200), Some(1), None).required(),
+        content: string_field(Some(10000), None, None),
+    }
+}
+```
+
+### Query and Operations
+
+```rust
+// Create document
+let doc = Document {
+    id: String::new(),  // Auto-generate ObjectId
+    title: "Example Document".to_string(),
+    content: "Document content".to_string(),
+};
+let doc_id = doc.save().await?;
+
+// Query document
+let found_doc = ModelManager::<Document>::find_by_id(&doc_id).await?;
+
+// Note: ObjectId is 24-digit hexadecimal string format
+assert_eq!(doc_id.len(), 24);  // Other databases
+// In MongoDB, this will be a native ObjectId object
+```
+
+### Type Conversion Handling
+
+rat_quickdb automatically handles ObjectId type conversion in different databases:
+
+1. **When saving**: Auto-generate ObjectId format (string or native object)
+2. **When querying**: Return original format, framework handles conversion internally
+3. **When migrating**: Data format remains compatible across different databases
+
+### Performance Considerations
+
+- **MongoDB**: Native ObjectId has best performance, supports index optimization
+- **Other databases**: String index performance is good, fixed length (24 characters)
+- **Cross-database**: Unified string format facilitates data migration and synchronization
+
+This design ensures ObjectId strategy works consistently across all supported databases while fully utilizing each database's native features.
+
 ## 🧠 Cache Configuration
 
 ### Basic Cache Configuration (L1 Memory Cache Only)
@@ -450,15 +704,15 @@ let cache_config = CacheConfig {
     strategy: CacheStrategy::Lru,
     ttl_config: TtlConfig {
         default_ttl_secs: 300,  // 5 minutes cache
-        max_ttl_secs: 3600,     // maximum 1 hour
-        check_interval_secs: 60, // check interval
+        max_ttl_secs: 3600,     // Maximum 1 hour
+        check_interval_secs: 60, // Check interval
     },
     l1_config: L1CacheConfig {
-        max_capacity: 1000,     // maximum 1000 entries
+        max_capacity: 1000,     // Maximum 1000 entries
         max_memory_mb: 64,       // 64MB memory limit
-        enable_stats: true,      // enable statistics
+        enable_stats: true,      // Enable statistics
     },
-    l2_config: None,           // no L2 disk cache
+    l2_config: None,           // Do not use L2 disk cache
     compression_config: CompressionConfig::default(),
     version: "1".to_string(),
 };
@@ -478,20 +732,20 @@ let cache_config = CacheConfig {
     strategy: CacheStrategy::Lru,
     ttl_config: TtlConfig {
         default_ttl_secs: 1800, // 30 minutes cache
-        max_ttl_secs: 7200,     // maximum 2 hours
-        check_interval_secs: 120, // check interval
+        max_ttl_secs: 7200,     // Maximum 2 hours
+        check_interval_secs: 120, // Check interval
     },
     l1_config: L1CacheConfig {
-        max_capacity: 5000,     // maximum 5000 entries
+        max_capacity: 5000,     // Maximum 5000 entries
         max_memory_mb: 128,      // 128MB memory limit
-        enable_stats: true,      // enable statistics
+        enable_stats: true,      // Enable statistics
     },
     l2_config: Some(L2CacheConfig {
         max_size_mb: 1024,      // 1GB disk cache
-        cache_dir: PathBuf::from("./cache"), // cache directory
-        enable_persistence: true, // enable persistence
-        enable_compression: true, // enable compression
-        cleanup_interval_secs: 300, // cleanup interval
+        cache_dir: PathBuf::from("./cache"), // Cache directory
+        enable_persistence: true, // Enable persistence
+        enable_compression: true, // Enable compression
+        cleanup_interval_secs: 300, // Cleanup interval
     }),
     compression_config: CompressionConfig::default(),
     version: "1".to_string(),
@@ -504,9 +758,9 @@ DatabaseConfig::builder()
 
 **L2 Cache Feature Notes**:
 - L2 cache functionality is built-in to `rat_memcache`, no additional features needed
-- Requires disk space for cache data storage
-- Suitable for caching large amounts of data or scenarios requiring persistence
-- Simply configure `l2_config` in `CacheConfig` to enable L2 cache
+- Requires disk space to store cache data
+- Suitable for caching large amounts of data or scenarios needing persistence
+- Just configure `l2_config` in `CacheConfig` to enable L2 cache
 
 ### Cache Statistics and Management
 ```rust
@@ -522,18 +776,18 @@ clear_all_caches().await?;
 
 ## 📝 Logging Control
 
-rat_quickdb now gives complete logging initialization control to the caller:
+rat_quickdb is now completely controlled by the caller for logging initialization:
 
 ```rust
 use rat_logger::{Logger, LoggerBuilder, LevelFilter};
 
-// Caller is responsible for initializing the logging system
+// Caller is responsible for initializing logging system
 let logger = LoggerBuilder::new()
     .with_level(LevelFilter::Debug)
     .with_file("app.log")
     .build();
 
-logger.init().expect("Failed to initialize logging");
+logger.init().expect("Logging initialization failed");
 
 // Then initialize rat_quickdb (no longer auto-initializes logging)
 rat_quickdb::init();
@@ -541,9 +795,9 @@ rat_quickdb::init();
 
 ## 🔧 Database Configuration
 
-### Recommended: Builder Pattern
+### Recommended: Use Builder Pattern
 
-**Recommended**: Use `DatabaseConfig::builder()` pattern for complete configuration control and type safety:
+**Recommended**: Use `DatabaseConfig::builder()` pattern to provide complete configuration control and type safety:
 
 ```rust
 use rat_quickdb::*;
@@ -557,7 +811,7 @@ let pool_config = PoolConfig::builder()
     .max_lifetime(1800000)
     .build()?;
 
-// SQLite Configuration
+// SQLite configuration
 let sqlite_config = DatabaseConfig::builder()
     .db_type(DatabaseType::SQLite)
     .connection(ConnectionConfig::SQLite {
@@ -569,7 +823,7 @@ let sqlite_config = DatabaseConfig::builder()
     .id_strategy(IdStrategy::AutoIncrement)  // Recommended strategy
     .build()?;
 
-// PostgreSQL Configuration
+// PostgreSQL configuration
 let postgres_config = DatabaseConfig::builder()
     .db_type(DatabaseType::PostgreSQL)
     .connection(ConnectionConfig::PostgreSQL {
@@ -581,10 +835,10 @@ let postgres_config = DatabaseConfig::builder()
     })
     .pool_config(pool_config.clone())
     .alias("postgres_db".to_string())
-    .id_strategy(IdStrategy::Uuid)  // PostgreSQL recommends UUID
+    .id_strategy(IdStrategy::Uuid)  // PostgreSQL recommends UUID strategy
     .build()?;
 
-// MySQL Configuration
+// MySQL configuration
 let mysql_config = DatabaseConfig::builder()
     .db_type(DatabaseType::MySQL)
     .connection(ConnectionConfig::MySQL {
@@ -596,10 +850,10 @@ let mysql_config = DatabaseConfig::builder()
     })
     .pool_config(pool_config.clone())
     .alias("mysql_db".to_string())
-    .id_strategy(IdStrategy::AutoIncrement)  // MySQL recommends auto-increment
+    .id_strategy(IdStrategy::AutoIncrement)  // MySQL recommends auto-increment strategy
     .build()?;
 
-// MongoDB Configuration
+// MongoDB configuration
 let mongodb_config = DatabaseConfig::builder()
     .db_type(DatabaseType::MongoDB)
     .connection(ConnectionConfig::MongoDB(
@@ -609,7 +863,7 @@ let mongodb_config = DatabaseConfig::builder()
     ))
     .pool_config(pool_config)
     .alias("mongodb_db".to_string())
-    .id_strategy(IdStrategy::ObjectId)  // MongoDB recommends ObjectId
+    .id_strategy(IdStrategy::ObjectId)  // MongoDB recommends ObjectId strategy
     .build()?;
 
 // Add to connection pool manager
@@ -662,7 +916,7 @@ add_database(advanced_mongodb_config).await?;
 
 ```rust
 // 🚨 Deprecated - Do not use in new projects
-// These functions have API inconsistencies and hardcoded defaults
+// These functions have API inconsistencies and hardcoded issues
 
 // Deprecated SQLite configuration
 let config = sqlite_config(  // 🚨 Deprecated
@@ -710,16 +964,16 @@ let config = mongodb_config(  // 🚨 Deprecated
 ```
 
 **Deprecation Reasons**:
-- ❌ API inconsistencies: Different databases have different convenience function parameters
-- ❌ Hardcoded defaults: Violates the "no nanny settings" design principle
-- ❌ Limited functionality: Cannot support advanced configuration options
+- ❌ API inconsistency: Different databases have inconsistent convenience function parameters
+- ❌ Hardcoded default values: Violates "no nanny settings" design principle
+- ❌ Feature limitations: Cannot support advanced configuration options
 - ❌ Maintenance difficulty: Duplicate code increases maintenance costs
 
 **Recommended Alternatives**:
-- ✅ **Builder Pattern**: Type-safe, complete configuration, consistent API
-- ✅ **Full Control**: Users have complete control over all configuration options
-- ✅ **Extensible**: Supports all advanced database features
-- ✅ **Type Safety**: Compile-time configuration validation
+- ✅ **Builder pattern**: Type safe, complete configuration, unified API
+- ✅ **Complete control**: Users have complete control over all configuration options
+- ✅ **Extensibility**: Supports advanced features for all databases
+- ✅ **Type safety**: Compile-time configuration correctness checks
 
 ### ID Strategy Recommendations
 
@@ -727,14 +981,14 @@ Choose the most suitable ID strategy based on database characteristics:
 
 | Database | Recommended | Alternative | Description |
 |----------|-------------|-------------|-------------|
-| **SQLite** | AutoIncrement | ObjectId | AutoIncrement has native support and best performance |
-| **PostgreSQL** | UUID | AutoIncrement | UUID has native support and type safety |
-| **MySQL** | AutoIncrement | ObjectId | AutoIncrement has native support and best performance |
+| **SQLite** | AutoIncrement | ObjectId | AutoIncrement has native support, best performance |
+| **PostgreSQL** | UUID | AutoIncrement | UUID has native support, type safe |
+| **MySQL** | AutoIncrement | ObjectId | AutoIncrement has native support, best performance |
 | **MongoDB** | ObjectId | AutoIncrement | ObjectId has native support, MongoDB ecosystem standard |
 
-**Important Note**: When using UUID strategy with PostgreSQL, all foreign key fields in related tables must also use UUID type to maintain type consistency.
+**Important Reminder**: When PostgreSQL uses UUID strategy, all foreign key fields in related tables must also use UUID type to maintain type consistency.
 
-## 🛠️ Core API
+## 🛠️ Core APIs
 
 ### Database Management
 - `init()` - Initialize library
@@ -748,20 +1002,20 @@ Choose the most suitable ID strategy based on database characteristics:
 // Save record
 let user_id = user.save().await?;
 
-// Query record
+// Query records
 let found_user = ModelManager::<User>::find_by_id(&user_id).await?;
 let users = ModelManager::<User>::find(conditions, options).await?;
 
 // Update record
 let mut updates = HashMap::new();
-updates.insert("username".to_string(), DataValue::String("new_name".to_string()));
+updates.insert("username".to_string(), DataValue::String("New Name".to_string()));
 let updated = user.update(updates).await?;
 
 // Delete record
 let deleted = user.delete().await?;
 ```
 
-### ODM Operations (Low-level)
+### ODM Operations (Low-level Interface)
 - `create(collection, data, alias)` - Create record
 - `find_by_id(collection, id, alias)` - Find by ID
 - `find(collection, conditions, options, alias)` - Query records
@@ -777,15 +1031,15 @@ rat_quickdb adopts modern architecture design:
 1. **Lock-free Queue Architecture**: Avoids direct database connection lifecycle issues
 2. **Model Auto-registration**: Automatically registers model metadata on first use
 3. **Auto Index Management**: Automatically creates tables and indexes based on model definitions
-4. **Cross-database Adapter**: Unified interface supporting multiple database types
+4. **Cross-database Adaptation**: Unified interface supports multiple database types
 5. **Async Message Processing**: Efficient async processing based on Tokio
 
 ## 🔄 Workflow
 
 ```
 Application Layer → Model Operations → ODM Layer → Message Queue → Connection Pool → Database
-    ↑                                                             ↓
-    └───────────────── Result Return ←───────────────────────────┘
+    ↑                                               ↓
+    └───────────────── Result Return ←────────────────┘
 ```
 
 ## 📊 Performance Features
@@ -793,13 +1047,13 @@ Application Layer → Model Operations → ODM Layer → Message Queue → Conne
 - **Connection Pool Management**: Intelligent connection reuse and management
 - **Async Operations**: Non-blocking database operations
 - **Batch Processing**: Supports batch operation optimization
-- **Cache Integration**: Built-in caching reduces database access
+- **Cache Integration**: Built-in cache reduces database access
 - **Compression Support**: MongoDB supports ZSTD compression
 
 ## 🎯 Supported Field Types
 
 - `integer_field` - Integer fields (with range and constraints)
-- `string_field` - String fields (with length limits, can use large length as text replacement)
+- `string_field` - String fields (with length limits, can use large length as long text)
 - `float_field` - Floating-point number fields (with range and precision)
 - `boolean_field` - Boolean fields
 - `datetime_field` - Date-time fields
@@ -820,7 +1074,7 @@ Application Layer → Model Operations → ODM Layer → Message Queue → Conne
 
 ## 🌟 Version Information
 
-**Current Version**: 0.3.2
+**Current Version**: 0.3.4
 
 **Supported Rust Version**: 1.70+
 
@@ -828,7 +1082,7 @@ Application Layer → Model Operations → ODM Layer → Message Queue → Conne
 
 ## 📄 License
 
-This project is licensed under the [LGPL-v3](LICENSE) license.
+This project is licensed under [LGPL-v3](LICENSE) license.
 
 ## 🤝 Contributing
 
