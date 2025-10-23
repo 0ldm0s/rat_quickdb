@@ -1302,7 +1302,7 @@ async fn demonstrate_model_validation() -> QuickDbResult<()> {
             slug: format!("test-article-{}", uuid::Uuid::new_v4().simple()),
             content: "这是一篇用于验证的测试文章，内容足够长以满足验证要求。".to_string(),
             summary: Some("这是一篇用于验证的测试文章...".to_string()),
-            author_id: user_id.clone(), // 使用真实的用户ID
+            author_id: user_id.to_string(), // 测试UUID自动转换：显式使用字符串
             category_id: Some(uuid::Uuid::new_v4().to_string()), // 生成一个有效的UUID
             status: "published".to_string(),
             view_count: 0,

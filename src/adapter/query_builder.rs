@@ -485,7 +485,12 @@ impl SqlQueryBuilder {
         let (clause, params) = match condition.operator {
             QueryOperator::Eq => {
                 new_index += 1;
-                (format!("{} = {}", safe_field, placeholder), vec![condition.value.clone()])
+                let value = if matches!(self.db_type, DatabaseType::PostgreSQL) {
+                    self.convert_uuid_value_for_postgres(&self.table, &condition.field, &condition.value)?
+                } else {
+                    condition.value.clone()
+                };
+                (format!("{} = {}", safe_field, placeholder), vec![value])
             }
             QueryOperator::Ne => {
                 new_index += 1;
@@ -649,8 +654,13 @@ impl SqlQueryBuilder {
 
             match condition.operator {
                 QueryOperator::Eq => {
+                    let value = if matches!(self.db_type, DatabaseType::PostgreSQL) {
+                        self.convert_uuid_value_for_postgres(&self.table, &condition.field, &condition.value)?
+                    } else {
+                        condition.value.clone()
+                    };
                     clauses.push(format!("{} = {}", safe_field, placeholder));
-                    params.push(condition.value.clone());
+                    params.push(value);
                     param_index += 1;
                 }
                 QueryOperator::Ne => {
@@ -856,6 +866,44 @@ impl SqlQueryBuilder {
         } else {
             None
         }
+    }
+
+    /// PostgreSQL UUID字段值转换
+    ///
+    /// 仅在PostgreSQL数据库且字段类型为UUID时使用
+    /// 严格模式：如果字符串无法解析为UUID，直接返回错误
+    ///
+    /// # 参数
+    /// * `table_name` - 表名
+    /// * `field_name` - 字段名
+    /// * `value` - 要转换的值
+    ///
+    /// # 返回值
+    /// * `Ok(DataValue)` - 转换后的值
+    /// * `Err(QuickDbError)` - 转换失败（非字符串格式或无效UUID）
+    fn convert_uuid_value_for_postgres(&self, table_name: &str, field_name: &str, value: &DataValue) -> QuickDbResult<DataValue> {
+        // 检查字段类型是否为UUID
+        if let Some(field_type) = self.get_field_type(table_name, field_name) {
+            if matches!(field_type, crate::model::FieldType::Uuid) {
+                // 对于UUID字段，如果是字符串值，尝试转换为UUID
+                if let DataValue::String(uuid_str) = value {
+                    // 严格模式：直接解析，不做任何修复或容错
+                    match uuid::Uuid::parse_str(uuid_str) {
+                        Ok(parsed_uuid) => {
+                            return Ok(DataValue::Uuid(parsed_uuid));
+                        }
+                        Err(e) => {
+                            return Err(QuickDbError::ValidationError {
+                                field: field_name.to_string(),
+                                message: format!("无效的UUID格式: {}. PostgreSQL UUID字段要求有效的UUID字符串格式", e),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        // 非UUID字段或非字符串值，直接返回原值
+        Ok(value.clone())
     }
 }
 
