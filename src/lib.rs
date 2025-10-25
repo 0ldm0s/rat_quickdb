@@ -137,7 +137,7 @@ pub fn process_data_fields_from_metadata(
     fields: &std::collections::HashMap<String, crate::model::FieldDefinition>,
 ) -> std::collections::HashMap<String, DataValue> {
     for (field_name, field_def) in fields {
-        if let Some(current_value) = data_map.get(field_name) {
+        if let Some(current_value) = data_map.get::<str>(field_name) {
             let converted_value = match current_value {
                 // 处理字符串类型的JSON数据
                 DataValue::String(json_str) if json_str.starts_with('[') || json_str.starts_with('{') => {
