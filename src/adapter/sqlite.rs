@@ -58,7 +58,7 @@ impl SqliteAdapter {
             let data_value = if let Ok(value) = row.try_get::<Option<String>, _>(column_name) {
                 // 使用通用的JSON字符串检测和反序列化方法
                 match value {
-                    Some(s) => crate::types::parse_json_string_to_data_value(s),
+                    Some(s) => crate::types::data_value::parse_json_string_to_data_value(s),
                     None => DataValue::Null,
                 }
             } else if let Ok(value) = row.try_get::<Option<i64>, _>(column_name) {

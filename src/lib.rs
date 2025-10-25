@@ -144,7 +144,7 @@ pub fn process_data_fields_from_metadata(
                     // 尝试解析JSON
                     match serde_json::from_str::<serde_json::Value>(json_str.as_str()) {
                         Ok(json_value) => {
-                            let converted = crate::types::json_value_to_data_value(json_value);
+                            let converted = crate::types::data_value::json_value_to_data_value(json_value);
                             debug!("字段 {} JSON转换成功: {:?} -> {:?}", field_name, json_str, converted);
                             Some(converted)
                         }

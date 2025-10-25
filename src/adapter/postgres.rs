@@ -138,7 +138,7 @@ impl PostgresAdapter {
                         match val {
                             Some(json_val) => {
                                 // 使用现有的转换函数，确保类型正确
-                                crate::types::json_value_to_data_value(json_val)
+                                crate::types::data_value::json_value_to_data_value(json_val)
                             },
                             None => DataValue::Null,
                         }
@@ -168,7 +168,7 @@ impl PostgresAdapter {
                             match val {
                                 Some(json_val) => {
                                     debug!("PostgreSQL数组字段 {} 作为JSON处理: {:?}", column_name, json_val);
-                                    crate::types::json_value_to_data_value(json_val)
+                                    crate::types::data_value::json_value_to_data_value(json_val)
                                 },
                                 None => DataValue::Null,
                             }

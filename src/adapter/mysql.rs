@@ -198,21 +198,21 @@ impl MysqlAdapter {
                                 match json_value {
                                     JsonValue::Object(obj) => {
                                         let data_object: HashMap<String, DataValue> = obj.into_iter()
-                                            .map(|(k, v)| (k, crate::types::json_value_to_data_value(v)))
+                                            .map(|(k, v)| (k, crate::types::data_value::json_value_to_data_value(v)))
                                             .collect();
                                         debug!("转换为DataValue::Object，包含{}个字段", data_object.len());
                                         Ok(DataValue::Object(data_object))
                                     },
                                     JsonValue::Array(arr) => {
                                         let data_array: Vec<DataValue> = arr.into_iter()
-                                            .map(|v| crate::types::json_value_to_data_value(v))
+                                            .map(|v| crate::types::data_value::json_value_to_data_value(v))
                                             .collect();
                                         debug!("转换为DataValue::Array，包含{}个元素", data_array.len());
                                         Ok(DataValue::Array(data_array))
                                     },
                                     _ => {
                                         debug!("转换为其他DataValue类型");
-                                        Ok(crate::types::json_value_to_data_value(json_value))
+                                        Ok(crate::types::data_value::json_value_to_data_value(json_value))
                                     },
                                 }
                             },
@@ -499,7 +499,7 @@ impl MysqlAdapter {
             query = match param {
                 DataValue::String(s) => {
                     // 检查是否为JSON字符串，如果是则转换为对应的DataValue类型
-                    let converted_value = crate::types::parse_json_string_to_data_value(s.clone());
+                    let converted_value = crate::types::data_value::parse_json_string_to_data_value(s.clone());
                     match converted_value {
                         DataValue::Json(json_val) => {
                             query.bind(serde_json::to_string(&json_val).unwrap_or_default())
@@ -580,7 +580,7 @@ impl MysqlAdapter {
             query = match param {
                 DataValue::String(s) => {
                     // 检查是否为JSON字符串，如果是则转换为对应的DataValue类型
-                    let converted_value = crate::types::parse_json_string_to_data_value(s.clone());
+                    let converted_value = crate::types::data_value::parse_json_string_to_data_value(s.clone());
                     match converted_value {
                         DataValue::Json(json_val) => {
                             query.bind(serde_json::to_string(&json_val).unwrap_or_default())
