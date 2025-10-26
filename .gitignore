@@ -81,3 +81,4 @@ Thumbs.db
 /**/*.so
 /**/*.dylib
 /**/*.dll
+/test_cache
