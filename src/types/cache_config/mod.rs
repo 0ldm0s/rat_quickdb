@@ -96,3 +96,40 @@ pub enum CompressionAlgorithm {
     /// Gzip 压缩
     Gzip,
 }
+
+impl L2CacheConfig {
+    /// 创建新的 L2 缓存配置
+    pub fn new(storage_path: String) -> Self {
+        Self {
+            storage_path,
+            max_disk_mb: 1000,
+            compression_level: 3,
+            enable_wal: true,
+            clear_on_startup: false,
+        }
+    }
+
+    /// 设置最大磁盘使用
+    pub fn with_max_disk_mb(mut self, disk_mb: usize) -> Self {
+        self.max_disk_mb = disk_mb;
+        self
+    }
+
+    /// 设置压缩级别
+    pub fn with_compression_level(mut self, level: i32) -> Self {
+        self.compression_level = level;
+        self
+    }
+
+    /// 启用 WAL
+    pub fn enable_wal(mut self, enable: bool) -> Self {
+        self.enable_wal = enable;
+        self
+    }
+
+    /// 设置启动时清空缓存目录
+    pub fn clear_on_startup(mut self, clear: bool) -> Self {
+        self.clear_on_startup = clear;
+        self
+    }
+}
