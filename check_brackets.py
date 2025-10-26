@@ -4,6 +4,9 @@
 检查Rust文件中的括号匹配情况
 """
 
+import os
+import glob
+
 def check_brackets(filename):
     """检查文件中的括号是否匹配"""
     try:
@@ -93,38 +96,80 @@ def find_method_bounds(filename, method_name):
 
     return start_line + 1, None, f"方法 {method_name} 未找到结束括号"
 
+def check_directory(directory):
+    """检查目录中的所有.rs文件"""
+    if os.path.isdir(directory):
+        # 查找目录中的所有.rs文件
+        pattern = os.path.join(directory, "*.rs")
+        files = glob.glob(pattern)
+        files.sort()
+        return files
+    else:
+        return [directory]
+
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print("用法: python check_brackets.py <文件名>")
+        print("用法:")
+        print("  python check_brackets.py <文件名>           # 检查单个文件")
+        print("  python check_brackets.py <目录名>           # 检查目录中的所有.rs文件")
+        print("  python check_brackets.py <文件名> <方法名>  # 查找特定方法")
         sys.exit(1)
 
-    filename = sys.argv[1]
+    target = sys.argv[1]
 
-    print(f"检查文件: {filename}")
-    print("=" * 50)
-
-    # 检查括号匹配
-    issues = check_brackets(filename)
-
-    if issues:
-        print("发现括号问题:")
-        for issue in issues:
-            print(f"  - {issue}")
+    # 确定要检查的文件
+    if os.path.isdir(target):
+        files = check_directory(target)
+        print(f"检查目录: {target}")
+        print(f"找到 {len(files)} 个.rs文件")
     else:
-        print("OK: 所有括号匹配正确")
+        files = [target]
 
-    print()
+    print("=" * 60)
 
-    # 如果指定了方法名，检查方法边界
-    if len(sys.argv) > 2:
-        method_name = sys.argv[2]
-        print(f"查找方法: {method_name}")
+    total_issues = 0
+    files_with_issues = 0
 
-        start, end, error = find_method_bounds(filename, method_name)
+    for i, filename in enumerate(files, 1):
+        print(f"[{i}/{len(files)}] 检查文件: {filename}")
+        print("-" * 40)
 
-        if error:
-            print(f"ERROR: {error}")
+        # 检查括号匹配
+        issues = check_brackets(filename)
+
+        if issues:
+            files_with_issues += 1
+            print("❌ 发现括号问题:")
+            for issue in issues:
+                print(f"     {issue}")
+            total_issues += len(issues)
         else:
-            print(f"OK: 方法位置: 第{start}行 - 第{end}行 (共{end-start+1}行)")
+            print("✅ OK: 所有括号匹配正确")
+
+        # 如果指定了方法名，检查方法边界
+        if len(sys.argv) > 2 and not os.path.isdir(target):
+            method_name = sys.argv[2]
+            print(f"\n查找方法: {method_name}")
+
+            start, end, error = find_method_bounds(filename, method_name)
+
+            if error:
+                print(f"ERROR: {error}")
+            else:
+                print(f"OK: 方法位置: 第{start}行 - 第{end}行 (共{end-start+1}行)")
+
+        print()
+
+    # 总结
+    if len(files) > 1:
+        print("=" * 60)
+        print(f"批量检查完成:")
+        print(f"  总文件数: {len(files)}")
+        print(f"  有问题的文件: {files_with_issues}")
+        print(f"  总问题数: {total_issues}")
+        if files_with_issues == 0:
+            print("🎉 所有文件的括号都匹配正确!")
+        else:
+            print(f"⚠️  有 {files_with_issues} 个文件需要修复")
