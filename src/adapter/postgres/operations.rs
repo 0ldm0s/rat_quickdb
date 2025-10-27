@@ -1,330 +1,20 @@
-//! PostgreSQL数据库适配器
-//! 
-//! 使用tokio-postgres库实现真实的PostgreSQL数据库操作
+//! PostgreSQL适配器trait实现
 
-use super::{DatabaseAdapter, SqlQueryBuilder};
-use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::{*, IdStrategy};
-use crate::{FieldType, FieldDefinition};
+use crate::adapter::PostgresAdapter;
+use crate::adapter::DatabaseAdapter;
+use crate::adapter::query_builder::SqlQueryBuilder;
 use crate::pool::DatabaseConnection;
-use crate::table::{TableManager, TableSchema, ColumnType};
+use crate::error::{QuickDbError, QuickDbResult};
+use crate::types::*;
+use crate::model::{FieldType, FieldDefinition};
+use crate::manager;
 use async_trait::async_trait;
-use serde_json::Value;
+use rat_logger::debug;
+use sqlx::Row;
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use rat_logger::{info, error, warn, debug};
-use sqlx::{Row, Column, TypeInfo};
-// 移除不存在的rat_logger::prelude导入
 
-/// PostgreSQL适配器
-pub struct PostgresAdapter {
-    /// 表创建锁，防止重复创建表
-    creation_locks: Arc<Mutex<HashMap<String, ()>>>,
-}
-
-impl PostgresAdapter {
-    /// 创建新的PostgreSQL适配器实例
-    pub fn new() -> Self {
-        Self {
-            creation_locks: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    /// 获取表创建锁
-    async fn acquire_table_lock(&self, table: &str) -> tokio::sync::MutexGuard<'_, HashMap<String, ()>> {
-        let mut locks = self.creation_locks.lock().await;
-        if !locks.contains_key(table) {
-            locks.insert(table.to_string(), ());
-            debug!("🔒 获取表 {} 的创建锁", table);
-        }
-        locks
-    }
-
-    /// 释放表创建锁
-    async fn release_table_lock(&self, table: &str, mut locks: tokio::sync::MutexGuard<'_, HashMap<String, ()>>) {
-        locks.remove(table);
-        debug!("🔓 释放表 {} 的创建锁", table);
-    }
-}
-
-impl PostgresAdapter {
-
-
-    /// 将PostgreSQL行转换为DataValue映射
-    fn row_to_data_map(&self, row: &sqlx::postgres::PgRow) -> QuickDbResult<HashMap<String, DataValue>> {
-        let mut map = HashMap::new();
-        
-        for column in row.columns() {
-            let column_name = column.name();
-            let type_name = column.type_info().name();
-
-            // 根据PostgreSQL类型转换值
-            let data_value = match type_name {
-                "INT4" | "INT8" => {
-                    if let Ok(val) = row.try_get::<Option<i32>, _>(column_name) {
-                        match val {
-                            Some(i) => DataValue::Int(i as i64),
-                            None => DataValue::Null,
-                        }
-                    } else if let Ok(val) = row.try_get::<Option<i64>, _>(column_name) {
-                        match val {
-                            Some(i) => {
-                                // 如果是id字段且值很大，可能是雪花ID，转换为字符串保持跨数据库兼容性
-                                if column_name == "id" && i > 1000000000000000000 {
-                                    DataValue::String(i.to_string())
-                                } else {
-                                    DataValue::Int(i)
-                                }
-                            },
-                            None => DataValue::Null,
-                        }
-                    } else {
-                        DataValue::Null
-                    }
-                },
-                "FLOAT4" | "FLOAT8" => {
-                    if let Ok(val) = row.try_get::<Option<f32>, _>(column_name) {
-                        match val {
-                            Some(f) => DataValue::Float(f as f64),
-                            None => DataValue::Null,
-                        }
-                    } else if let Ok(val) = row.try_get::<Option<f64>, _>(column_name) {
-                        match val {
-                            Some(f) => DataValue::Float(f),
-                            None => DataValue::Null,
-                        }
-                    } else {
-                        DataValue::Null
-                    }
-                },
-                "BOOL" => {
-                    if let Ok(val) = row.try_get::<Option<bool>, _>(column_name) {
-                        match val {
-                            Some(b) => DataValue::Bool(b),
-                            None => DataValue::Null,
-                        }
-                    } else {
-                        DataValue::Null
-                    }
-                },
-                "TEXT" | "VARCHAR" | "CHAR" => {
-                    if let Ok(val) = row.try_get::<Option<String>, _>(column_name) {
-                        match val {
-                            Some(s) => DataValue::String(s),
-                            None => DataValue::Null,
-                        }
-                    } else {
-                        DataValue::Null
-                    }
-                },
-                "UUID" => {
-                    if let Ok(val) = row.try_get::<Option<uuid::Uuid>, _>(column_name) {
-                        match val {
-                            Some(u) => {
-                                // 将UUID转换为字符串以保持跨数据库兼容性
-                                DataValue::String(u.to_string())
-                            },
-                            None => DataValue::Null,
-                        }
-                    } else {
-                        DataValue::Null
-                    }
-                },
-                "JSON" | "JSONB" => {
-                    // PostgreSQL原生支持JSONB，直接获取serde_json::Value
-                    // 无需像MySQL/SQLite那样解析JSON字符串
-                    if let Ok(val) = row.try_get::<Option<serde_json::Value>, _>(column_name) {
-                        match val {
-                            Some(json_val) => {
-                                // 使用现有的转换函数，确保类型正确
-                                crate::types::data_value::json_value_to_data_value(json_val)
-                            },
-                            None => DataValue::Null,
-                        }
-                    } else {
-                        DataValue::Null
-                    }
-                },
-                // 处理PostgreSQL数组类型（如 text[], integer[], bigint[] 等）
-                type_name if type_name.ends_with("[]") => {
-                    // 尝试将PostgreSQL数组转换为Vec<String>，然后再转换为DataValue::Array
-                    if let Ok(val) = row.try_get::<Option<Vec<String>>, _>(column_name) {
-                        match val {
-                            Some(arr) => {
-                                debug!("PostgreSQL数组字段 {} 转换为DataValue::Array，元素数量: {}", column_name, arr.len());
-                                // 将字符串数组转换为DataValue数组
-                                let data_array: Vec<DataValue> = arr.into_iter()
-                                    .map(DataValue::String)
-                                    .collect();
-                                DataValue::Array(data_array)
-                            },
-                            None => DataValue::Null,
-                        }
-                    } else {
-                        // 如果字符串数组读取失败，尝试其他方法
-                        debug!("PostgreSQL数组字段 {} 无法作为字符串数组读取，尝试作为JSON", column_name);
-                        if let Ok(val) = row.try_get::<Option<serde_json::Value>, _>(column_name) {
-                            match val {
-                                Some(json_val) => {
-                                    debug!("PostgreSQL数组字段 {} 作为JSON处理: {:?}", column_name, json_val);
-                                    crate::types::data_value::json_value_to_data_value(json_val)
-                                },
-                                None => DataValue::Null,
-                            }
-                        } else {
-                            debug!("PostgreSQL数组字段 {} 读取失败，设置为Null", column_name);
-                            DataValue::Null
-                        }
-                    }
-                },
-                    "timestamp without time zone" | "TIMESTAMP" | "TIMESTAMPTZ" => {
-                    // 对于不带时区的时间戳，先尝试作为chrono::DateTime<chrono::Utc>，如果失败则尝试作为chrono::NaiveDateTime
-                    if let Ok(val) = row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>(column_name) {
-                        match val {
-                            Some(dt) => DataValue::DateTime(dt),
-                            None => DataValue::Null,
-                        }
-                    } else if let Ok(val) = row.try_get::<Option<chrono::NaiveDateTime>, _>(column_name) {
-                        match val {
-                            Some(ndt) => {
-                                // 将NaiveDateTime转换为UTC时间
-                                let utc_dt = ndt.and_utc();
-                                DataValue::DateTime(utc_dt)
-                            },
-                            None => DataValue::Null,
-                        }
-                    } else {
-                        DataValue::Null
-                    }
-                },
-                _ => {
-                    // 对于未知类型，尝试作为字符串获取
-                    if let Ok(val) = row.try_get::<Option<String>, _>(column_name) {
-                        match val {
-                            Some(s) => DataValue::String(s),
-                            None => DataValue::Null,
-                        }
-                    } else {
-                        DataValue::Null
-                    }
-                }
-            };
-            
-            map.insert(column_name.to_string(), data_value);
-        }
-        
-        Ok(map)
-    }
-
-    /// 将PostgreSQL行转换为JSON值（保留用于向后兼容）
-    fn row_to_json(&self, row: &sqlx::postgres::PgRow) -> QuickDbResult<Value> {
-        let data_map = self.row_to_data_map(row)?;
-        let mut json_map = serde_json::Map::new();
-        
-        for (key, value) in data_map {
-            json_map.insert(key, value.to_json_value());
-        }
-        
-        Ok(Value::Object(json_map))
-    }
-
-    /// 执行查询并返回结果
-    async fn execute_query(
-        &self,
-        pool: &sqlx::Pool<sqlx::Postgres>,
-        sql: &str,
-        params: &[DataValue],
-    ) -> QuickDbResult<Vec<DataValue>> {
-        let mut query = sqlx::query(sql);
-
-        // 绑定参数
-        for param in params {
-            query = match param {
-                DataValue::String(s) => {
-                    // 尝试判断是否为UUID格式，如果是则转换为UUID类型
-                    match s.parse::<uuid::Uuid>() {
-                        Ok(uuid) => query.bind(uuid), // 绑定为UUID类型
-                        Err(_) => query.bind(s),       // 不是UUID格式，绑定为字符串
-                    }
-                },
-                DataValue::Int(i) => query.bind(*i),
-                DataValue::Float(f) => query.bind(*f),
-                DataValue::Bool(b) => query.bind(*b),
-                DataValue::DateTime(dt) => query.bind(*dt),
-                DataValue::Uuid(uuid) => query.bind(*uuid),
-                DataValue::Json(json) => query.bind(json),
-                DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
-                DataValue::Null => query.bind(Option::<String>::None),
-                DataValue::Array(arr) => {
-                    // 使用 to_json_value() 避免序列化时包含类型标签
-                    let json_array = DataValue::Array(arr.clone()).to_json_value();
-                    query.bind(json_array)
-                },
-                DataValue::Object(obj) => {
-                    // 使用 to_json_value() 避免序列化时包含类型标签
-                    let json_object = DataValue::Object(obj.clone()).to_json_value();
-                    query.bind(json_object)
-                },
-            };
-        }
-        
-        let rows = query.fetch_all(pool)
-            .await
-            .map_err(|e| QuickDbError::QueryError {
-                message: format!("执行PostgreSQL查询失败: {}", e),
-            })?;
-        
-        let mut results = Vec::new();
-        for row in rows {
-            let data_map = self.row_to_data_map(&row)?;
-            results.push(DataValue::Object(data_map));
-        }
-        
-        Ok(results)
-    }
-
-    /// 执行更新操作
-    async fn execute_update(
-        &self,
-        pool: &sqlx::Pool<sqlx::Postgres>,
-        sql: &str,
-        params: &[DataValue],
-    ) -> QuickDbResult<u64> {
-        let mut query = sqlx::query(sql);
-        
-        // 绑定参数
-        for param in params {
-            query = match param {
-                DataValue::String(s) => {
-                    // 尝试判断是否为UUID格式，如果是则转换为UUID类型
-                    match s.parse::<uuid::Uuid>() {
-                        Ok(uuid) => query.bind(uuid), // 绑定为UUID类型
-                        Err(_) => query.bind(s),       // 不是UUID格式，绑定为字符串
-                    }
-                },
-                DataValue::Int(i) => query.bind(*i),
-                DataValue::Float(f) => query.bind(*f),
-                DataValue::Bool(b) => query.bind(*b),
-                DataValue::DateTime(dt) => query.bind(*dt),
-                DataValue::Uuid(uuid) => query.bind(*uuid),
-                DataValue::Json(json) => query.bind(json),
-                DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
-                DataValue::Null => query.bind(Option::<String>::None),
-                DataValue::Array(arr) => query.bind(serde_json::to_value(arr).unwrap_or_default()),
-                DataValue::Object(obj) => query.bind(serde_json::to_value(obj).unwrap_or_default()),
-            };
-        }
-        
-        let result = query.execute(pool)
-            .await
-            .map_err(|e| QuickDbError::QueryError {
-                message: format!("执行PostgreSQL更新失败: {}", e),
-            })?;
-        
-        Ok(result.rows_affected())
-    }
-}
+use super::query as postgres_query;
+use super::schema as postgres_schema;
 
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
@@ -337,18 +27,18 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             // 自动建表逻辑：检查表是否存在，如果不存在则创建
-            if !self.table_exists(connection, table).await? {
+            if !postgres_schema::table_exists(self, connection, table).await? {
                 // 获取表创建锁，防止重复创建
                 let _lock = self.acquire_table_lock(table).await;
 
                 // 再次检查表是否存在（双重检查锁定模式）
-                if !self.table_exists(connection, table).await? {
+                if !postgres_schema::table_exists(self, connection, table).await? {
                     // 尝试从模型管理器获取预定义的元数据
                     if let Some(model_meta) = crate::manager::get_model(table) {
                         debug!("表 {} 不存在，使用预定义模型元数据创建", table);
 
                         // 使用模型元数据创建表
-                        self.create_table(connection, table, &model_meta.fields, id_strategy).await?;
+                        postgres_schema::create_table(self, connection, table, &model_meta.fields, id_strategy).await?;
                         debug!("✅ 使用模型元数据创建PostgreSQL表 '{}' 成功", table);
 
                         // 等待100ms确保数据库事务完全提交
@@ -431,7 +121,7 @@ impl DatabaseAdapter for PostgresAdapter {
             
             debug!("执行PostgreSQL插入: {}", sql);
             
-            let results = self.execute_query(pool, &sql, &params).await?;
+            let results = super::utils::execute_query(self, pool, &sql, &params).await?;
             
             if let Some(result) = results.first() {
                 Ok(result.clone())
@@ -471,7 +161,7 @@ impl DatabaseAdapter for PostgresAdapter {
             
             debug!("执行PostgreSQL根据ID查询: {}", sql);
             
-            let results = self.execute_query(pool, &sql, &params).await?;
+            let results = super::utils::execute_query(self, pool, &sql, &params).await?;
             Ok(results.into_iter().next())
         } else {
             Err(QuickDbError::ConnectionError {
@@ -534,7 +224,7 @@ impl DatabaseAdapter for PostgresAdapter {
             
             debug!("执行PostgreSQL条件组查询: {}", sql);
             
-            self.execute_query(pool, &sql, &params).await
+            super::utils::execute_query(self, pool, &sql, &params).await
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
@@ -559,7 +249,7 @@ impl DatabaseAdapter for PostgresAdapter {
             
             debug!("执行PostgreSQL更新: {}", sql);
             
-            self.execute_update(pool, &sql, &params).await
+            super::utils::execute_update(self, pool, &sql, &params).await
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
@@ -649,7 +339,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
             debug!("执行PostgreSQL操作更新: {}", sql);
 
-            self.execute_update(pool, &sql, &params).await
+            super::utils::execute_update(self, pool, &sql, &params).await
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
@@ -663,22 +353,7 @@ impl DatabaseAdapter for PostgresAdapter {
         table: &str,
         conditions: &[QueryCondition],
     ) -> QuickDbResult<u64> {
-        if let DatabaseConnection::PostgreSQL(pool) = connection {
-            let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::PostgreSQL)
-                .delete()
-                .from(table)
-                .where_conditions(conditions)
-                .build()?;
-            
-            debug!("执行PostgreSQL删除: {}", sql);
-            
-            self.execute_update(pool, &sql, &params).await
-        } else {
-            Err(QuickDbError::ConnectionError {
-                message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
-            })
-        }
+        postgres_query::delete(self, connection, table, conditions).await
     }
 
     async fn delete_by_id(
@@ -687,14 +362,7 @@ impl DatabaseAdapter for PostgresAdapter {
         table: &str,
         id: &DataValue,
     ) -> QuickDbResult<bool> {
-        let conditions = vec![QueryCondition {
-            field: "id".to_string(),
-            operator: QueryOperator::Eq,
-            value: id.clone(),
-        }];
-        
-        let affected = self.delete(connection, table, &conditions).await?;
-        Ok(affected > 0)
+        postgres_query::delete_by_id(self, connection, table, id).await
     }
 
     async fn count(
@@ -703,31 +371,7 @@ impl DatabaseAdapter for PostgresAdapter {
         table: &str,
         conditions: &[QueryCondition],
     ) -> QuickDbResult<u64> {
-        if let DatabaseConnection::PostgreSQL(pool) = connection {
-            let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::PostgreSQL)
-                .select(&["COUNT(*) as count"])
-                .from(table)
-                .where_conditions(conditions)
-                .build()?;
-            
-            debug!("执行PostgreSQL计数: {}", sql);
-            
-            let results = self.execute_query(pool, &sql, &params).await?;
-            if let Some(result) = results.first() {
-                if let DataValue::Object(obj) = result {
-                    if let Some(DataValue::Int(count)) = obj.get("count") {
-                        return Ok(*count as u64);
-                    }
-                }
-            }
-            
-            Ok(0)
-        } else {
-            Err(QuickDbError::ConnectionError {
-                message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
-            })
-        }
+        postgres_query::count(self, connection, table, conditions).await
     }
 
     async fn exists(
@@ -736,8 +380,7 @@ impl DatabaseAdapter for PostgresAdapter {
         table: &str,
         conditions: &[QueryCondition],
     ) -> QuickDbResult<bool> {
-        let count = self.count(connection, table, conditions).await?;
-        Ok(count > 0)
+        postgres_query::exists(self, connection, table, conditions).await
     }
 
     async fn create_table(
@@ -823,7 +466,7 @@ impl DatabaseAdapter for PostgresAdapter {
             debug!("🔍 执行PostgreSQL建表SQL: {}", sql);
             debug!("🔍 字段定义详情: {:?}", field_definitions);
 
-            self.execute_update(pool, &sql, &[]).await?;
+            super::utils::execute_update(self, pool, &sql, &[]).await?;
             
             Ok(())
         } else {
@@ -853,7 +496,7 @@ impl DatabaseAdapter for PostgresAdapter {
             
             debug!("执行PostgreSQL索引创建: {}", sql);
             
-            self.execute_update(pool, &sql, &[]).await?;
+            super::utils::execute_update(self, pool, &sql, &[]).await?;
             
             Ok(())
         } else {
