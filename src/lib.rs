@@ -31,7 +31,7 @@ pub use types::*;
 pub use pool::DatabaseConnection;
 pub use manager::{
     add_database, remove_database, get_aliases, set_default_alias, health_check, shutdown,
-    get_id_generator, get_mongo_auto_increment_generator, table_exists, drop_table
+    table_exists, drop_table, register_model
 };
 
 pub use manager::{
