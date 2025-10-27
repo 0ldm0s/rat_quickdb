@@ -29,15 +29,13 @@ impl DatabaseJsonProcessor for PostgresJsonProcessor {
         let model_meta = crate::manager::get_model(table_name)
             .ok_or_else(|| format!("未找到表'{}'的模型元数据", table_name))?;
 
-        println!("🔍 PostgreSQL处理器 - 处理表: {}", table_name);
-
+        
         for (field_name, json_value) in json_obj {
             // 获取字段定义
             let field_def = model_meta.fields.get(field_name)
                 .ok_or_else(|| format!("字段'{}'未在表'{}'的模型中定义", field_name, table_name))?;
 
-            println!("🔍 PostgreSQL处理器 - 字段: {} (类型: {:?}) = {:?}", field_name, field_def.field_type, json_value);
-
+            
             // 根据字段定义类型进行转换
             let data_value = self.convert_field_value(field_name, json_value, field_def)?;
             data_map.insert(field_name.clone(), data_value);
@@ -70,14 +68,12 @@ impl PostgresJsonProcessor {
             Value::Null => Ok(DataValue::Null),
             Value::String(s) => {
                 if is_datetime {
-                    println!("🔍 PostgreSQL处理器 - 解析datetime字段: {} = {}", field_name, s);
-                    match self.parse_datetime_string(s) {
+                                        match self.parse_datetime_string(s) {
                         Some(dt) => Ok(DataValue::DateTime(dt)),
                         None => Err(format!("datetime字段'{}'格式错误: {}, 必须使用有效的ISO 8601格式", field_name, s))
                     }
                 } else if self.is_uuid_field(field_name, &s) {
-                    println!("🔍 PostgreSQL处理器 - 解析UUID字段: {} = {}", field_name, s);
-                    match self.parse_uuid_string(s) {
+                                        match self.parse_uuid_string(s) {
                         Some(uuid) => Ok(DataValue::Uuid(uuid)),
                         None => Err(format!("UUID字段'{}'格式错误: {}", field_name, s))
                     }
@@ -142,7 +138,7 @@ impl PostgresJsonProcessor {
         if s.contains('T') && (s.contains('+') || s.contains('-') || s.contains('Z')) {
             match DateTime::parse_from_rfc3339(s) {
                 Ok(dt) => return Some(dt.with_timezone(&Utc)),
-                Err(_) => println!("⚠️ RFC3339解析失败: {}", s),
+                Err(_) => {},
             }
         }
 
@@ -153,7 +149,7 @@ impl PostgresJsonProcessor {
                 Err(_) => {
                     match NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S") {
                         Ok(ndt) => return Some(DateTime::from_naive_utc_and_offset(ndt, Utc)),
-                        Err(_) => println!("⚠️ ISO格式解析失败: {}", s),
+                        Err(_) => {},
                     }
                 }
             }
@@ -163,12 +159,11 @@ impl PostgresJsonProcessor {
         if s.len() == 19 && s.contains(' ') {
             match NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S") {
                 Ok(ndt) => return Some(DateTime::from_naive_utc_and_offset(ndt, Utc)),
-                Err(_) => println!("⚠️ MySQL格式解析失败: {}", s),
+                Err(_) => {},
             }
         }
 
-        println!("❌ 所有datetime格式解析失败: {}", s);
-        None
+                None
     }
 
     /// 检查字段是否为UUID字段
@@ -193,8 +188,7 @@ impl PostgresJsonProcessor {
         match uuid::Uuid::parse_str(s) {
             Ok(uuid) => Some(uuid),
             Err(_) => {
-                println!("⚠️ UUID解析失败: {}", s);
-                None
+                                None
             }
         }
     }

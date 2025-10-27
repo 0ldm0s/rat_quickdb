@@ -172,31 +172,19 @@ impl SimpleQueueBridge {
             return Err("缺少记录数据".to_string());
         };
 
-        // 调试打印：总是打印record的类型
-        println!("🔍 Python集成层 - record类型: {:?}", record);
-
+        
         // 转换为ODM格式的数据
         let mut data_map = std::collections::HashMap::new();
         if let serde_json::Value::Object(ref obj) = record {
-            // 调试打印：解析后的JSON对象
-            println!("🔍 Python集成层 - 原始record JSON: {}", serde_json::to_string(obj).unwrap_or_else(|_| "JSON序列化失败".to_string()));
-
             // 处理带标签的DataValue格式
-            println!("🔍 处理带标签的DataValue格式");
             for (key, value) in obj {
                 // 直接解析带标签的DataValue，无需类型推断
                 let data_value = self.parse_labeled_data_value(value.clone())?;
                 data_map.insert(key.clone(), data_value);
             }
-            println!("🔍 带标签DataValue解析完成");
 
-            // 调试打印：转换后的DataValue
-            println!("🔍 Python集成层 - 转换后的data_map:");
-            for (key, data_value) in &data_map {
-                println!("  {}: {:?}", key, data_value);
-            }
         } else {
-            println!("🔍 Python集成层 - record不是Object类型!");
+            return Err("record不是Object类型".to_string());
         }
 
         // 通过ODM层执行创建操作
@@ -750,8 +738,7 @@ impl SimpleQueueBridge {
             let db_type = crate::manager::get_global_pool_manager().get_database_type(alias)
                 .map_err(|e| format!("无法获取数据库'{}'的类型: {}, 请检查数据库配置是否正确", alias, e))?;
 
-            println!("🔍 获取数据库处理器: {} -> {:?}", alias, db_type);
-            Ok(create_database_json_processor(&db_type))
+                        Ok(create_database_json_processor(&db_type))
         } else {
             Err("未指定数据库别名，无法获取数据库处理器".to_string())
         }

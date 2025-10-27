@@ -29,15 +29,13 @@ impl DatabaseJsonProcessor for SqliteJsonProcessor {
         let model_meta = crate::manager::get_model(table_name)
             .ok_or_else(|| format!("未找到表'{}'的模型元数据", table_name))?;
 
-        println!("🔍 SQLite处理器 - 处理表: {}", table_name);
-
+        
         for (field_name, json_value) in json_obj {
             // 获取字段定义
             let field_def = model_meta.fields.get(field_name)
                 .ok_or_else(|| format!("字段'{}'未在表'{}'的模型中定义", field_name, table_name))?;
 
-            println!("🔍 SQLite处理器 - 字段: {} (类型: {:?}) = {:?}", field_name, field_def.field_type, json_value);
-
+            
             // SQLite接受datetime字符串，直接使用标准转换
             let data_value = self.convert_standard_field_value(json_value)?;
             data_map.insert(field_name.clone(), data_value);
