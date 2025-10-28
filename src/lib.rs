@@ -19,6 +19,7 @@ pub mod security;
 
 // 条件编译的模块
 pub mod cache;
+pub mod join_macro;
 pub mod id_generator;
 
 // Python API 模块（仅在启用 python-bindings 特性时编译）
