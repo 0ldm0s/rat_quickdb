@@ -35,21 +35,30 @@ pub(crate) fn get_global_pool_manager() -> &'static PoolManager {
 
 /// 便捷函数 - 添加数据库配置
 pub async fn add_database(config: DatabaseConfig) -> QuickDbResult<()> {
+    // 检查全局操作锁状态
+    if crate::is_global_operations_locked() {
+        return Err(QuickDbError::ConfigError {
+            message: "系统已开始执行查询操作，不允许再添加数据库".to_string(),
+        });
+    }
+
     get_global_pool_manager().add_database(config).await
 }
 
-/// 便捷函数 - 移除数据库配置
-pub async fn remove_database(alias: &str) -> QuickDbResult<()> {
-    get_global_pool_manager().remove_database(alias).await
-}
 
 /// 便捷函数 - 获取连接
 pub async fn get_connection(alias: Option<&str>) -> QuickDbResult<PooledConnection> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     get_global_pool_manager().get_connection(alias).await
 }
 
 /// 便捷函数 - 释放连接
 pub async fn release_connection(connection: &PooledConnection) -> QuickDbResult<()> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     get_global_pool_manager().release_connection(connection).await
 }
 
@@ -67,11 +76,17 @@ pub async fn set_default_alias(alias: &str) -> QuickDbResult<()> {
 
 /// 便捷函数 - 健康检查
 pub async fn health_check() -> std::collections::HashMap<String, bool> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     get_global_pool_manager().health_check().await
 }
 
 /// 便捷函数 - 获取所有活跃连接池的详细状态信息
 pub async fn get_active_pools_status() -> std::collections::HashMap<String, serde_json::Value> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     get_global_pool_manager().get_active_pools_status().await
 }
 
@@ -115,16 +130,25 @@ pub fn get_cache_manager(alias: &str) -> QuickDbResult<Arc<CacheManager>> {
 
 /// 便捷函数 - 获取缓存统计信息
 pub async fn get_cache_stats(alias: &str) -> QuickDbResult<CacheStats> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     get_global_pool_manager().get_cache_stats(alias).await
 }
 
 /// 便捷函数 - 清理指定数据库的缓存
 pub async fn clear_cache(alias: &str) -> QuickDbResult<()> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     get_global_pool_manager().clear_cache(alias).await
 }
 
 /// 便捷函数 - 清理所有数据库的缓存
 pub async fn clear_all_caches() -> QuickDbResult<()> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     get_global_pool_manager().clear_all_caches().await
 }
 
@@ -134,36 +158,48 @@ pub async fn clear_all_caches() -> QuickDbResult<()> {
 /// * `alias` - 数据库别名
 /// * `pattern` - 缓存键模式，支持通配符 * 和 ?
 pub async fn clear_cache_by_pattern(alias: &str, pattern: &str) -> QuickDbResult<usize> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let cache_manager = get_global_pool_manager().get_cache_manager(alias)?;
     cache_manager.clear_by_pattern(pattern).await
         .map_err(|e| QuickDbError::CacheError { message: e.to_string() })
 }
 
 /// 便捷函数 - 批量清理记录缓存
-/// 
+///
 /// # 参数
 /// * `alias` - 数据库别名
 /// * `table` - 表名
 /// * `ids` - 要清理的记录ID列表
 pub async fn clear_records_cache_batch(alias: &str, table: &str, ids: &[IdType]) -> QuickDbResult<usize> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let cache_manager = get_global_pool_manager().get_cache_manager(alias)?;
     cache_manager.clear_records_batch(table, ids).await
         .map_err(|e| QuickDbError::CacheError { message: e.to_string() })
 }
 
 /// 便捷函数 - 强制清理过期缓存
-/// 
+///
 /// 手动触发过期缓存的清理，通常用于内存紧张或需要立即释放空间的场景
 pub async fn force_cleanup_expired_cache(alias: &str) -> QuickDbResult<usize> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let cache_manager = get_global_pool_manager().get_cache_manager(alias)?;
     cache_manager.force_cleanup_expired().await
         .map_err(|e| QuickDbError::CacheError { message: e.to_string() })
 }
 
 /// 便捷函数 - 获取所有缓存键列表（按表分组）
-/// 
+///
 /// 用于调试和监控，可以查看当前缓存中有哪些键
 pub async fn list_cache_keys(alias: &str) -> QuickDbResult<std::collections::HashMap<String, Vec<String>>> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let cache_manager = get_global_pool_manager().get_cache_manager(alias)?;
     cache_manager.list_cache_keys().await
         .map_err(|e| QuickDbError::CacheError { message: e.to_string() })
@@ -171,24 +207,33 @@ pub async fn list_cache_keys(alias: &str) -> QuickDbResult<std::collections::Has
 
 /// 便捷函数 - 获取指定表的缓存键列表
 pub async fn list_table_cache_keys(alias: &str, table: &str) -> QuickDbResult<Vec<String>> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let cache_manager = get_global_pool_manager().get_cache_manager(alias)?;
     cache_manager.list_table_cache_keys(table).await
         .map_err(|e| QuickDbError::CacheError { message: e.to_string() })
 }
 
 /// 便捷函数 - 清理指定表的查询缓存
-/// 
+///
 /// 只清理查询缓存，保留记录缓存
 pub async fn clear_table_query_cache(alias: &str, table: &str) -> QuickDbResult<usize> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let cache_manager = get_global_pool_manager().get_cache_manager(alias)?;
     cache_manager.clear_table_query_cache(table).await
         .map_err(|e| QuickDbError::CacheError { message: e.to_string() })
 }
 
 /// 便捷函数 - 清理指定表的记录缓存
-/// 
+///
 /// 只清理记录缓存，保留查询缓存
 pub async fn clear_table_record_cache(alias: &str, table: &str) -> QuickDbResult<usize> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let cache_manager = get_global_pool_manager().get_cache_manager(alias)?;
     cache_manager.clear_table_record_cache(table).await
         .map_err(|e| QuickDbError::CacheError { message: e.to_string() })
@@ -196,6 +241,9 @@ pub async fn clear_table_record_cache(alias: &str, table: &str) -> QuickDbResult
 
 /// 便捷函数 - 清理指定表的所有缓存（记录+查询）
 pub async fn clear_table_all_cache(alias: &str, table: &str) -> QuickDbResult<usize> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let cache_manager = get_global_pool_manager().get_cache_manager(alias)?;
     let record_count = cache_manager.clear_table_record_cache(table).await
         .map_err(|e| QuickDbError::CacheError { message: e.to_string() })?;
@@ -214,6 +262,9 @@ pub async fn clear_table_all_cache(alias: &str, table: &str) -> QuickDbResult<us
 /// 返回表是否存在，true表示存在，false表示不存在
 ///
 pub async fn table_exists(alias: &str, table: &str) -> QuickDbResult<bool> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let pool_manager = get_global_pool_manager();
 
     // 检查数据库是否存在，不存在则报错
@@ -242,6 +293,9 @@ pub async fn table_exists(alias: &str, table: &str) -> QuickDbResult<bool> {
 /// * `table` - 表名或集合名
 ///
 pub async fn drop_table(alias: &str, table: &str) -> QuickDbResult<()> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let pool_manager = get_global_pool_manager();
 
     // 检查数据库是否存在，不存在则报错

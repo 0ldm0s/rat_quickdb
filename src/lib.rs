@@ -1,7 +1,12 @@
 //! rat_quickdb - 跨数据库ODM库
-//! 
+//!
 //! 提供统一的数据库操作接口，支持SQLite、PostgreSQL、MySQL和MongoDB
 //! 通过连接池和无锁队列实现高性能的数据后端无关性
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+// 全局操作锁 - 一旦有查询操作就锁定，禁止添加数据库
+static GLOBAL_OPERATION_LOCK: AtomicBool = AtomicBool::new(false);
 
 // 导出所有公共模块
 pub mod error;
@@ -31,7 +36,7 @@ pub use error::{QuickDbError, QuickDbResult};
 pub use types::*;
 pub use pool::DatabaseConnection;
 pub use manager::{
-    add_database, remove_database, get_aliases, set_default_alias, health_check, shutdown,
+    add_database, get_aliases, set_default_alias, health_check, shutdown,
     table_exists, drop_table, register_model
 };
 
@@ -195,4 +200,25 @@ pub const NAME: &str = env!("CARGO_PKG_NAME");
 /// 获取库信息
 pub fn get_info() -> String {
     format!("{} v{}", NAME, VERSION)
+}
+
+/// 锁定全局操作锁 - 禁止添加数据库
+///
+/// 一旦有查询操作执行，就不再允许添加新的数据库配置
+#[doc(hidden)]
+pub(crate) fn lock_global_operations() {
+    GLOBAL_OPERATION_LOCK.store(true, Ordering::SeqCst);
+    info!("全局操作已锁定，不再允许添加数据库");
+}
+
+/// 检查全局操作锁状态
+#[doc(hidden)]
+pub(crate) fn is_global_operations_locked() -> bool {
+    GLOBAL_OPERATION_LOCK.load(Ordering::SeqCst)
+}
+
+/// 检查是否可以添加数据库
+#[doc(hidden)]
+pub(crate) fn can_add_database() -> bool {
+    !is_global_operations_locked()
 }

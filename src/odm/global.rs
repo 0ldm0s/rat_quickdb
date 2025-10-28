@@ -33,6 +33,9 @@ pub async fn create(
     data: HashMap<String, DataValue>,
     alias: Option<&str>,
 ) -> QuickDbResult<DataValue> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.create(collection, data, alias).await
 }
@@ -48,6 +51,9 @@ pub async fn find_by_id(
     id: &str,
     alias: Option<&str>,
 ) -> QuickDbResult<Option<DataValue>> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.find_by_id(collection, id, alias).await
 }
@@ -63,6 +69,9 @@ pub async fn find(
     options: Option<QueryOptions>,
     alias: Option<&str>,
 ) -> QuickDbResult<Vec<DataValue>> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.find(collection, conditions, options, alias).await
 }
@@ -78,6 +87,9 @@ pub async fn find_with_groups(
     options: Option<QueryOptions>,
     alias: Option<&str>,
 ) -> QuickDbResult<Vec<DataValue>> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.find_with_groups(collection, condition_groups, options, alias).await
 }
@@ -93,6 +105,9 @@ pub async fn update(
     updates: HashMap<String, DataValue>,
     alias: Option<&str>,
 ) -> QuickDbResult<u64> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.update(collection, conditions, updates, alias).await
 }
@@ -108,6 +123,9 @@ pub async fn update_by_id(
     updates: HashMap<String, DataValue>,
     alias: Option<&str>,
 ) -> QuickDbResult<bool> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.update_by_id(collection, id, updates, alias).await
 }
@@ -123,6 +141,9 @@ pub async fn update_with_operations(
     operations: Vec<crate::types::UpdateOperation>,
     alias: Option<&str>,
 ) -> QuickDbResult<u64> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.update_with_operations(collection, conditions, operations, alias).await
 }
@@ -137,6 +158,9 @@ pub async fn delete(
     conditions: Vec<QueryCondition>,
     alias: Option<&str>,
 ) -> QuickDbResult<u64> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.delete(collection, conditions, alias).await
 }
@@ -151,6 +175,9 @@ pub async fn delete_by_id(
     id: &str,
     alias: Option<&str>,
 ) -> QuickDbResult<bool> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.delete_by_id(collection, id, alias).await
 }
@@ -165,6 +192,9 @@ pub async fn count(
     conditions: Vec<QueryCondition>,
     alias: Option<&str>,
 ) -> QuickDbResult<u64> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.count(collection, conditions, alias).await
 }
@@ -179,12 +209,18 @@ pub async fn exists(
     conditions: Vec<QueryCondition>,
     alias: Option<&str>,
 ) -> QuickDbResult<bool> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.exists(collection, conditions, alias).await
 }
 
 /// 获取数据库服务器版本信息
 pub async fn get_server_version(alias: Option<&str>) -> QuickDbResult<String> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
     let manager = get_odm_manager().await;
     manager.get_server_version(alias).await
 }

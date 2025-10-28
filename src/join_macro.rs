@@ -1,11 +1,13 @@
 //! 虚拟表格宏定义
 //! 用于简化复杂JOIN查询和缓存管理
+//! 支持SQL和MongoDB双模式
 
 use std::collections::HashMap;
 use crate::types::*;
 use crate::adapter::DatabaseAdapter;
 use crate::pool::DatabaseConnection;
 use async_trait::async_trait;
+use serde_json::Value as JsonValue;
 
 /// JOIN子句定义
 #[derive(Debug, Clone)]
@@ -22,6 +24,41 @@ pub enum JoinType {
     Left,
     Right,
     Full,
+}
+
+/// 数据库类型枚举
+#[derive(Debug, Clone, PartialEq)]
+pub enum VirtualTableDbType {
+    Sql,
+    Mongo,
+}
+
+/// MongoDB JOIN操作定义
+#[derive(Debug, Clone)]
+pub struct MongoJoinDefinition {
+    pub from_collection: String,
+    pub local_field: String,
+    pub foreign_field: String,
+    pub as_field: String,
+    pub join_type: JoinType,
+}
+
+/// 虚拟表格的trait定义
+pub trait VirtualTable {
+    /// 获取基础表/集合名称
+    fn get_base_name() -> &'static str;
+
+    /// 获取数据库类型
+    fn get_database_type() -> VirtualTableDbType;
+
+    /// 获取JOIN定义（SQL模式）
+    fn get_sql_joins() -> Option<&'static [JoinDefinition]>;
+
+    /// 获取JOIN定义（MongoDB模式）
+    fn get_mongo_joins() -> Option<&'static [MongoJoinDefinition]>;
+
+    /// 获取字段映射
+    fn get_field_mappings() -> &'static [(&'static str, &'static str)];
 }
 
 /// 虚拟表格定义宏
