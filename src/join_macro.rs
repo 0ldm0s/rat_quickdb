@@ -13,6 +13,7 @@ use serde_json::Value as JsonValue;
 #[derive(Debug, Clone)]
 pub struct JoinDefinition {
     pub table: String,
+    pub database: Option<String>,  // 数据库别名，None表示使用默认数据库
     pub on_condition: String,
     pub join_type: JoinType,
 }
@@ -91,6 +92,7 @@ macro_rules! define_join_table {
         $(#[$attr:meta])*
         $vis:vis virtual_table $struct_name:ident {
             base_table: $base_table:expr,
+            $(database: $database:expr,)?
             joins: [$($join:expr),* $(,)?],
             fields: {
                 $($field:ident: $expr:expr),* $(,)?
@@ -106,22 +108,31 @@ macro_rules! define_join_table {
         }
 
         impl $struct_name {
+            /// 获取基础表名称
+            pub fn get_base_name() -> &'static str {
+                $base_table
+            }
+
+            /// 获取数据库别名
+            pub fn get_database_alias() -> Option<String> {
+                None $(.or(Some($database.to_string())))?
+            }
+
             /// 生成SQL查询
             pub fn to_sql(&self, conditions: &[QueryCondition], options: &QueryOptions) -> (String, Vec<DataValue>) {
-                let mut fields = vec![$($expr),*];
-                let mut joins = vec![$($join),*];
+                let fields = vec![$($expr),*];
 
-                // 构建JOIN子句
+                // 构建JOIN子句 - 直接从静态定义构造
                 let mut join_clauses = Vec::new();
-                for join in &joins {
-                    let join_str = match join.join_type {
+                $(
+                    let join_str = match $join.join_type {
                         crate::join_macro::JoinType::Inner => "INNER JOIN",
                         crate::join_macro::JoinType::Left => "LEFT JOIN",
                         crate::join_macro::JoinType::Right => "RIGHT JOIN",
                         crate::join_macro::JoinType::Full => "FULL OUTER JOIN",
                     };
-                    join_clauses.push(format!(" {} {} ON {}", join_str, join.table, join.on_condition));
-                }
+                    join_clauses.push(format!(" {} {} ON {}", join_str, $join.table, $join.on_condition));
+                )*
 
                 // 构建WHERE子句
                 let (mut where_clause, mut params) = (String::new(), Vec::new());
