@@ -19,14 +19,16 @@ impl PoolManager {
     /// 注册模型元数据
     pub fn register_model(&self, model_meta: ModelMeta) -> QuickDbResult<()> {
         let collection_name = model_meta.collection_name.clone();
+        let database_alias = model_meta.database_alias.clone().unwrap_or_else(|| "default".to_string());
+        let registry_key = format!("{}:{}", database_alias, collection_name);
 
         // 检查是否已注册
-        if self.model_registry.contains_key(&collection_name) {
-            debug!("模型已存在，将更新元数据: {}", collection_name);
+        if self.model_registry.contains_key(&registry_key) {
+            debug!("模型已存在，将更新元数据: {}", registry_key);
         }
 
-        self.model_registry.insert(collection_name.clone(), model_meta.clone());
-        debug!("注册模型元数据: 集合={}, 索引数量={}", collection_name, model_meta.indexes.len());
+        self.model_registry.insert(registry_key.clone(), model_meta.clone());
+        debug!("注册模型元数据: 数据库={}, 集合={}, 索引数量={}", database_alias, collection_name, model_meta.indexes.len());
 
         Ok(())
     }
@@ -34,6 +36,12 @@ impl PoolManager {
     /// 获取模型元数据
     pub fn get_model(&self, collection_name: &str) -> Option<ModelMeta> {
         self.model_registry.get(collection_name).map(|meta| meta.clone())
+    }
+
+    /// 获取指定数据库的模型元数据
+    pub fn get_model_with_alias(&self, collection_name: &str, alias: &str) -> Option<ModelMeta> {
+        let registry_key = format!("{}:{}", alias, collection_name);
+        self.model_registry.get(&registry_key).map(|meta| meta.clone())
     }
 
     /// 检查模型是否已注册
@@ -76,7 +84,7 @@ impl PoolManager {
 
     /// 创建表和索引（基于注册的模型元数据）
     pub async fn ensure_table_and_indexes(&self, collection_name: &str, alias: &str) -> QuickDbResult<()> {
-        if let Some(model_meta) = self.get_model(collection_name) {
+        if let Some(model_meta) = self.get_model_with_alias(collection_name, alias) {
             debug!("为集合 {} 创建表和索引", collection_name);
 
             // 获取连接池
