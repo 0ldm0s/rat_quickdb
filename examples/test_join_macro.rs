@@ -2,7 +2,6 @@
 //! 验证define_join_table宏的功能和SQL生成
 
 use rat_quickdb::*;
-use rat_quickdb::define_join_table;
 use rat_quickdb::types::*;
 use rat_quickdb::join_macro::{JoinDefinition, JoinType};
 use rat_quickdb::adapter::OrderClause;

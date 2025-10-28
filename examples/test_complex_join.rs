@@ -2,7 +2,6 @@
 //! 验证多表混合JOIN类型的虚拟表格宏功能
 
 use rat_quickdb::*;
-use rat_quickdb::define_join_table;
 use rat_quickdb::types::*;
 use rat_quickdb::join_macro::{JoinDefinition, JoinType};
 use rat_quickdb::adapter::OrderClause;
