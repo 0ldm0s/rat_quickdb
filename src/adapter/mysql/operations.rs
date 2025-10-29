@@ -473,4 +473,58 @@ impl DatabaseAdapter for MysqlAdapter {
     ) -> QuickDbResult<String> {
         mysql_schema::get_server_version(self, connection).await
     }
+
+    async fn create_stored_procedure(
+        &self,
+        connection: &DatabaseConnection,
+        config: &crate::stored_procedure::StoredProcedureConfig,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
+        use crate::stored_procedure::StoredProcedureCreateResult;
+        use crate::types::id_types::IdStrategy;
+
+        debug!("开始创建MySQL存储过程: {}", config.procedure_name);
+
+        // 验证配置
+        config.validate()
+            .map_err(|e| crate::error::QuickDbError::ValidationError {
+                field: "config".to_string(),
+                message: format!("存储过程配置验证失败: {}", e),
+            })?;
+
+        // 1. 确保依赖表存在
+        for model_meta in &config.dependencies {
+            let table_name = &model_meta.collection_name;
+            if !self.table_exists(connection, table_name).await? {
+                debug!("依赖表 {} 不存在，尝试创建", table_name);
+                // 使用存储的模型元数据和数据库的ID策略创建表
+                let id_strategy = crate::manager::get_id_strategy(&config.database)
+                    .unwrap_or(IdStrategy::AutoIncrement);
+
+                self.create_table(connection, table_name, &model_meta.fields, &id_strategy).await?;
+                debug!("✅ 依赖表 {} 创建成功，ID策略: {:?}", table_name, id_strategy);
+            }
+        }
+
+        // 2. 生成MySQL存储过程模板（带占位符）
+        let sql_template = self.generate_stored_procedure_sql(&config).await?;
+        debug!("生成MySQL存储过程SQL模板: {}", sql_template);
+
+        // 3. 将存储过程信息存储到适配器映射表中（MySQL不需要执行创建SQL）
+        let procedure_info = crate::stored_procedure::StoredProcedureInfo {
+            config: config.clone(),
+            template: sql_template.clone(),
+            db_type: "MySQL".to_string(),
+            created_at: chrono::Utc::now(),
+        };
+
+        let mut procedures = self.stored_procedures.lock().await;
+        procedures.insert(config.procedure_name.clone(), procedure_info);
+        debug!("✅ MySQL存储过程 {} 模板已存储到适配器映射表", config.procedure_name);
+
+        Ok(StoredProcedureCreateResult {
+            success: true,
+            procedure_name: config.procedure_name.clone(),
+            error: None,
+        })
+    }
 }
