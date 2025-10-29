@@ -31,8 +31,8 @@ pub struct JoinRelation {
 pub struct StoredProcedureConfig {
     /// 数据库别名
     pub database: String,
-    /// 依赖的表名列表
-    pub dependencies: Vec<String>,
+    /// 依赖的模型元数据
+    pub dependencies: Vec<crate::model::ModelMeta>,
     /// JOIN关系定义
     pub joins: Vec<JoinRelation>,
     /// 字段映射：字段名 -> 表达式

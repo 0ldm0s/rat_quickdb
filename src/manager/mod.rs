@@ -22,6 +22,7 @@ use crate::types::{DatabaseConfig, IdType};
 use crate::id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 use crate::cache::{CacheManager, CacheStats};
 use crate::model::ModelMeta;
+use crate::types::id_types::IdStrategy;
 use once_cell::sync::Lazy;
 
 /// 全局连接池管理器实例
@@ -110,7 +111,25 @@ pub fn register_model(model_meta: ModelMeta) -> QuickDbResult<()> {
 
 /// 便捷函数 - 获取模型元数据
 pub fn get_model(collection_name: &str) -> Option<ModelMeta> {
-    get_global_pool_manager().get_model(collection_name)
+    println!("🔍 [DEBUG] get_model 被调用，查找: '{}'", collection_name);
+    let manager = get_global_pool_manager();
+    println!("🔍 [DEBUG] 当前注册的模型数量: {}", manager.model_registry.len());
+
+    // 收集已注册的模型键
+    let registered_models: Vec<String> = manager.model_registry.iter().map(|entry| entry.key().clone()).collect();
+    println!("🔍 [DEBUG] 已注册的模型: {:?}", registered_models);
+
+    let result = manager.get_model(collection_name);
+    match &result {
+        Some(meta) => {
+            println!("✅ [DEBUG] 找到模型 '{}', 数据库别名: {:?}", collection_name, meta.database_alias);
+            println!("✅ [DEBUG] 模型字段数量: {}", meta.fields.len());
+        },
+        None => {
+            println!("❌ [DEBUG] 未找到模型 '{}'", collection_name);
+        }
+    }
+    result
 }
 
 /// 便捷函数 - 检查模型是否已注册
@@ -314,6 +333,11 @@ pub async fn drop_table(alias: &str, table: &str) -> QuickDbResult<()> {
     // 执行删除操作
     pool.drop_table(table).await
 }
+/// 便捷函数 - 获取数据库ID策略
+pub fn get_id_strategy(alias: &str) -> QuickDbResult<IdStrategy> {
+    get_global_pool_manager().get_id_strategy(alias)
+}
+
 /// 便捷函数 - 关闭管理器
 pub async fn shutdown() -> QuickDbResult<()> {
     get_global_pool_manager().shutdown().await

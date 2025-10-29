@@ -6,6 +6,7 @@ use crate::types::{DatabaseConfig, DatabaseType, IdType};
 use crate::id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 use crate::cache::{CacheManager, CacheStats};
 use crate::model::ModelMeta;
+use crate::types::id_types::IdStrategy;
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -185,6 +186,15 @@ impl PoolManager {
     pub fn get_database_type(&self, alias: &str) -> QuickDbResult<DatabaseType> {
         if let Some(pool) = self.pools.get(alias) {
             Ok(pool.get_database_type().clone())
+        } else {
+            Err(crate::quick_error!(alias_not_found, alias))
+        }
+    }
+
+    /// 获取数据库ID策略
+    pub fn get_id_strategy(&self, alias: &str) -> QuickDbResult<IdStrategy> {
+        if let Some(pool) = self.pools.get(alias) {
+            Ok(pool.db_config.id_strategy.clone())
         } else {
             Err(crate::quick_error!(alias_not_found, alias))
         }

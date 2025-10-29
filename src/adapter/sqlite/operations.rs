@@ -460,47 +460,40 @@ impl DatabaseAdapter for SqliteAdapter {
         };
 
         // 1. 确保依赖表存在
-        for table_name in &config.dependencies {
+        for model_meta in &config.dependencies {
+            let table_name = &model_meta.collection_name;
             if !self.table_exists(connection, table_name).await? {
                 debug!("依赖表 {} 不存在，尝试创建", table_name);
-                // 尝试从模型管理器获取预定义的元数据
-                if let Some(model_meta) = crate::manager::get_model(table_name) {
-                    self.create_table(connection, table_name, &model_meta.fields, &IdStrategy::AutoIncrement).await?;
-                    debug!("✅ 依赖表 {} 创建成功", table_name);
-                } else {
-                    return Err(crate::error::QuickDbError::ValidationError {
-                        field: "dependencies".to_string(),
-                        message: format!("依赖表 {} 不存在且无法自动创建", table_name),
-                    });
-                }
+                // 使用存储的模型元数据和数据库的ID策略创建表
+                let id_strategy = crate::manager::get_id_strategy(&config.database)
+                    .unwrap_or(IdStrategy::AutoIncrement);
+
+                self.create_table(connection, table_name, &model_meta.fields, &id_strategy).await?;
+                debug!("✅ 依赖表 {} 创建成功，ID策略: {:?}", table_name, id_strategy);
             }
         }
 
-        // 2. 生成SQL存储过程创建语句
-        let sql = self.generate_stored_procedure_sql(&config).await?;
+        // 2. 生成SQL存储过程模板（带占位符）
+        let sql_template = self.generate_stored_procedure_sql(&config).await?;
+        debug!("生成存储过程SQL模板: {}", sql_template);
 
-        // 3. 执行SQL创建存储过程
-        debug!("执行存储过程创建SQL: {}", sql);
+        // 3. 将存储过程信息存储到适配器映射表中（SQLite不需要执行创建SQL）
+        let procedure_info = crate::stored_procedure::StoredProcedureInfo {
+            config: config.clone(),
+            template: sql_template.clone(),
+            db_type: "SQLite".to_string(),
+            created_at: chrono::Utc::now(),
+        };
 
-        match sqlx::query(&sql).execute(pool).await {
-            Ok(result) => {
-                debug!("✅ 存储过程 {} 创建成功", config.procedure_name);
-                Ok(StoredProcedureCreateResult {
-                    success: true,
-                    procedure_name: config.procedure_name.clone(),
-                    error: None,
-                })
-            }
-            Err(e) => {
-                let error_msg = format!("存储过程创建失败: {}", e);
-                warn!("❌ {}", error_msg);
-                Ok(StoredProcedureCreateResult {
-                    success: false,
-                    procedure_name: config.procedure_name.clone(),
-                    error: Some(error_msg),
-                })
-            }
-        }
+        let mut procedures = self.stored_procedures.lock().await;
+        procedures.insert(config.procedure_name.clone(), procedure_info);
+        debug!("✅ 存储过程 {} 模板已存储到适配器映射表", config.procedure_name);
+
+        Ok(StoredProcedureCreateResult {
+            success: true,
+            procedure_name: config.procedure_name.clone(),
+            error: None,
+        })
     }
 }
 

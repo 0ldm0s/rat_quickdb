@@ -77,14 +77,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     set_default_alias("test_db").await?;
 
     let config = StoredProcedureConfig::builder("get_users_with_orders", "test_db")
-        .with_dependency("users")
-        .with_dependency("orders")
+        .with_dependency::<User>()
+        .with_dependency::<Order>()
         .with_field("user_id", "users.id")
         .with_field("user_name", "users.name")
         .with_field("user_email", "users.email")
         .with_field("order_count", "COUNT(orders.id)")
         .with_field("total_spent", "SUM(orders.total)")
-        .with_join("orders", "users.id", "orders.user_id", JoinType::Left)
+        .with_join::<Order>("users.id", "orders.user_id", JoinType::Left)
         .build();
 
     match create_stored_procedure(config).await {

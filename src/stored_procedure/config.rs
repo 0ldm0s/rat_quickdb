@@ -23,16 +23,22 @@ impl StoredProcedureBuilder {
         }
     }
 
-    /// 添加依赖表
-    pub fn with_dependency(mut self, table: &str) -> Self {
-        self.config.dependencies.push(table.to_string());
+    /// 添加依赖表（通过模型类型）
+    pub fn with_dependency<T: crate::model::Model>(mut self) -> Self {
+        // 调用 T::meta() 会自动触发模型注册
+        let model_meta = T::meta();
+        println!("📝 [DEBUG] with_dependency 存储模型元数据，模型: {}, 字段数: {}",
+                 model_meta.collection_name, model_meta.fields.len());
+        self.config.dependencies.push(model_meta);
         self
     }
 
     /// 添加JOIN关系
-    pub fn with_join(mut self, table: &str, local_field: &str, foreign_field: &str, join_type: JoinType) -> Self {
+    pub fn with_join<T: crate::model::Model>(mut self, local_field: &str, foreign_field: &str, join_type: JoinType) -> Self {
+        let model_meta = T::meta();
+        println!("📝 [DEBUG] with_join 调用 T::meta()，模型: {}", model_meta.collection_name);
         self.config.joins.push(JoinRelation {
-            table: table.to_string(),
+            table: model_meta.collection_name.clone(),
             local_field: local_field.to_string(),
             foreign_field: foreign_field.to_string(),
             join_type,

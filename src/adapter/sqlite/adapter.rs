@@ -5,12 +5,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use rat_logger::debug;
+use rat_logger::{debug, info};
 
 /// SQLite适配器
 pub struct SqliteAdapter {
     /// 表创建锁，防止重复创建表
     creation_locks: Arc<Mutex<HashMap<String, ()>>>,
+    /// 存储过程映射表，存储已创建的存储过程信息
+    pub(crate) stored_procedures: Arc<Mutex<HashMap<String, crate::stored_procedure::StoredProcedureInfo>>>,
 }
 
 impl SqliteAdapter {
@@ -18,6 +20,7 @@ impl SqliteAdapter {
     pub fn new() -> Self {
         Self {
             creation_locks: Arc::new(Mutex::new(HashMap::new())),
+            stored_procedures: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -37,7 +40,7 @@ impl SqliteAdapter {
         debug!("🔓 释放表 {} 的创建锁", table);
     }
 
-    /// 生成存储过程的SQL语句
+    /// 生成存储过程的SQL语句（SQLite使用视图实现）
     pub async fn generate_stored_procedure_sql(
         &self,
         config: &crate::stored_procedure::StoredProcedureConfig,
@@ -58,14 +61,15 @@ impl SqliteAdapter {
 
         // 2. 构建FROM子句（主表）
         let base_table = config.dependencies.first()
+            .map(|model_meta| &model_meta.collection_name)
             .ok_or_else(|| crate::error::QuickDbError::ValidationError {
                 field: "dependencies".to_string(),
                 message: "至少需要一个依赖表作为主表".to_string(),
             })?;
 
-        // 3. 构建JOIN子句
+        // 3. 构建JOIN子句 - 支持多表JOIN（local_field和foreign_field都是"表名.字段名"格式）
         let mut joins = Vec::new();
-        for (i, join) in config.joins.iter().enumerate() {
+        for join in config.joins.iter() {
             let join_str = match join.join_type {
                 JoinType::Inner => "INNER JOIN",
                 JoinType::Left => "LEFT JOIN",
@@ -73,34 +77,31 @@ impl SqliteAdapter {
                 JoinType::Full => "FULL OUTER JOIN",
             };
 
-            // 使用第一个表作为主表，后续表通过字段连接
-            let local_table = if i == 0 { base_table } else { &config.joins[i-1].table };
-
+            // 直接使用local_field和foreign_field，因为它们已经包含了表名
             joins.push(format!(
-                " {} {} ON {}.{} = {}.{}",
+                " {} {} ON {} = {}",
                 join_str,
                 join.table,
-                local_table,
                 join.local_field,
-                join.table,
                 join.foreign_field
             ));
         }
 
-        // 4. 构建完整的存储过程SQL
-        let sql = format!(
-            r#"CREATE PROCEDURE IF NOT EXISTS {}()
-AS BEGIN
-    SELECT {}
-    FROM {}{}
-; END"#,
-            config.procedure_name,
-            fields.join(", "),
-            base_table,
-            joins.join(" ")
+        // 4. 构建完整的存储过程SQL模板（包含占位符供后续动态替换）
+        let sql_template = format!(
+            "SELECT {SELECT_FIELDS} FROM {BASE_TABLE}{JOINS}{WHERE}{GROUP_BY}{HAVING}{ORDER_BY}{LIMIT}{OFFSET}",
+            SELECT_FIELDS = fields.join(", "),
+            BASE_TABLE = base_table,
+            JOINS = if joins.is_empty() { "".to_string() } else { format!(" {}", joins.join(" ")) },
+            WHERE = "{WHERE}", // WHERE条件占位符
+            GROUP_BY = "{GROUP_BY}", // GROUP BY占位符
+            HAVING = "{HAVING}", // HAVING占位符
+            ORDER_BY = "{ORDER_BY}", // ORDER BY占位符
+            LIMIT = "{LIMIT}", // LIMIT占位符
+            OFFSET = "{OFFSET}" // OFFSET占位符
         );
 
-        debug!("生成的存储过程SQL: {}", sql);
-        Ok(sql)
+        info!("生成的存储过程SQL模板: {}", sql_template);
+        Ok(sql_template)
     }
 }
