@@ -397,4 +397,14 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         // 版本查询通常不涉及具体数据，直接调用内部适配器
         self.inner.get_server_version(connection).await
     }
+
+    /// 创建存储过程 - 直接调用内部适配器
+    async fn create_stored_procedure(
+        &self,
+        connection: &DatabaseConnection,
+        config: &crate::stored_procedure::StoredProcedureConfig,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
+        // 存储过程创建不缓存，直接调用内部适配器
+        self.inner.create_stored_procedure(connection, config).await
+    }
 }

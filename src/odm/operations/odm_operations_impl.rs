@@ -329,4 +329,28 @@ impl OdmOperations for AsyncOdmManager {
                 message: "ODM请求处理失败".to_string(),
             })?
     }
+
+    async fn create_stored_procedure(
+        &self,
+        config: crate::stored_procedure::StoredProcedureConfig,
+        alias: Option<&str>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
+        let (sender, receiver) = oneshot::channel();
+
+        let request = OdmRequest::CreateStoredProcedure {
+            config,
+            alias: alias.map(|s| s.to_string()),
+            response: sender,
+        };
+
+        self.request_sender.send(request)
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "ODM后台任务已停止".to_string(),
+            })?;
+
+        receiver.await
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "ODM请求处理失败".to_string(),
+            })?
+    }
 }

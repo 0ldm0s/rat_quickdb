@@ -124,6 +124,11 @@ pub enum DatabaseOperation {
     GetServerVersion {
         response: oneshot::Sender<QuickDbResult<String>>,
     },
+    /// 创建存储过程
+    CreateStoredProcedure {
+        config: crate::stored_procedure::StoredProcedureConfig,
+        response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>>,
+    },
 }
 
 /// 原生数据库连接枚举 - 直接持有数据库连接，不使用Arc包装

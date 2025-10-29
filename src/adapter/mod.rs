@@ -171,6 +171,13 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         connection: &DatabaseConnection,
     ) -> QuickDbResult<String>;
+
+    /// 创建存储过程
+    async fn create_stored_procedure(
+        &self,
+        connection: &DatabaseConnection,
+        config: &crate::stored_procedure::StoredProcedureConfig,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>;
 }
 
 /// 根据数据库类型创建适配器

@@ -26,6 +26,7 @@ pub mod security;
 pub mod cache;
 pub mod join_macro;
 pub mod id_generator;
+pub mod stored_procedure;
 
 // Python API 模块（仅在启用 python-bindings 特性时编译）
 #[cfg(feature = "python-bindings")]
@@ -36,7 +37,7 @@ pub use error::{QuickDbError, QuickDbResult};
 pub use types::*;
 pub use pool::DatabaseConnection;
 pub use manager::{
-    add_database, get_aliases, set_default_alias, health_check, shutdown,
+    add_database, get_aliases, set_default_alias, health_check,
     table_exists, drop_table, register_model
 };
 
@@ -69,11 +70,14 @@ pub use cache::{CacheManager, CacheStats};
 // 导出ID生成器相关类型
 pub use id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 
+// 导出存储过程相关类型
+pub use stored_procedure::*;
+
 // ODM 操作函数公开但不建议直接使用，请使用 ModelManager<T> 进行结构化数据操作
 // 这些函数仅用于特殊场景，常规使用请通过模型或 ModelManager 调用
 #[doc(hidden)]
 pub use odm::{create, find_by_id, find, find_with_groups, update, update_by_id, delete, delete_by_id, count, exists};
-pub use odm::get_server_version;
+pub use odm::{get_server_version, create_stored_procedure};
 
 // Python API 导出（仅在启用 python-bindings 特性时）
 // 注意：Python绑定相关的导出已移至专门的Python绑定库中

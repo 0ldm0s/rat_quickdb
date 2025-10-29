@@ -6,7 +6,7 @@ use crate::model::{FieldDefinition, FieldType};
 use crate::pool::DatabaseConnection;
 use std::collections::HashMap;
 use async_trait::async_trait;
-use rat_logger::{debug, info};
+use rat_logger::{debug, info, warn};
 use sqlx::{sqlite::SqliteRow, Row, Column};
 
 use super::adapter::SqliteAdapter;
@@ -434,6 +434,73 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
     ) -> QuickDbResult<String> {
         sqlite_schema::get_server_version(self, connection).await
+    }
+
+    async fn create_stored_procedure(
+        &self,
+        connection: &DatabaseConnection,
+        config: &crate::stored_procedure::StoredProcedureConfig,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
+        use crate::stored_procedure::{StoredProcedureCreateResult, JoinType};
+
+        debug!("开始创建SQLite存储过程: {}", config.procedure_name);
+
+        // 验证配置
+        config.validate()
+            .map_err(|e| crate::error::QuickDbError::ValidationError {
+                field: "config".to_string(),
+                message: format!("存储过程配置验证失败: {}", e),
+            })?;
+
+        let pool = match connection {
+            DatabaseConnection::SQLite(pool) => pool,
+            _ => return Err(crate::error::QuickDbError::ConnectionError {
+                message: "Invalid connection type for SQLite".to_string(),
+            }),
+        };
+
+        // 1. 确保依赖表存在
+        for table_name in &config.dependencies {
+            if !self.table_exists(connection, table_name).await? {
+                debug!("依赖表 {} 不存在，尝试创建", table_name);
+                // 尝试从模型管理器获取预定义的元数据
+                if let Some(model_meta) = crate::manager::get_model(table_name) {
+                    self.create_table(connection, table_name, &model_meta.fields, &IdStrategy::AutoIncrement).await?;
+                    debug!("✅ 依赖表 {} 创建成功", table_name);
+                } else {
+                    return Err(crate::error::QuickDbError::ValidationError {
+                        field: "dependencies".to_string(),
+                        message: format!("依赖表 {} 不存在且无法自动创建", table_name),
+                    });
+                }
+            }
+        }
+
+        // 2. 生成SQL存储过程创建语句
+        let sql = self.generate_stored_procedure_sql(&config).await?;
+
+        // 3. 执行SQL创建存储过程
+        debug!("执行存储过程创建SQL: {}", sql);
+
+        match sqlx::query(&sql).execute(pool).await {
+            Ok(result) => {
+                debug!("✅ 存储过程 {} 创建成功", config.procedure_name);
+                Ok(StoredProcedureCreateResult {
+                    success: true,
+                    procedure_name: config.procedure_name.clone(),
+                    error: None,
+                })
+            }
+            Err(e) => {
+                let error_msg = format!("存储过程创建失败: {}", e);
+                warn!("❌ {}", error_msg);
+                Ok(StoredProcedureCreateResult {
+                    success: false,
+                    procedure_name: config.procedure_name.clone(),
+                    error: Some(error_msg),
+                })
+            }
+        }
     }
 }
 

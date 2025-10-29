@@ -100,12 +100,67 @@ impl AsyncOdmManager {
                     let result = Self::handle_get_server_version(alias).await;
                     let _ = response.send(result);
                 },
+                OdmRequest::CreateStoredProcedure { config, alias, response } => {
+                    let result = Self::handle_create_stored_procedure(config, alias).await;
+                    let _ = response.send(result);
+                },
             }
         }
 
         warn!("ODM后台处理任务结束");
     }
+
+    /// 处理存储过程创建请求
+    #[doc(hidden)]
+    pub async fn handle_create_stored_procedure(
+        config: crate::stored_procedure::StoredProcedureConfig,
+        alias: Option<String>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
+        let database_alias = match alias {
+            Some(a) => a,
+            None => {
+                // 使用连接池管理器的默认别名
+                let manager = get_global_pool_manager();
+                manager.get_default_alias().await
+                    .unwrap_or_else(|| "default".to_string())
+            }
+        };
+
+        debug!("处理存储过程创建请求: procedure={}, database={}", config.procedure_name, database_alias);
+
+        // 获取连接池管理器
+        let manager = get_global_pool_manager();
+        let connection_pools = manager.get_connection_pools();
+        let connection_pool = connection_pools.get(&database_alias)
+            .ok_or_else(|| QuickDbError::AliasNotFound {
+                alias: database_alias.clone(),
+            })?;
+
+        // 创建oneshot通道用于接收响应
+        let (response_tx, response_rx) = oneshot::channel();
+
+        // 创建适配器操作请求
+        let operation = crate::pool::DatabaseOperation::CreateStoredProcedure {
+            config,
+            response: response_tx,
+        };
+
+        // 发送请求到连接池
+        connection_pool.operation_sender.send(operation)
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "连接池操作通道已关闭".to_string(),
+            })?;
+
+        // 等待响应
+        let result = response_rx.await
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "等待连接池响应超时".to_string(),
+            })??;
+
+        Ok(result)
+    }
 }
+
 impl Drop for AsyncOdmManager {
     fn drop(&mut self) {
         info!("开始清理AsyncOdmManager资源");

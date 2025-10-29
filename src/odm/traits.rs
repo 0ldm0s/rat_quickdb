@@ -107,6 +107,13 @@ pub trait OdmOperations {
         &self,
         alias: Option<&str>,
     ) -> QuickDbResult<String>;
+
+    /// 创建存储过程
+    async fn create_stored_procedure(
+        &self,
+        config: crate::stored_procedure::StoredProcedureConfig,
+        alias: Option<&str>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>;
 }
 
 /// ODM操作请求类型
