@@ -312,6 +312,9 @@ impl StoredProcedureConfig {
             });
         }
 
+        // 验证数据库类型与配置的匹配性
+        self.validate_database_type_compatibility()?;
+
         // 如果没有使用MongoDB聚合管道，则必须要有传统字段映射
         if self.mongo_pipeline.is_none() && self.fields.is_empty() {
             return Err(crate::error::QuickDbError::ValidationError {
@@ -328,6 +331,71 @@ impl StoredProcedureConfig {
                     message: "JOIN字段不能为空".to_string(),
                 });
             }
+        }
+
+        Ok(())
+    }
+
+    /// 验证数据库类型与配置的兼容性
+    fn validate_database_type_compatibility(&self) -> QuickDbResult<()> {
+        use crate::manager::get_global_pool_manager;
+
+        // 获取数据库类型以验证配置兼容性
+        let db_type = get_global_pool_manager().get_database_type(&self.database).map_err(|_| {
+            crate::error::QuickDbError::ValidationError {
+                field: "database".to_string(),
+                message: format!("数据库别名 '{}' 不存在", self.database),
+            }
+        })?;
+
+        match db_type {
+            crate::types::DatabaseType::MongoDB => {
+                // MongoDB配置验证
+                if self.mongo_pipeline.is_none() && self.fields.is_empty() {
+                    return Err(crate::error::QuickDbError::ValidationError {
+                        field: "mongo_config".to_string(),
+                        message: "MongoDB存储过程必须使用聚合管道或字段映射".to_string(),
+                    });
+                }
+
+                // 检查是否在MongoDB中误用了SQL特有的复杂JOIN配置
+                if self.joins.len() > 1 {
+                    rat_logger::warn!("警告：MongoDB对复杂JOIN支持有限，建议使用聚合管道中的$lookup操作");
+                }
+            },
+            crate::types::DatabaseType::SQLite |
+            crate::types::DatabaseType::MySQL |
+            crate::types::DatabaseType::PostgreSQL => {
+                // SQL系数据库配置验证
+                if self.mongo_pipeline.is_some() {
+                    return Err(crate::error::QuickDbError::ValidationError {
+                        field: "mongo_pipeline".to_string(),
+                        message: format!("{} 不支持MongoDB聚合管道，请使用传统字段映射和JOIN配置",
+                            match db_type {
+                                crate::types::DatabaseType::SQLite => "SQLite",
+                                crate::types::DatabaseType::MySQL => "MySQL",
+                                crate::types::DatabaseType::PostgreSQL => "PostgreSQL",
+                                _ => "该数据库",
+                            }
+                        ),
+                    });
+                }
+
+                // SQL数据库必须要有字段映射
+                if self.fields.is_empty() {
+                    return Err(crate::error::QuickDbError::ValidationError {
+                        field: "fields".to_string(),
+                        message: format!("{} 存储过程必须定义字段映射",
+                            match db_type {
+                                crate::types::DatabaseType::SQLite => "SQLite",
+                                crate::types::DatabaseType::MySQL => "MySQL",
+                                crate::types::DatabaseType::PostgreSQL => "PostgreSQL",
+                                _ => "该数据库",
+                            }
+                        ),
+                    });
+                }
+            },
         }
 
         Ok(())
