@@ -36,11 +36,9 @@ pub(crate) fn get_global_pool_manager() -> &'static PoolManager {
 
 /// 便捷函数 - 添加数据库配置
 pub async fn add_database(config: DatabaseConfig) -> QuickDbResult<()> {
-    // 检查全局操作锁状态
+    // 检查全局操作锁状态，如果已锁定则惊恐退出
     if crate::is_global_operations_locked() {
-        return Err(QuickDbError::ConfigError {
-            message: "系统已开始执行查询操作，不允许再添加数据库".to_string(),
-        });
+        panic!("全局操作已锁定，禁止添加数据库！系统已开始执行查询操作，不允许再添加数据库配置");
     }
 
     get_global_pool_manager().add_database(config).await
@@ -111,25 +109,7 @@ pub fn register_model(model_meta: ModelMeta) -> QuickDbResult<()> {
 
 /// 便捷函数 - 获取模型元数据
 pub fn get_model(collection_name: &str) -> Option<ModelMeta> {
-    println!("🔍 [DEBUG] get_model 被调用，查找: '{}'", collection_name);
-    let manager = get_global_pool_manager();
-    println!("🔍 [DEBUG] 当前注册的模型数量: {}", manager.model_registry.len());
-
-    // 收集已注册的模型键
-    let registered_models: Vec<String> = manager.model_registry.iter().map(|entry| entry.key().clone()).collect();
-    println!("🔍 [DEBUG] 已注册的模型: {:?}", registered_models);
-
-    let result = manager.get_model(collection_name);
-    match &result {
-        Some(meta) => {
-            println!("✅ [DEBUG] 找到模型 '{}', 数据库别名: {:?}", collection_name, meta.database_alias);
-            println!("✅ [DEBUG] 模型字段数量: {}", meta.fields.len());
-        },
-        None => {
-            println!("❌ [DEBUG] 未找到模型 '{}'", collection_name);
-        }
-    }
-    result
+    get_global_pool_manager().get_model(collection_name)
 }
 
 /// 便捷函数 - 检查模型是否已注册
@@ -281,8 +261,7 @@ pub async fn clear_table_all_cache(alias: &str, table: &str) -> QuickDbResult<us
 /// 返回表是否存在，true表示存在，false表示不存在
 ///
 pub async fn table_exists(alias: &str, table: &str) -> QuickDbResult<bool> {
-    // 锁定全局操作
-    crate::lock_global_operations();
+    // table_exists是只读查询操作，不需要全局锁定
 
     let pool_manager = get_global_pool_manager();
 
