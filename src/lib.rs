@@ -77,7 +77,7 @@ pub use stored_procedure::*;
 // 这些函数仅用于特殊场景，常规使用请通过模型或 ModelManager 调用
 #[doc(hidden)]
 pub use odm::{create, find_by_id, find, find_with_groups, update, update_by_id, delete, delete_by_id, count, exists};
-pub use odm::{get_server_version, create_stored_procedure};
+pub use odm::{get_server_version, create_stored_procedure, execute_stored_procedure};
 
 // Python API 导出（仅在启用 python-bindings 特性时）
 // 注意：Python绑定相关的导出已移至专门的Python绑定库中

@@ -337,6 +337,11 @@ impl MultiConnectionManager {
                 let _ = response.send(result);
                 Ok(())
             },
+            DatabaseOperation::ExecuteStoredProcedure { procedure_name, database, params, response } => {
+                let result = worker.adapter.execute_stored_procedure(&worker.connection, &procedure_name, &database, params).await;
+                let _ = response.send(result);
+                Ok(())
+            },
         };
         
         // 处理连接错误和重试逻辑

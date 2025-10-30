@@ -129,6 +129,13 @@ pub enum DatabaseOperation {
         config: crate::stored_procedure::StoredProcedureConfig,
         response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>>,
     },
+    /// 执行存储过程
+    ExecuteStoredProcedure {
+        procedure_name: String,
+        database: String,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+        response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult>>,
+    },
 }
 
 /// 原生数据库连接枚举 - 直接持有数据库连接，不使用Arc包装

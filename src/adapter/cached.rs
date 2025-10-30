@@ -407,4 +407,16 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         // 存储过程创建不缓存，直接调用内部适配器
         self.inner.create_stored_procedure(connection, config).await
     }
+
+    /// 执行存储过程 - 直接调用内部适配器
+    async fn execute_stored_procedure(
+        &self,
+        connection: &DatabaseConnection,
+        procedure_name: &str,
+        database: &str,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult> {
+        // 存储过程执行不缓存，直接调用内部适配器
+        self.inner.execute_stored_procedure(connection, procedure_name, database, params).await
+    }
 }

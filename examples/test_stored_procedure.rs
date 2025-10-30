@@ -87,9 +87,131 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_join::<Order>("users.id", "orders.user_id", JoinType::Left)
         .build();
 
+    // 0. 准备测试数据
+    println!("0. 准备测试数据...");
+
+    // 创建一些测试用户
+    let test_users = vec![
+        User {
+            id: 1,
+            name: "张三".to_string(),
+            email: "zhangsan@example.com".to_string(),
+        },
+        User {
+            id: 2,
+            name: "李四".to_string(),
+            email: "lisi@example.com".to_string(),
+        },
+        User {
+            id: 3,
+            name: "王五".to_string(),
+            email: "wangwu@example.com".to_string(),
+        },
+    ];
+
+    // 创建一些测试订单
+    let test_orders = vec![
+        Order {
+            id: 1,
+            user_id: 1,
+            total: 100.50,
+        },
+        Order {
+            id: 2,
+            user_id: 1,
+            total: 200.75,
+        },
+        Order {
+            id: 3,
+            user_id: 2,
+            total: 150.00,
+        },
+    ];
+
+    // 插入测试用户
+    for user in &test_users {
+        let mut user_data = std::collections::HashMap::new();
+        user_data.insert("id".to_string(), DataValue::Int(user.id as i64));
+        user_data.insert("name".to_string(), DataValue::String(user.name.clone()));
+        user_data.insert("email".to_string(), DataValue::String(user.email.clone()));
+
+        match create("users", user_data, Some("test_db")).await {
+            Ok(_) => println!("✅ 创建用户: {} ({})", user.name, user.email),
+            Err(e) => println!("❌ 创建用户失败: {}", e),
+        }
+    }
+
+    // 插入测试订单
+    for order in &test_orders {
+        let mut order_data = std::collections::HashMap::new();
+        order_data.insert("id".to_string(), DataValue::Int(order.id as i64));
+        order_data.insert("user_id".to_string(), DataValue::Int(order.user_id as i64));
+        order_data.insert("total".to_string(), DataValue::Float(order.total));
+
+        match create("orders", order_data, Some("test_db")).await {
+            Ok(_) => println!("✅ 创建订单: 用户ID={}, 总金额={}", order.user_id, order.total),
+            Err(e) => println!("❌ 创建订单失败: {}", e),
+        }
+    }
+
+    // 1. 创建存储过程
+    println!("\n1. 创建存储过程...");
     match create_stored_procedure(config).await {
-        Ok(result) => println!("结果: {:?}", result),
-        Err(e) => println!("错误: {}", e),
+        Ok(result) => {
+            println!("✅ SQLite存储过程创建成功: {:?}", result);
+        },
+        Err(e) => {
+            println!("❌ SQLite存储过程创建失败: {}", e);
+            return Ok(());
+        }
+    }
+
+    // 2. 执行存储过程（独立操作）
+    println!("\n2. 执行存储过程查询...");
+
+    // 无参数查询
+    println!("2.1 无参数查询:");
+    match execute_stored_procedure("get_users_with_orders", Some("test_db"), None).await {
+        Ok(results) => {
+            println!("✅ 查询成功，返回 {} 条记录", results.len());
+            for (i, row) in results.iter().enumerate() {
+                if let (Some(user_id), Some(user_name), Some(user_email)) = (
+                    row.get("user_id"),
+                    row.get("user_name"),
+                    row.get("user_email")
+                ) {
+                    println!("  {}. {} - {} ({})", i+1,
+                        user_name.to_string(),
+                        user_email.to_string(),
+                        user_id.to_string()
+                    );
+                }
+            }
+        },
+        Err(e) => println!("❌ 查询失败: {}", e),
+    }
+
+    // 带参数查询
+    println!("\n2.2 带参数查询 (LIMIT 2):");
+    let mut params = std::collections::HashMap::new();
+    params.insert("LIMIT".to_string(), DataValue::Int(2));
+
+    match execute_stored_procedure("get_users_with_orders", Some("test_db"), Some(params)).await {
+        Ok(results) => {
+            println!("✅ 参数查询成功，返回 {} 条记录", results.len());
+            for (i, row) in results.iter().enumerate() {
+                if let (Some(user_id), Some(user_name)) = (
+                    row.get("user_id"),
+                    row.get("user_name")
+                ) {
+                    println!("  {}. {} ({})", i+1,
+                        user_name.to_string(),
+                        user_id.to_string()
+                    );
+                }
+            }
+        },
+        Err(e) => println!("❌ 参数查询失败: {}", e),
     }
 
     Ok(())

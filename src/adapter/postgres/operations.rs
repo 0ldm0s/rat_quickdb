@@ -654,4 +654,170 @@ impl DatabaseAdapter for PostgresAdapter {
             error: None,
         })
     }
+
+    /// 执行存储过程查询（PostgreSQL使用视图实现）
+    async fn execute_stored_procedure(
+        &self,
+        connection: &DatabaseConnection,
+        procedure_name: &str,
+        database: &str,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult> {
+        use crate::adapter::postgres::adapter::PostgresAdapter;
+
+        // 获取存储过程信息
+        let procedures = self.stored_procedures.lock().await;
+        let procedure_info = procedures.get(procedure_name).ok_or_else(|| {
+            crate::error::QuickDbError::ValidationError {
+                field: "procedure_name".to_string(),
+                message: format!("存储过程 '{}' 不存在", procedure_name),
+            }
+        })?;
+        let sql_template = procedure_info.template.clone();
+        drop(procedures);
+
+        debug!("执行存储过程查询: {}, 模板: {}", procedure_name, sql_template);
+
+        // 构建最终的SQL查询（复用SQLite的逻辑）
+        let final_sql = self.build_final_query_from_template(&sql_template, params).await?;
+
+        // 执行查询
+        // 直接执行SQL查询（复用find_with_groups的模式）
+        let pool = match connection {
+            DatabaseConnection::PostgreSQL(pool) => pool,
+            _ => return Err(QuickDbError::ConnectionError {
+                message: "Invalid connection type for PostgreSQL".to_string(),
+            }),
+        };
+
+        debug!("执行存储过程查询SQL: {}", final_sql);
+
+        let rows = sqlx::query(&final_sql).fetch_all(pool).await
+            .map_err(|e| QuickDbError::QueryError {
+                message: format!("执行存储过程查询失败: {}", e),
+            })?;
+
+        let mut query_result = Vec::new();
+        for row in rows {
+            let data_map = self.row_to_data_map(&row)?;
+            query_result.push(data_map);
+        }
+
+        // 转换结果格式
+        let mut result = Vec::new();
+        for row_data in query_result {
+            let mut row_map = std::collections::HashMap::new();
+            for (key, value) in row_data {
+                row_map.insert(key, value);
+            }
+            result.push(row_map);
+        }
+
+        debug!("存储过程 {} 执行完成，返回 {} 条记录", procedure_name, result.len());
+        Ok(result)
+    }
+}
+
+impl PostgresAdapter {
+    /// 根据模板和参数构建最终查询SQL（复用SQLite的逻辑）
+    async fn build_final_query_from_template(
+        &self,
+        template: &str,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+    ) -> QuickDbResult<String> {
+        let mut final_sql = template.to_string();
+
+        // 替换占位符（与SQLite逻辑相同）
+        if let Some(param_map) = params {
+            // WHERE条件替换
+            if let Some(where_clause) = param_map.get("WHERE") {
+                let where_str = match where_clause {
+                    crate::types::DataValue::String(s) => s.clone(),
+                    _ => where_clause.to_string(),
+                };
+                final_sql = final_sql.replace("{WHERE}", &format!(" WHERE {}", where_str));
+            } else {
+                final_sql = final_sql.replace("{WHERE}", "");
+            }
+
+            // GROUP BY替换
+            if let Some(group_by) = param_map.get("GROUP_BY") {
+                let group_by_str = match group_by {
+                    crate::types::DataValue::String(s) => s.clone(),
+                    _ => group_by.to_string(),
+                };
+                final_sql = final_sql.replace("{GROUP_BY}", &format!(" GROUP BY {}", group_by_str));
+            } else {
+                final_sql = final_sql.replace("{GROUP_BY}", "");
+            }
+
+            // HAVING替换
+            if let Some(having) = param_map.get("HAVING") {
+                let having_str = match having {
+                    crate::types::DataValue::String(s) => s.clone(),
+                    _ => having.to_string(),
+                };
+                final_sql = final_sql.replace("{HAVING}", &format!(" HAVING {}", having_str));
+            } else {
+                final_sql = final_sql.replace("{HAVING}", "");
+            }
+
+            // ORDER BY替换
+            if let Some(order_by) = param_map.get("ORDER_BY") {
+                let order_by_str = match order_by {
+                    crate::types::DataValue::String(s) => s.clone(),
+                    _ => order_by.to_string(),
+                };
+                final_sql = final_sql.replace("{ORDER_BY}", &format!(" ORDER BY {}", order_by_str));
+            } else {
+                final_sql = final_sql.replace("{ORDER_BY}", "");
+            }
+
+            // LIMIT替换
+            if let Some(limit) = param_map.get("LIMIT") {
+                let limit_str = match limit {
+                    crate::types::DataValue::Int(i) => i.to_string(),
+                    _ => limit.to_string(),
+                };
+                final_sql = final_sql.replace("{LIMIT}", &format!(" LIMIT {}", limit_str));
+            } else {
+                final_sql = final_sql.replace("{LIMIT}", "");
+            }
+
+            // OFFSET替换
+            if let Some(offset) = param_map.get("OFFSET") {
+                let offset_str = match offset {
+                    crate::types::DataValue::Int(i) => i.to_string(),
+                    _ => offset.to_string(),
+                };
+                final_sql = final_sql.replace("{OFFSET}", &format!(" OFFSET {}", offset_str));
+            } else {
+                final_sql = final_sql.replace("{OFFSET}", "");
+            }
+        } else {
+            // 没有参数时，移除所有占位符
+            final_sql = final_sql
+                .replace("{WHERE}", "")
+                .replace("{GROUP_BY}", "")
+                .replace("{HAVING}", "")
+                .replace("{ORDER_BY}", "")
+                .replace("{LIMIT}", "")
+                .replace("{OFFSET}", "");
+        }
+
+        // 清理多余的空格和逗号
+        final_sql = final_sql
+            .replace("  ", " ")
+            .replace(" ,", ",")
+            .replace(", ", ", ")
+            .replace(" WHERE ", "")
+            .replace(" GROUP BY ", "")
+            .replace(" HAVING ", "")
+            .replace(" ORDER BY ", "")
+            .replace(" LIMIT ", "")
+            .replace(" OFFSET ", "");
+
+        debug!("构建的最终SQL: {}", final_sql);
+        Ok(final_sql)
+    }
 }

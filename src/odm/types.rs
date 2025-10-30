@@ -88,4 +88,10 @@ pub enum OdmRequest {
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>>,
     },
+    ExecuteStoredProcedure {
+        procedure_name: String,
+        database_alias: Option<String>,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+        response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult>>,
+    },
 }

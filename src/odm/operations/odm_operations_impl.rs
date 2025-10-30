@@ -353,4 +353,30 @@ impl OdmOperations for AsyncOdmManager {
                 message: "ODM请求处理失败".to_string(),
             })?
     }
+
+    async fn execute_stored_procedure(
+        &self,
+        procedure_name: &str,
+        database_alias: Option<&str>,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult> {
+        let (sender, receiver) = oneshot::channel();
+
+        let request = OdmRequest::ExecuteStoredProcedure {
+            procedure_name: procedure_name.to_string(),
+            database_alias: database_alias.map(|s| s.to_string()),
+            params,
+            response: sender,
+        };
+
+        self.request_sender.send(request)
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "ODM后台任务已停止".to_string(),
+            })?;
+
+        receiver.await
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "ODM请求处理失败".to_string(),
+            })?
+    }
 }

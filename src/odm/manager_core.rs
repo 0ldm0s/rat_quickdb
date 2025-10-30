@@ -104,6 +104,10 @@ impl AsyncOdmManager {
                     let result = Self::handle_create_stored_procedure(config, alias).await;
                     let _ = response.send(result);
                 },
+                OdmRequest::ExecuteStoredProcedure { procedure_name, database_alias, params, response } => {
+                    let result = Self::handle_execute_stored_procedure(&procedure_name, database_alias.as_deref(), params).await;
+                    let _ = response.send(result);
+                },
             }
         }
 
@@ -142,6 +146,59 @@ impl AsyncOdmManager {
         // 创建适配器操作请求
         let operation = crate::pool::DatabaseOperation::CreateStoredProcedure {
             config,
+            response: response_tx,
+        };
+
+        // 发送请求到连接池
+        connection_pool.operation_sender.send(operation)
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "连接池操作通道已关闭".to_string(),
+            })?;
+
+        // 等待响应
+        let result = response_rx.await
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "等待连接池响应超时".to_string(),
+            })??;
+
+        Ok(result)
+    }
+
+    /// 处理存储过程执行请求
+    #[doc(hidden)]
+    pub async fn handle_execute_stored_procedure(
+        procedure_name: &str,
+        alias: Option<&str>,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult> {
+        let database_alias = match alias {
+            Some(a) => a.to_string(),
+            None => {
+                // 使用连接池管理器的默认别名
+                let manager = get_global_pool_manager();
+                manager.get_default_alias().await
+                    .unwrap_or_else(|| "default".to_string())
+            }
+        };
+
+        debug!("处理存储过程执行请求: procedure={}, database={}", procedure_name, database_alias);
+
+        // 获取连接池管理器
+        let manager = get_global_pool_manager();
+        let connection_pools = manager.get_connection_pools();
+        let connection_pool = connection_pools.get(&database_alias)
+            .ok_or_else(|| QuickDbError::AliasNotFound {
+                alias: database_alias.clone(),
+            })?;
+
+        // 创建oneshot通道用于接收响应
+        let (response_tx, response_rx) = oneshot::channel();
+
+        // 创建适配器操作请求
+        let operation = crate::pool::DatabaseOperation::ExecuteStoredProcedure {
+            procedure_name: procedure_name.to_string(),
+            database: database_alias.clone(),
+            params,
             response: response_tx,
         };
 

@@ -234,3 +234,13 @@ pub async fn create_stored_procedure(
     let database_alias = config.database.clone();
     manager.create_stored_procedure(config, Some(&database_alias)).await
 }
+
+/// 执行存储过程查询
+pub async fn execute_stored_procedure(
+    procedure_name: &str,
+    database_alias: Option<&str>,
+    params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+) -> QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult> {
+    let manager = get_odm_manager().await;
+    manager.execute_stored_procedure(procedure_name, database_alias, params).await
+}

@@ -114,6 +114,14 @@ pub trait OdmOperations {
         config: crate::stored_procedure::StoredProcedureConfig,
         alias: Option<&str>,
     ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>;
+
+    /// 执行存储过程查询
+    async fn execute_stored_procedure(
+        &self,
+        procedure_name: &str,
+        database_alias: Option<&str>,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult>;
 }
 
 /// ODM操作请求类型
@@ -193,5 +201,16 @@ pub enum OdmRequest {
     GetServerVersion {
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<String>>,
+    },
+    CreateStoredProcedure {
+        config: crate::stored_procedure::StoredProcedureConfig,
+        alias: Option<String>,
+        response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>>,
+    },
+    ExecuteStoredProcedure {
+        procedure_name: String,
+        database_alias: Option<String>,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+        response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult>>,
     },
 }

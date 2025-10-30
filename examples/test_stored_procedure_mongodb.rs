@@ -139,9 +139,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_common_placeholders()  // 添加常用占位符
             .build();
 
+    // 1. 创建存储过程
+    println!("1. 创建存储过程...");
     match create_stored_procedure(config).await {
-        Ok(result) => println!("结果: {:?}", result),
-        Err(e) => println!("错误: {}", e),
+        Ok(result) => {
+            println!("✅ MongoDB存储过程创建成功: {:?}", result);
+        },
+        Err(e) => {
+            println!("❌ MongoDB存储过程创建失败: {}", e);
+            return Ok(());
+        }
+    }
+
+    // 2. 执行存储过程（独立操作）
+    println!("\n2. 执行存储过程查询...");
+
+    // 无参数查询
+    println!("2.1 无参数查询:");
+    match execute_stored_procedure("get_users_with_orders", Some("test_db"), None).await {
+        Ok(results) => {
+            println!("✅ 查询成功，返回 {} 条记录", results.len());
+        },
+        Err(e) => println!("❌ 查询失败: {}", e),
     }
 
     Ok(())

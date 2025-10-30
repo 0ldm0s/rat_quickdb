@@ -328,6 +328,11 @@ impl SqliteWorker {
                 let _ = response.send(result);
                 Ok(())
             },
+            DatabaseOperation::ExecuteStoredProcedure { procedure_name, database, params, response } => {
+                let result = self.adapter.execute_stored_procedure(&self.connection, &procedure_name, &database, params).await;
+                let _ = response.send(result);
+                Ok(())
+            },
         };
         
         operation_result

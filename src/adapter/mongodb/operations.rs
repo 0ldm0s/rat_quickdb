@@ -527,4 +527,170 @@ impl DatabaseAdapter for MongoAdapter {
             error: None,
         })
     }
+
+    /// 执行存储过程查询（MongoDB使用聚合管道实现）
+    async fn execute_stored_procedure(
+        &self,
+        connection: &DatabaseConnection,
+        procedure_name: &str,
+        database: &str,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult> {
+        use crate::adapter::mongodb::adapter::MongoAdapter;
+        use serde_json::json;
+
+        // 获取存储过程信息
+        let procedures = self.stored_procedures.lock().await;
+        let procedure_info = procedures.get(procedure_name).ok_or_else(|| {
+            crate::error::QuickDbError::ValidationError {
+                field: "procedure_name".to_string(),
+                message: format!("存储过程 '{}' 不存在", procedure_name),
+            }
+        })?;
+        let pipeline_template = procedure_info.template.clone();
+        drop(procedures);
+
+        debug!("执行MongoDB存储过程查询: {}, 模板: {}", procedure_name, pipeline_template);
+
+        // 解析聚合管道模板
+        let pipeline_value: serde_json::Value = serde_json::from_str(&pipeline_template)
+            .map_err(|e| crate::error::QuickDbError::SerializationError {
+                message: format!("解析聚合管道模板失败: {}", e),
+            })?;
+
+        // 根据参数动态构建最终的聚合管道
+        let final_pipeline = self.build_final_pipeline_from_template(&pipeline_value, params).await?;
+
+        // 提取集合名
+        let collection_name = final_pipeline.get("collection")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                crate::error::QuickDbError::ValidationError {
+                    field: "pipeline".to_string(),
+                    message: "聚合管道模板缺少collection字段".to_string(),
+                }
+            })?;
+
+        let pipeline_stages = final_pipeline.get("pipeline")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| {
+                crate::error::QuickDbError::ValidationError {
+                    field: "pipeline".to_string(),
+                    message: "聚合管道模板缺少pipeline字段".to_string(),
+                }
+            })?;
+
+        debug!("执行MongoDB聚合管道: 集合={}, 阶段数={}", collection_name, pipeline_stages.len());
+
+        // 执行聚合管道查询
+        let query_result = self.aggregate_query(connection, collection_name, pipeline_stages).await?;
+
+        // 转换结果格式
+        let mut result = Vec::new();
+        for row_data in query_result {
+            let mut row_map = std::collections::HashMap::new();
+            for (key, value) in row_data {
+                row_map.insert(key, value);
+            }
+            result.push(row_map);
+        }
+
+        debug!("MongoDB存储过程 {} 执行完成，返回 {} 条记录", procedure_name, result.len());
+        Ok(result)
+    }
+}
+
+impl MongoAdapter {
+    /// 根据模板和参数构建最终聚合管道
+    async fn build_final_pipeline_from_template(
+        &self,
+        pipeline_template: &serde_json::Value,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+    ) -> QuickDbResult<serde_json::Value> {
+        let mut final_pipeline = pipeline_template.clone();
+
+        // 如果有参数，替换占位符阶段
+        if let Some(param_map) = params {
+            if let Some(pipeline_array) = final_pipeline.get_mut("pipeline").and_then(|v| v.as_array_mut()) {
+                // 过滤掉占位符阶段，根据参数动态添加实际的阶段
+                let mut filtered_stages = Vec::new();
+
+                for stage in pipeline_array.iter() {
+                    // 检查是否是占位符阶段
+                    if let Some(add_fields) = stage.get("$addFields") {
+                        let mut is_placeholder = false;
+                        let mut new_add_fields = serde_json::Map::new();
+
+                        for (field_name, field_value) in add_fields.as_object().unwrap_or(&serde_json::Map::new()) {
+                            if field_name.starts_with("_") && field_name.ends_with("_PLACEHOLDER") {
+                                is_placeholder = true;
+                                let placeholder_type = field_name
+                                    .strip_prefix("_")
+                                    .and_then(|s| s.strip_suffix("_PLACEHOLDER"))
+                                    .unwrap();
+
+                                // 根据参数决定是否添加相应的阶段
+                                if let Some(param_value) = param_map.get(placeholder_type) {
+                                    match placeholder_type {
+                                        "WHERE" => {
+                                            if let crate::types::DataValue::String(where_clause) = param_value {
+                                                filtered_stages.push(json!({
+                                                    "$match": serde_json::from_str::<serde_json::Value>(&where_clause)
+                                                        .unwrap_or_else(|_| json!({}))
+                                                }));
+                                            }
+                                        },
+                                        "ORDER_BY" => {
+                                            if let crate::types::DataValue::String(order_clause) = param_value {
+                                                filtered_stages.push(json!({
+                                                    "$sort": serde_json::from_str::<serde_json::Value>(&order_clause)
+                                                        .unwrap_or_else(|_| json!({}))
+                                                }));
+                                            }
+                                        },
+                                        "LIMIT" => {
+                                            if let crate::types::DataValue::Int(limit) = param_value {
+                                                filtered_stages.push(json!({
+                                                    "$limit": limit
+                                                }));
+                                            }
+                                        },
+                                        "OFFSET" => {
+                                            if let crate::types::DataValue::Int(offset) = param_value {
+                                                filtered_stages.push(json!({
+                                                    "$skip": offset
+                                                }));
+                                            }
+                                        },
+                                        _ => {
+                                            // 其他占位符类型，暂时跳过
+                                        }
+                                    }
+                                }
+                            } else {
+                                // 非占位符字段，保留
+                                new_add_fields.insert(field_name.clone(), field_value.clone());
+                            }
+                        }
+
+                        // 如果有非占位符字段，保留该阶段
+                        if !new_add_fields.is_empty() {
+                            filtered_stages.push(json!({
+                                "$addFields": new_add_fields
+                            }));
+                        }
+                    } else {
+                        // 非占位符阶段，直接保留
+                        filtered_stages.push(stage.clone());
+                    }
+                }
+
+                // 更新管道
+                final_pipeline["pipeline"] = serde_json::Value::Array(filtered_stages);
+            }
+        }
+
+        debug!("构建的最终聚合管道: {}", serde_json::to_string_pretty(&final_pipeline).unwrap_or_default());
+        Ok(final_pipeline)
+    }
 }
