@@ -473,4 +473,58 @@ impl DatabaseAdapter for MongoAdapter {
     ) -> QuickDbResult<String> {
         mongodb_schema::get_server_version(self, connection).await
     }
+
+    async fn create_stored_procedure(
+        &self,
+        connection: &DatabaseConnection,
+        config: &crate::stored_procedure::StoredProcedureConfig,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
+        use crate::stored_procedure::StoredProcedureCreateResult;
+        use crate::types::id_types::IdStrategy;
+
+        debug!("开始创建MongoDB存储过程: {}", config.procedure_name);
+
+        // 验证配置
+        config.validate()
+            .map_err(|e| crate::error::QuickDbError::ValidationError {
+                field: "config".to_string(),
+                message: format!("存储过程配置验证失败: {}", e),
+            })?;
+
+        // 1. 确保依赖集合存在
+        for model_meta in &config.dependencies {
+            let collection_name = &model_meta.collection_name;
+            if !self.table_exists(connection, collection_name).await? {
+                debug!("依赖集合 {} 不存在，尝试创建", collection_name);
+                // 使用存储的模型元数据和数据库的ID策略创建集合
+                let id_strategy = crate::manager::get_id_strategy(&config.database)
+                    .unwrap_or(IdStrategy::AutoIncrement);
+
+                self.create_table(connection, collection_name, &model_meta.fields, &id_strategy).await?;
+                debug!("✅ 依赖集合 {} 创建成功，ID策略: {:?}", collection_name, id_strategy);
+            }
+        }
+
+        // 2. 生成MongoDB聚合管道（带占位符）
+        let pipeline_json = self.generate_stored_procedure_pipeline(&config).await?;
+        debug!("生成MongoDB存储过程聚合管道: {}", pipeline_json);
+
+        // 3. 将存储过程信息存储到适配器映射表中（MongoDB不需要执行创建聚合管道）
+        let procedure_info = crate::stored_procedure::StoredProcedureInfo {
+            config: config.clone(),
+            template: pipeline_json.clone(),
+            db_type: "MongoDB".to_string(),
+            created_at: chrono::Utc::now(),
+        };
+
+        let mut procedures = self.stored_procedures.lock().await;
+        procedures.insert(config.procedure_name.clone(), procedure_info);
+        debug!("✅ MongoDB存储过程 {} 聚合管道已存储到适配器映射表", config.procedure_name);
+
+        Ok(StoredProcedureCreateResult {
+            success: true,
+            procedure_name: config.procedure_name.clone(),
+            error: None,
+        })
+    }
 }
