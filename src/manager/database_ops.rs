@@ -20,6 +20,8 @@ impl PoolManager {
     pub async fn add_database(&self, config: DatabaseConfig) -> QuickDbResult<()> {
         let alias = config.alias.clone();
         
+        println!("=== DEBUG add_database (PoolManager): 别名={:?}, 类型={:?}, pool.connection_timeout={}ms ===",
+                 alias, config.db_type, config.pool.connection_timeout);
         info!("添加数据库配置: 别名={}, 类型={:?}", alias, config.db_type);
         
         // 检查别名是否已存在
@@ -44,7 +46,10 @@ impl PoolManager {
         };
         
         // 创建连接池（传入缓存管理器）
-        let pool_config = ExtendedPoolConfig::default();
+        println!("=== DEBUG: 创建ConnectionPool with_config, 使用用户PoolConfig ===");
+        let pool_config = ExtendedPoolConfig::from_pool_config(config.pool.clone());
+        println!("=== DEBUG: ExtendedPoolConfig.from_pool_config().base.connection_timeout={}ms (使用用户配置!) ===",
+                 pool_config.base.connection_timeout);
         let pool = ConnectionPool::with_config_and_cache(config.clone(), pool_config, cache_manager_arc).await.map_err(|e| {
             error!("连接池创建失败: 别名={}, 错误={}", alias, e);
             e

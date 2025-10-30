@@ -8,6 +8,7 @@ use tokio::sync::oneshot;
 use crate::types::*;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::model::{FieldType, FieldDefinition};
+use super::ExtendedPoolConfig;
 
 /// 池化连接 - 用于兼容旧接口
 #[derive(Debug, Clone)]
@@ -139,12 +140,14 @@ pub enum DatabaseConnection {
     MongoDB(mongodb::Database),
 }
 
-/// 连接工作器 - 持有单个数据库连接并处理操作
+/// 连接工作器 - 持有数据库连接池并处理操作
 pub struct ConnectionWorker {
     /// 工作器ID
-    pub id: String, 
-    /// 数据库连接
+    pub id: String,
+    /// 数据库连接池
     pub connection: DatabaseConnection,
+    /// 连接池配置
+    pub pool_config: ExtendedPoolConfig,
     /// 连接创建时间
     pub created_at: Instant,
     /// 最后使用时间

@@ -264,6 +264,14 @@ pub struct PoolConfig {
     pub idle_timeout: u64,
     /// 连接最大生存时间（秒）
     pub max_lifetime: u64,
+    /// 最大重试次数
+    pub max_retries: u32,
+    /// 重试间隔（毫秒）
+    pub retry_interval_ms: u64,
+    /// 保活检测间隔（秒）
+    pub keepalive_interval_sec: u64,
+    /// 连接健康检查超时（秒）
+    pub health_check_timeout_sec: u64,
 }
 
 impl Default for PoolConfig {
@@ -274,6 +282,10 @@ impl Default for PoolConfig {
             connection_timeout: 30,
             idle_timeout: 600,
             max_lifetime: 3600,
+            max_retries: 3,
+            retry_interval_ms: 1000,
+            keepalive_interval_sec: 30,
+            health_check_timeout_sec: 5,
         }
     }
 }
