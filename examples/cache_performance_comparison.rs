@@ -159,7 +159,18 @@ impl CachePerformanceTest {
                 path: "./test_data/cache_performance_cached.db".to_string(),
                 create_if_missing: true,
             },
-            pool: PoolConfig::default(),
+            pool: PoolConfig::builder()
+                .max_connections(10)
+                .min_connections(1)
+                .connection_timeout(10)
+                .idle_timeout(300)
+                .max_lifetime(1800)
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()
+                .unwrap(),
             alias: "cached_db".to_string(),
             cache: Some(cache_config),
             id_strategy: IdStrategy::Uuid,
@@ -174,7 +185,18 @@ impl CachePerformanceTest {
                 path: "./test_data/cache_performance_non_cached.db".to_string(),
                 create_if_missing: true,
             },
-            pool: PoolConfig::default(),
+            pool: PoolConfig::builder()
+                .max_connections(10)
+                .min_connections(1)
+                .connection_timeout(10)
+                .idle_timeout(300)
+                .max_lifetime(1800)
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()
+                .unwrap(),
             alias: "non_cached_db".to_string(),
             cache: None, // 明确禁用缓存
             id_strategy: IdStrategy::Uuid,

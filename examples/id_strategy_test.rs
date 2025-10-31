@@ -77,7 +77,18 @@ async fn test_auto_increment() -> QuickDbResult<()> {
             path: "./id_strategy_test.db".to_string(),
             create_if_missing: true,
         },
-        pool: PoolConfig::default(),
+        pool: PoolConfig::builder()
+                .max_connections(10)
+                .min_connections(1)
+                .connection_timeout(10)
+                .idle_timeout(300)
+                .max_lifetime(1800)
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()
+                .unwrap(),
         id_strategy: IdStrategy::AutoIncrement,
         cache: None,
     };
@@ -141,7 +152,18 @@ async fn test_uuid() -> QuickDbResult<()> {
             path: "./id_strategy_test.db".to_string(),
             create_if_missing: true,
         },
-        pool: PoolConfig::default(),
+        pool: PoolConfig::builder()
+                .max_connections(10)
+                .min_connections(1)
+                .connection_timeout(10)
+                .idle_timeout(300)
+                .max_lifetime(1800)
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()
+                .unwrap(),
         id_strategy: IdStrategy::Uuid,
         cache: None,
     };
@@ -210,7 +232,18 @@ async fn test_snowflake() -> QuickDbResult<()> {
             path: "./id_strategy_test.db".to_string(),
             create_if_missing: true,
         },
-        pool: PoolConfig::default(),
+        pool: PoolConfig::builder()
+                .max_connections(10)
+                .min_connections(1)
+                .connection_timeout(10)
+                .idle_timeout(300)
+                .max_lifetime(1800)
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()
+                .unwrap(),
         id_strategy: IdStrategy::snowflake(1, 1),
         cache: None,
     };

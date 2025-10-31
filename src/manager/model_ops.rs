@@ -97,9 +97,9 @@ impl PoolManager {
                 // 检查表是否存在
                 let table_exists = pool.table_exists(&collection_name).await?;
                 if !table_exists {
-                    info!("表 {} 不存在，正在创建", collection_name);
+                    debug!("表 {} 不存在，正在创建", collection_name);
                     pool.create_table(&collection_name, &fields, &pool.db_config.id_strategy).await?;
-                    info!("✅ 创建表成功: {}", collection_name);
+                    debug!("✅ 创建表成功: {}", collection_name);
                 }
 
                 // 创建索引

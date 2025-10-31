@@ -42,8 +42,8 @@ define_model! {
         employee_id: string_field(None, None, None).required().unique(),
         name: string_field(None, None, None).required(),
         email: string_field(None, None, None).required(),
-        department: string_field(None, None, None).required(),
-        position: string_field(None, None, None).required(),
+        department: string_field(Some(100), Some(1), None).required(),
+        position: string_field(Some(100), Some(1), None).required(),
         age: integer_field(None, None).required(),
         salary: float_field(None, None).required(),
         hire_date: datetime_field().required(),
@@ -206,7 +206,17 @@ async fn main() -> QuickDbResult<()> {
             },
             tls_config: None,
         },
-        pool: PoolConfig::default(),
+        pool: PoolConfig {
+                min_connections: 1,
+                max_connections: 1,
+                connection_timeout: 10000,  // 10秒
+                idle_timeout: 600,          // 10分钟
+                max_lifetime: 1800,         // 30分钟
+                max_retries: 3,
+                retry_interval_ms: 1000,
+                keepalive_interval_sec: 60,
+                health_check_timeout_sec: 10,
+            },
         id_strategy: IdStrategy::Uuid,
         cache: None,
     };

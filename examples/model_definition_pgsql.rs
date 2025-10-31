@@ -1125,7 +1125,18 @@ async fn main() -> QuickDbResult<()> {
             ssl_mode: Some("prefer".to_string()),
             tls_config: None,
         },
-        pool: PoolConfig::default(),
+        pool: PoolConfig::builder()
+            .max_connections(10)
+            .min_connections(1)
+            .connection_timeout(60)  // 60秒，比之前的30秒更长
+            .idle_timeout(600)
+            .max_lifetime(3600)
+            .max_retries(5)
+            .retry_interval_ms(500)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()
+            .unwrap(),
         alias: "default".to_string(),
         id_strategy: IdStrategy::Uuid,
         cache: None,

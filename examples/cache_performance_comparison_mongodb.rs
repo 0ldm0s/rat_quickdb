@@ -187,7 +187,17 @@ impl CachePerformanceTest {
         DatabaseConfig {
             db_type: DatabaseType::MongoDB,
             connection: builder.build(),
-            pool: PoolConfig::default(),
+            pool: PoolConfig {
+                min_connections: 1,
+                max_connections: 1,
+                connection_timeout: 10000,  // 10秒
+                idle_timeout: 600,          // 10分钟
+                max_lifetime: 1800,         // 30分钟
+                max_retries: 3,
+                retry_interval_ms: 1000,
+                keepalive_interval_sec: 60,
+                health_check_timeout_sec: 10,
+            },
             alias: "cached_mongodb".to_string(),
             cache: Some(cache_config),
             id_strategy: IdStrategy::ObjectId,
@@ -230,7 +240,17 @@ impl CachePerformanceTest {
         DatabaseConfig {
             db_type: DatabaseType::MongoDB,
             connection: builder.build(),
-            pool: PoolConfig::default(),
+            pool: PoolConfig {
+                min_connections: 1,
+                max_connections: 1,
+                connection_timeout: 10000,  // 10秒
+                idle_timeout: 600,          // 10分钟
+                max_lifetime: 1800,         // 30分钟
+                max_retries: 3,
+                retry_interval_ms: 1000,
+                keepalive_interval_sec: 60,
+                health_check_timeout_sec: 10,
+            },
             alias: "non_cached_mongodb".to_string(),
             cache: None, // 明确禁用缓存
             id_strategy: IdStrategy::ObjectId,

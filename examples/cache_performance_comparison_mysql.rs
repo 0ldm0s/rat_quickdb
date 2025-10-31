@@ -26,7 +26,7 @@ define_model! {
     }
     collection = "users",
     fields = {
-        id: string_field(None, None, None).required().unique(),
+        id: uuid_field().required().unique(),
         name: string_field(Some(100), Some(1), None).required(),
         email: string_field(Some(255), Some(1), None).required(),
         age: integer_field(Some(0), Some(150)).required(),
@@ -174,7 +174,17 @@ impl CachePerformanceTest {
                 ssl_opts,
                 tls_config: None,
             },
-            pool: PoolConfig::default(),
+            pool: PoolConfig {
+                min_connections: 1,
+                max_connections: 1,
+                connection_timeout: 10000,  // 10秒
+                idle_timeout: 600,          // 10分钟
+                max_lifetime: 1800,         // 30分钟
+                max_retries: 3,
+                retry_interval_ms: 1000,
+                keepalive_interval_sec: 60,
+                health_check_timeout_sec: 10,
+            },
             alias: "cached_mysql".to_string(),
             cache: Some(cache_config),
             id_strategy: IdStrategy::Uuid,
@@ -201,7 +211,17 @@ impl CachePerformanceTest {
                 ssl_opts,
                 tls_config: None,
             },
-            pool: PoolConfig::default(),
+            pool: PoolConfig {
+                min_connections: 1,
+                max_connections: 1,
+                connection_timeout: 10000,  // 10秒
+                idle_timeout: 600,          // 10分钟
+                max_lifetime: 1800,         // 30分钟
+                max_retries: 3,
+                retry_interval_ms: 1000,
+                keepalive_interval_sec: 60,
+                health_check_timeout_sec: 10,
+            },
             alias: "non_cached_mysql".to_string(),
             cache: None, // 明确禁用缓存
             id_strategy: IdStrategy::Uuid,

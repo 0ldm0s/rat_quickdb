@@ -34,14 +34,12 @@ pub struct MultiConnectionManager {
 impl MultiConnectionManager {
     /// 创建初始连接
     pub async fn create_initial_connections(&mut self) -> QuickDbResult<()> {
-        info!("创建初始连接池，大小: {}", self.config.base.max_connections);
         
-        for i in 0..self.config.base.max_connections {
-            let worker = self.create_connection_worker(i as usize).await?;
-            self.workers.push(worker);
-            self.available_workers.push(i as usize);
-        }
-        
+        // 只创建1个worker进行测试
+        let worker = self.create_connection_worker(0).await?;
+        self.workers.push(worker);
+        self.available_workers.push(0);
+
         Ok(())
     }
     
@@ -59,14 +57,12 @@ impl MultiConnectionManager {
             (adapter, "普通适配器")
         };
         
-        // 只在第一个工作器创建时输出适配器类型信息
-        if index == 0 {
-            info!("数据库 '{}' 使用 {}", self.db_config.alias, adapter_type);
-        }
+        debug!("数据库 '{}' 使用 {}", self.db_config.alias, adapter_type);
         
         Ok(ConnectionWorker {
             id: format!("{}-worker-{}", self.db_config.alias, index),
             connection,
+            pool_config: self.config.clone(),
             created_at: Instant::now(),
             last_used: Instant::now(),
             retry_count: 0,
@@ -91,11 +87,20 @@ impl MultiConnectionManager {
                     }),
                 };
 
-                let pool = sqlx::PgPool::connect(&connection_string)
+  
+                // 使用PgPoolOptions创建连接池 - 使用配置值
+                let pool = sqlx::postgres::PgPoolOptions::new()
+                    .max_connections(self.config.base.max_connections)
+                    .min_connections(self.config.base.min_connections)
+                    .max_lifetime(std::time::Duration::from_secs(self.config.base.max_lifetime))
+                    .idle_timeout(std::time::Duration::from_secs(self.config.base.idle_timeout))
+                    .acquire_timeout(std::time::Duration::from_millis(self.config.base.connection_timeout))
+                    .connect(&connection_string)
                     .await
                     .map_err(|e| QuickDbError::ConnectionError {
-                        message: format!("PostgreSQL连接失败: {}", e),
+                        message: format!("PostgreSQL连接池创建失败: {}", e),
                     })?;
+
                 Ok(DatabaseConnection::PostgreSQL(pool))
             },
             #[cfg(feature = "mysql-support")]
@@ -111,12 +116,20 @@ impl MultiConnectionManager {
                     }),
                 };
 
-                let pool = sqlx::MySqlPool::connect(&connection_string)
+                // 创建带有连接池配置的MySQL连接池
+                let mysql_pool = sqlx::mysql::MySqlPoolOptions::new()
+                    .min_connections(self.config.base.min_connections)
+                    .max_connections(self.config.base.max_connections)
+                    .acquire_timeout(std::time::Duration::from_millis(self.config.base.connection_timeout))
+                    .idle_timeout(std::time::Duration::from_millis(self.config.base.idle_timeout))
+                    .max_lifetime(std::time::Duration::from_millis(self.config.base.max_lifetime))
+                    .connect(&connection_string)
                     .await
                     .map_err(|e| QuickDbError::ConnectionError {
-                        message: format!("MySQL连接失败: {}", e),
+                        message: format!("MySQL连接池创建失败: {}", e),
                     })?;
-                Ok(DatabaseConnection::MySQL(pool))
+
+                  Ok(DatabaseConnection::MySQL(mysql_pool))
             },
             #[cfg(feature = "mongodb-support")]
             DatabaseType::MongoDB => {
@@ -213,7 +226,7 @@ impl MultiConnectionManager {
     
     /// 运行多连接管理器
     pub async fn run(mut self) {
-        info!("多连接管理器开始运行: 别名={}", self.db_config.alias);
+        debug!("多连接管理器开始运行: 别名={}", self.db_config.alias);
         
         // 创建初始连接
         if let Err(e) = self.create_initial_connections().await {
@@ -230,7 +243,7 @@ impl MultiConnectionManager {
             }
         }
         
-        info!("多连接管理器停止运行");
+        debug!("多连接管理器停止运行");
     }
     
     /// 处理数据库操作
@@ -362,7 +375,7 @@ impl MultiConnectionManager {
                 match self.create_connection_worker(worker_index).await {
                     Ok(new_worker) => {
                         self.workers[worker_index] = new_worker;
-                        info!("工作器 {} 连接已重新创建", worker_index);
+                        debug!("工作器 {} 连接已重新创建", worker_index);
                     },
                     Err(create_err) => {
                         error!("重新创建工作器 {} 连接失败: {}", worker_index, create_err);

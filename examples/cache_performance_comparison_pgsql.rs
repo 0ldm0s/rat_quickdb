@@ -23,7 +23,7 @@ define_model! {
     }
     collection = "users",
     fields = {
-        id: string_field(None, None, None).required().unique(),
+        id: uuid_field().required().unique(),
         name: string_field(Some(100), Some(1), None).required(),
         email: string_field(Some(255), Some(1), None).required(),
         age: integer_field(Some(0), Some(150)).required(),
@@ -96,7 +96,9 @@ impl PgCachePerformanceTest {
         let non_cached_config = Self::create_non_cached_database_config();
 
         // 添加数据库配置
+        println!("=== DEBUG: 调用add_database添加cached_config ===");
         add_database(cached_config).await?;
+        println!("=== DEBUG: 调用add_database添加non_cached_config ===");
         add_database(non_cached_config).await?;
 
         // 设置默认数据库别名为缓存数据库
@@ -151,7 +153,8 @@ impl PgCachePerformanceTest {
             version: "v1".to_string(),
         };
 
-        DatabaseConfig {
+        println!("=== DEBUG: 创建cached_db DatabaseConfig ===");
+        let db_config = DatabaseConfig {
             db_type: DatabaseType::PostgreSQL,
             connection: ConnectionConfig::PostgreSQL {
                 host: "172.16.0.23".to_string(),
@@ -171,11 +174,23 @@ impl PgCachePerformanceTest {
                     cipher_suites: None,
                 }),
             },
-            pool: PoolConfig::default(),
+            pool: PoolConfig {
+                min_connections: 1,
+                max_connections: 1,
+                connection_timeout: 10000,  // 增加到10秒
+                idle_timeout: 600,
+                max_lifetime: 3600,
+                max_retries: 5,  // 增加重试次数
+                retry_interval_ms: 500,  // 减少重试间隔
+                keepalive_interval_sec: 60,  // 增加保活间隔
+                health_check_timeout_sec: 10,  // 增加健康检查超时
+            },
             alias: "cached_db".to_string(),
             cache: Some(cache_config),
-            id_strategy: IdStrategy::AutoIncrement,
-        }
+            id_strategy: IdStrategy::Uuid,
+        };
+
+        db_config
     }
 
     /// 创建不带缓存的数据库配置
@@ -200,10 +215,20 @@ impl PgCachePerformanceTest {
                     cipher_suites: None,
                 }),
             },
-            pool: PoolConfig::default(),
+            pool: PoolConfig {
+                min_connections: 1,
+                max_connections: 1,
+                connection_timeout: 10000,  // 增加到10秒
+                idle_timeout: 600,
+                max_lifetime: 3600,
+                max_retries: 5,  // 增加重试次数
+                retry_interval_ms: 500,  // 减少重试间隔
+                keepalive_interval_sec: 60,  // 增加保活间隔
+                health_check_timeout_sec: 10,  // 增加健康检查超时
+            },
             alias: "non_cached_db".to_string(),
             cache: None, // 明确禁用缓存
-            id_strategy: IdStrategy::AutoIncrement,
+            id_strategy: IdStrategy::Uuid,
         }
     }
 
@@ -235,39 +260,37 @@ impl PgCachePerformanceTest {
 
         // 缓存数据库的用户数据
         let cached_users = vec![
-            self.create_user("user1", "张三", "zhangsan_cached@example.com", 25),
-            self.create_user("user2", "李四", "lisi_cached@example.com", 30),
-            self.create_user("user3", "王五", "wangwu_cached@example.com", 28),
-            self.create_user("user4", "赵六", "zhaoliu_cached@example.com", 35),
-            self.create_user("user5", "钱七", "qianqi_cached@example.com", 22),
+            self.create_user("张三", "zhangsan_cached@example.com", 25),
+            self.create_user("李四", "lisi_cached@example.com", 30),
+            self.create_user("王五", "wangwu_cached@example.com", 28),
+            self.create_user("赵六", "zhaoliu_cached@example.com", 35),
+            self.create_user("钱七", "qianqi_cached@example.com", 22),
         ];
 
-        // 批量用户数据 - 缓存数据库
+        // 批量用户数据 - 缓存数据库 - 自动生成ID
         let batch_cached_users: Vec<User> = (6..=25)
             .map(|i| self.create_user(
-                &format!("batch_user_{}", i),
                 &format!("批量用户{}", i),
                 &format!("batch{}_cached@example.com", i),
-                20 + (i % 30),
+                (20 + (i % 30)) as i32,
             ))
             .collect();
 
-        // 非缓存数据库的用户数据（完全不同的数据）
+        // 非缓存数据库的用户数据（相同数据，用于性能对比）
         let non_cached_users = vec![
-            self.create_user("non_user1", "非缓存张三", "non_zhangsan@example.com", 25),
-            self.create_user("non_user2", "非缓存李四", "non_lisi@example.com", 30),
-            self.create_user("non_user3", "非缓存王五", "non_wangwu@example.com", 28),
-            self.create_user("non_user4", "非缓存赵六", "non_zhaoliu@example.com", 35),
-            self.create_user("non_user5", "非缓存钱七", "non_qianqi@example.com", 22),
+            self.create_user("张三", "zhangsan_non_cached@example.com", 25),
+            self.create_user("李四", "lisi_non_cached@example.com", 30),
+            self.create_user("王五", "wangwu_non_cached@example.com", 28),
+            self.create_user("赵六", "zhaoliu_non_cached@example.com", 35),
+            self.create_user("钱七", "qianqi_non_cached@example.com", 22),
         ];
 
-        // 批量用户数据 - 非缓存数据库
+        // 批量用户数据 - 非缓存数据库 - 自动生成ID
         let batch_non_cached_users: Vec<User> = (26..=45)
             .map(|i| self.create_user(
-                &format!("non_batch_user_{}", i),
-                &format!("非缓存批量用户{}", i),
-                &format!("non_batch{}@example.com", i),
-                20 + (i % 30),
+                &format!("批量用户{}", i),
+                &format!("batch{}_non_cached@example.com", i),
+                (20 + (i % 30)) as i32,
             ))
             .collect();
 
@@ -292,10 +315,10 @@ impl PgCachePerformanceTest {
         Ok(())
     }
 
-    /// 创建用户数据
-    fn create_user(&self, id: &str, name: &str, email: &str, age: i32) -> User {
+    /// 创建用户数据（自动生成ID）
+    fn create_user(&self, name: &str, email: &str, age: i32) -> User {
         User {
-            id: id.to_string(),
+            id: String::new(), // 传入空字符串，让底层ID生成器自动生成
             name: name.to_string(),
             email: email.to_string(),
             age,
@@ -456,6 +479,15 @@ impl PgCachePerformanceTest {
 
         // 首次批量查询（建立缓存）
         set_default_alias("cached_db").await?;
+        println!("  🔍 批量查询前检查: 找到 {} 个名为'张三'的用户",
+                 ModelManager::<User>::find(vec![
+                     QueryCondition {
+                         field: "name".to_string(),
+                         operator: QueryOperator::Eq,
+                         value: DataValue::String("张三".to_string()),
+                     }
+                 ], None).await?.len());
+
         let start = Instant::now();
         for email in &user_emails {
             let conditions = vec![
@@ -493,6 +525,17 @@ impl PgCachePerformanceTest {
         println!("  ✅ 缓存批量查询: {:?}", cached_duration);
         println!("  📈 性能提升: {:.2}x", result.improvement_ratio);
 
+        // 检查张三用户是否还存在
+        let zhangsan_conditions = vec![
+            QueryCondition {
+                field: "name".to_string(),
+                operator: QueryOperator::Eq,
+                value: DataValue::String("张三".to_string()),
+            }
+        ];
+        let zhangsan_check = ModelManager::<User>::find(zhangsan_conditions, None).await?;
+        println!("  🔍 批量查询后检查: 找到 {} 个名为'张三'的用户", zhangsan_check.len());
+
         self.results.push(result);
         Ok(())
     }
@@ -512,7 +555,9 @@ impl PgCachePerformanceTest {
         // 查找要更新的用户
         set_default_alias("cached_db").await?;
         let users = ModelManager::<User>::find(conditions.clone(), None).await?;
+        println!("  🔍 更新测试: 找到 {} 个名为'张三'的用户", users.len());
         if let Some(user) = users.first() {
+            println!("  🔍 更新测试: 找到用户 ID: {:?}", user.id);
             // 第一次更新操作
             let start = Instant::now();
             let mut user_clone = user.clone();
@@ -640,6 +685,9 @@ async fn cleanup_test_files() {
 
 #[tokio::main]
 async fn main() -> QuickDbResult<()> {
+    // 初始化日志系统（默认级别）
+    rat_logger::init();
+
     println!("🚀 RatQuickDB PostgreSQL缓存性能对比测试");
     println!("=====================================\n");
 

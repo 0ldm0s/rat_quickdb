@@ -17,6 +17,10 @@ pub struct PoolConfigBuilder {
     connection_timeout: Option<u64>,
     idle_timeout: Option<u64>,
     max_lifetime: Option<u64>,
+    max_retries: Option<u32>,
+    retry_interval_ms: Option<u64>,
+    keepalive_interval_sec: Option<u64>,
+    health_check_timeout_sec: Option<u64>,
 }
 impl PoolConfig {
     /// 创建连接池配置构建器
@@ -34,6 +38,10 @@ impl PoolConfigBuilder {
             connection_timeout: None,
             idle_timeout: None,
             max_lifetime: None,
+            max_retries: None,
+            retry_interval_ms: None,
+            keepalive_interval_sec: None,
+            health_check_timeout_sec: None,
         }
     }
 
@@ -78,12 +86,52 @@ impl PoolConfigBuilder {
     }
 
     /// 设置连接最大生存时间（秒）
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `lifetime` - 连接最大生存时间（秒）
     pub fn max_lifetime(mut self, lifetime: u64) -> Self {
         self.max_lifetime = Some(lifetime);
+        self
+    }
+
+    /// 设置最大重试次数
+    ///
+    /// # 参数
+    ///
+    /// * `retries` - 最大重试次数
+    pub fn max_retries(mut self, retries: u32) -> Self {
+        self.max_retries = Some(retries);
+        self
+    }
+
+    /// 设置重试间隔（毫秒）
+    ///
+    /// # 参数
+    ///
+    /// * `interval` - 重试间隔（毫秒）
+    pub fn retry_interval_ms(mut self, interval: u64) -> Self {
+        self.retry_interval_ms = Some(interval);
+        self
+    }
+
+    /// 设置保活检测间隔（秒）
+    ///
+    /// # 参数
+    ///
+    /// * `interval` - 保活检测间隔（秒）
+    pub fn keepalive_interval_sec(mut self, interval: u64) -> Self {
+        self.keepalive_interval_sec = Some(interval);
+        self
+    }
+
+    /// 设置连接健康检查超时（秒）
+    ///
+    /// # 参数
+    ///
+    /// * `timeout` - 连接健康检查超时（秒）
+    pub fn health_check_timeout_sec(mut self, timeout: u64) -> Self {
+        self.health_check_timeout_sec = Some(timeout);
         self
     }
 
@@ -113,6 +161,22 @@ impl PoolConfigBuilder {
             crate::quick_error!(config, "连接最大生存时间必须设置")
         })?;
 
+        let max_retries = self.max_retries.ok_or_else(|| {
+            crate::quick_error!(config, "最大重试次数必须设置")
+        })?;
+
+        let retry_interval_ms = self.retry_interval_ms.ok_or_else(|| {
+            crate::quick_error!(config, "重试间隔必须设置")
+        })?;
+
+        let keepalive_interval_sec = self.keepalive_interval_sec.ok_or_else(|| {
+            crate::quick_error!(config, "保活检测间隔必须设置")
+        })?;
+
+        let health_check_timeout_sec = self.health_check_timeout_sec.ok_or_else(|| {
+            crate::quick_error!(config, "健康检查超时时间必须设置")
+        })?;
+
         // 验证配置的合理性
         if min_connections > max_connections {
             return Err(crate::quick_error!(config, "最小连接数不能大于最大连接数"));
@@ -136,9 +200,13 @@ impl PoolConfigBuilder {
         Ok(PoolConfig {
             min_connections,
             max_connections,
-            connection_timeout,
+            connection_timeout: connection_timeout * 1000,  // 转换为毫秒
             idle_timeout,
             max_lifetime,
+            max_retries,
+            retry_interval_ms,
+            keepalive_interval_sec,
+            health_check_timeout_sec,
         })
     }
 }

@@ -28,3 +28,26 @@ impl Default for ExtendedPoolConfig {
         }
     }
 }
+
+impl ExtendedPoolConfig {
+    /// 从用户PoolConfig创建ExtendedPoolConfig，保留用户配置
+    pub fn from_pool_config(pool_config: PoolConfig) -> Self {
+        Self {
+            base: PoolConfig {
+                min_connections: pool_config.min_connections,
+                max_connections: pool_config.max_connections,
+                connection_timeout: pool_config.connection_timeout,
+                idle_timeout: pool_config.idle_timeout,
+                max_lifetime: pool_config.max_lifetime,
+                max_retries: pool_config.max_retries,
+                retry_interval_ms: pool_config.retry_interval_ms,
+                keepalive_interval_sec: pool_config.keepalive_interval_sec,
+                health_check_timeout_sec: pool_config.health_check_timeout_sec,
+            },
+            max_retries: pool_config.max_retries,
+            retry_interval_ms: pool_config.retry_interval_ms,
+            keepalive_interval_sec: pool_config.keepalive_interval_sec,
+            health_check_timeout_sec: pool_config.health_check_timeout_sec,
+        }
+    }
+}
