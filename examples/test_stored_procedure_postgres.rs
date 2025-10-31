@@ -85,7 +85,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     add_database(db_config).await?;
     set_default_alias("test_db").await?;
 
-    // 0. 准备测试数据
+    // 0. 清理可能存在的测试数据
+    println!("清理已有测试数据...");
+    match drop_table("test_db", "users").await {
+        Ok(_) => println!("✅ 清理用户表"),
+        Err(e) => println!("⚠️  清理用户表失败（可能表不存在）: {}", e),
+    }
+    match drop_table("test_db", "orders").await {
+        Ok(_) => println!("✅ 清理订单表"),
+        Err(e) => println!("⚠️  清理订单表失败（可能表不存在）: {}", e),
+    }
+
+    // 1. 准备测试数据
     println!("0. 准备测试数据...");
 
     // 创建一些测试用户
@@ -164,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     // 创建存储过程
-    println!("\n1. 创建存储过程...");
+    println!("\n2. 创建存储过程...");
     match ModelManager::<User>::create_stored_procedure(config).await {
         Ok(result) => {
             println!("✅ PostgreSQL存储过程创建成功: {:?}", result);

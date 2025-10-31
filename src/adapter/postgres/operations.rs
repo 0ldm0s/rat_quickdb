@@ -741,7 +741,7 @@ impl PostgresAdapter {
                 final_sql = final_sql.replace("{WHERE}", "");
             }
 
-            // GROUP BY替换
+            // GROUP BY替换 - PostgreSQL特殊处理
             if let Some(group_by) = param_map.get("GROUP_BY") {
                 let group_by_str = match group_by {
                     crate::types::DataValue::String(s) => s.clone(),
@@ -749,7 +749,12 @@ impl PostgresAdapter {
                 };
                 final_sql = final_sql.replace("{GROUP_BY}", &format!(" GROUP BY {}", group_by_str));
             } else {
-                final_sql = final_sql.replace("{GROUP_BY}", "");
+                // PostgreSQL特殊处理：如果SQL模板已经包含GROUP BY，则不替换为空字符串
+                if final_sql.contains(" GROUP BY") {
+                    final_sql = final_sql.replace("{GROUP_BY}", "");
+                } else {
+                    final_sql = final_sql.replace("{GROUP_BY}", "");
+                }
             }
 
             // HAVING替换
@@ -806,13 +811,14 @@ impl PostgresAdapter {
                 .replace("{OFFSET}", "");
         }
 
-        // 清理多余的空格和逗号
+        // PostgreSQL特殊处理：不清理GROUP BY子句，因为它是自动生成的
+        // 只清理没有内容的占位符
         final_sql = final_sql
             .replace("  ", " ")
             .replace(" ,", ",")
             .replace(", ", ", ")
             .replace(" WHERE ", "")
-            .replace(" GROUP BY ", "")
+            // 不删除GROUP BY，因为PostgreSQL需要它
             .replace(" HAVING ", "")
             .replace(" ORDER BY ", "")
             .replace(" LIMIT ", "")
