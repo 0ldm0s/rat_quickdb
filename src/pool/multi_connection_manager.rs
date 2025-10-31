@@ -34,8 +34,7 @@ pub struct MultiConnectionManager {
 impl MultiConnectionManager {
     /// 创建初始连接
     pub async fn create_initial_connections(&mut self) -> QuickDbResult<()> {
-        info!("创建初始连接池，大小: 1 (测试单worker模式)");
-
+        
         // 只创建1个worker进行测试
         let worker = self.create_connection_worker(0).await?;
         self.workers.push(worker);
@@ -91,39 +90,19 @@ impl MultiConnectionManager {
                     }),
                 };
 
-                debug!("正在连接PostgreSQL，连接字符串: {}", connection_string);
-                info!("🔍 PostgreSQL连接字符串详情: {}", connection_string);
-
-                // 打印配置中的acquire_timeout值
-                info!("🔍 配置中的acquire_timeout: {}ms", self.config.base.connection_timeout);
-
-                // 用于逐步参数验证的PgPoolOptions连接 - 使用配置值
-                let pg_pool_result = sqlx::postgres::PgPoolOptions::new()
+  
+                // 使用PgPoolOptions创建连接池 - 使用配置值
+                let pool = sqlx::postgres::PgPoolOptions::new()
                     .max_connections(self.config.base.max_connections)
                     .min_connections(self.config.base.min_connections)
                     .max_lifetime(std::time::Duration::from_secs(self.config.base.max_lifetime))
                     .idle_timeout(std::time::Duration::from_secs(self.config.base.idle_timeout))
-                    .acquire_timeout(std::time::Duration::from_millis(self.config.base.connection_timeout))  // 使用配置值
+                    .acquire_timeout(std::time::Duration::from_millis(self.config.base.connection_timeout))
                     .connect(&connection_string)
-                    .await;
-
-                match pg_pool_result {
-                    Ok(_) => {
-                        info!("✅ PgPoolOptions(使用配置acquire_timeout)连接成功！");
-                    }
-                    Err(e) => {
-                        error!("❌ PgPoolOptions(使用配置acquire_timeout)连接失败: {}", e);
-                    }
-                }
-
-                // 暂时恢复到简单的连接方式
-                let pool = sqlx::PgPool::connect(&connection_string)
                     .await
                     .map_err(|e| QuickDbError::ConnectionError {
-                        message: format!("PostgreSQL连接失败: {}", e),
+                        message: format!("PostgreSQL连接池创建失败: {}", e),
                     })?;
-
-                info!("✅ PostgreSQL连接创建成功");
 
                 Ok(DatabaseConnection::PostgreSQL(pool))
             },
@@ -153,9 +132,7 @@ impl MultiConnectionManager {
                         message: format!("MySQL连接池创建失败: {}", e),
                     })?;
 
-                info!("✅ MySQL连接池创建成功: min={}, max={}",
-                      self.config.base.min_connections, self.config.base.max_connections);
-                Ok(DatabaseConnection::MySQL(mysql_pool))
+                  Ok(DatabaseConnection::MySQL(mysql_pool))
             },
             #[cfg(feature = "mongodb-support")]
             DatabaseType::MongoDB => {

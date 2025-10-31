@@ -1088,6 +1088,18 @@ rat_quickdb采用现代化架构设计：
 
 欢迎提交Issue和Pull Request来改进这个项目！
 
+## 📚 技术文档
+
+### 数据库限制说明
+
+- **[MySQL 限制说明](docs/mysql_limitations.md)** - 必须遵守的索引长度限制
+- **[PostgreSQL 限制说明](docs/postgresql_limitations.md)** - 必须遵守的UUID类型处理要求
+
+### 其他文档
+
+- **[迁移指南](MIGRATION_GUIDE_0_3_0.md)** - v0.3.0 迁移指南
+- **[更新日志](CHANGELOG.md)** - 版本更新记录
+
 ## 📞 联系方式
 
 如有问题或建议，请通过以下方式联系：
