@@ -200,7 +200,7 @@ impl PoolConfigBuilder {
         Ok(PoolConfig {
             min_connections,
             max_connections,
-            connection_timeout,
+            connection_timeout: connection_timeout * 1000,  // 转换为毫秒
             idle_timeout,
             max_lifetime,
             max_retries,
