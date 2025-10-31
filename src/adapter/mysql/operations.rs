@@ -684,7 +684,7 @@ impl MysqlAdapter {
             .replace(" ,", ",")
             .replace(", ", ", ")
             .replace(" WHERE ", "")
-            .replace(" GROUP BY ", "")
+            // MySQL特殊处理：不清理GROUP BY子句，因为它是自动生成的
             .replace(" HAVING ", "")
             .replace(" ORDER BY ", "")
             .replace(" LIMIT ", "")

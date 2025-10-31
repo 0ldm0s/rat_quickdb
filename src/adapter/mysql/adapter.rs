@@ -87,14 +87,43 @@ impl MysqlAdapter {
             ));
         }
 
-        // 4. 构建完整的MySQL存储过程SQL模板（包含占位符供后续动态替换）
+        // 4. 检测聚合函数并自动生成GROUP BY子句（MySQL要求）
+        let mut group_by_fields = Vec::new();
+        let mut has_aggregate_function = false;
+
+        // 检测聚合函数
+        for (alias, expr) in &config.fields {
+            let expr_upper = expr.to_uppercase();
+            if expr_upper.contains("COUNT(") || expr_upper.contains("SUM(") ||
+               expr_upper.contains("AVG(") || expr_upper.contains("MAX(") ||
+               expr_upper.contains("MIN(") {
+                has_aggregate_function = true;
+            } else {
+                // 非聚合字段需要加入GROUP BY
+                // 提取字段名，去掉表名前缀（如 users.name -> name）
+                if let Some(dot_pos) = expr.rfind('.') {
+                    let field_name = &expr[dot_pos + 1..];
+                    group_by_fields.push(expr.clone());
+                } else {
+                    group_by_fields.push(expr.clone());
+                }
+            }
+        }
+
+        let group_by_clause = if has_aggregate_function && !group_by_fields.is_empty() {
+            format!(" GROUP BY {}", group_by_fields.join(", "))
+        } else {
+            "".to_string()
+        };
+
+        // 5. 构建完整的MySQL存储过程SQL模板（包含占位符供后续动态替换）
         let sql_template = format!(
             "SELECT {SELECT_FIELDS} FROM {BASE_TABLE}{JOINS}{WHERE}{GROUP_BY}{HAVING}{ORDER_BY}{LIMIT}{OFFSET}",
             SELECT_FIELDS = fields.join(", "),
             BASE_TABLE = base_table,
             JOINS = if joins.is_empty() { "".to_string() } else { format!(" {}", joins.join(" ")) },
             WHERE = "{WHERE}", // WHERE条件占位符
-            GROUP_BY = "{GROUP_BY}", // GROUP BY占位符
+            GROUP_BY = group_by_clause, // 自动生成的GROUP BY子句
             HAVING = "{HAVING}", // HAVING占位符
             ORDER_BY = "{ORDER_BY}", // ORDER BY占位符
             LIMIT = "{LIMIT}", // LIMIT占位符
