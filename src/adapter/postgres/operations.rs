@@ -3,6 +3,7 @@
 use crate::adapter::PostgresAdapter;
 use crate::adapter::DatabaseAdapter;
 use crate::adapter::query_builder::SqlQueryBuilder;
+use crate::adapter::postgres::utils::row_to_data_map;
 use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
@@ -699,7 +700,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
         let mut query_result = Vec::new();
         for row in rows {
-            let data_map = self.row_to_data_map(&row)?;
+            let data_map = row_to_data_map(self, &row)?;
             query_result.push(data_map);
         }
 
