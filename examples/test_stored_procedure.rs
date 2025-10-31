@@ -57,9 +57,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool_config = PoolConfig::builder()
         .max_connections(10)
         .min_connections(1)
-        .connection_timeout(5000)
-        .idle_timeout(300000)
-        .max_lifetime(1800000)
+        .connection_timeout(30)
+        .idle_timeout(300)
+        .max_lifetime(1800)
+        .max_retries(3)
+        .retry_interval_ms(1000)
+        .keepalive_interval_sec(60)
+        .health_check_timeout_sec(10)
         .build()?;
 
     let db_config = DatabaseConfig::builder()
@@ -130,12 +134,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 插入测试用户
     for user in &test_users {
-        let mut user_data = std::collections::HashMap::new();
-        user_data.insert("id".to_string(), DataValue::Int(user.id as i64));
-        user_data.insert("name".to_string(), DataValue::String(user.name.clone()));
-        user_data.insert("email".to_string(), DataValue::String(user.email.clone()));
-
-        match create("users", user_data, Some("test_db")).await {
+        let user_instance = User {
+            id: user.id,
+            name: user.name.clone(),
+            email: user.email.clone(),
+        };
+        match user_instance.save().await {
             Ok(_) => println!("✅ 创建用户: {} ({})", user.name, user.email),
             Err(e) => println!("❌ 创建用户失败: {}", e),
         }
@@ -143,12 +147,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 插入测试订单
     for order in &test_orders {
-        let mut order_data = std::collections::HashMap::new();
-        order_data.insert("id".to_string(), DataValue::Int(order.id as i64));
-        order_data.insert("user_id".to_string(), DataValue::Int(order.user_id as i64));
-        order_data.insert("total".to_string(), DataValue::Float(order.total));
-
-        match create("orders", order_data, Some("test_db")).await {
+        let order_instance = Order {
+            id: order.id,
+            user_id: order.user_id,
+            total: order.total,
+        };
+        match order_instance.save().await {
             Ok(_) => println!("✅ 创建订单: 用户ID={}, 总金额={}", order.user_id, order.total),
             Err(e) => println!("❌ 创建订单失败: {}", e),
         }
@@ -156,7 +160,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. 创建存储过程
     println!("\n1. 创建存储过程...");
-    match create_stored_procedure(config).await {
+    match ModelManager::<User>::create_stored_procedure(config).await {
         Ok(result) => {
             println!("✅ SQLite存储过程创建成功: {:?}", result);
         },
@@ -171,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 无参数查询
     println!("2.1 无参数查询:");
-    match execute_stored_procedure("get_users_with_orders", Some("test_db"), None).await {
+    match ModelManager::<User>::execute_stored_procedure("get_users_with_orders", None).await {
         Ok(results) => {
             println!("✅ 查询成功，返回 {} 条记录", results.len());
             for (i, row) in results.iter().enumerate() {
@@ -196,7 +200,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut params = std::collections::HashMap::new();
     params.insert("LIMIT".to_string(), DataValue::Int(2));
 
-    match execute_stored_procedure("get_users_with_orders", Some("test_db"), Some(params)).await {
+    match ModelManager::<User>::execute_stored_procedure("get_users_with_orders", Some(params)).await {
         Ok(results) => {
             println!("✅ 参数查询成功，返回 {} 条记录", results.len());
             for (i, row) in results.iter().enumerate() {
