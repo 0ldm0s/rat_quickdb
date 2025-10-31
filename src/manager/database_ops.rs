@@ -37,7 +37,7 @@ impl PoolManager {
             let cache_manager_arc = Arc::new(cache_manager);
             // 保存到管理器中
             self.cache_managers.insert(alias.clone(), cache_manager_arc.clone());
-            info!("为数据库 {} 创建缓存管理器", alias);
+            debug!("为数据库 {} 创建缓存管理器", alias);
             Some(cache_manager_arc)
         } else {
             None
@@ -57,7 +57,7 @@ impl PoolManager {
         match IdGenerator::new(config.id_strategy.clone()) {
             Ok(generator) => {
                 self.id_generators.insert(alias.clone(), Arc::new(generator));
-                info!("为数据库 {} 创建ID生成器: {:?}", alias, config.id_strategy);
+                debug!("为数据库 {} 创建ID生成器: {:?}", alias, config.id_strategy);
             }
             Err(e) => {
                 warn!("为数据库 {} 创建ID生成器失败: {}", alias, e);
@@ -68,7 +68,7 @@ impl PoolManager {
         if matches!(config.db_type, DatabaseType::MongoDB) {
             let mongo_generator = MongoAutoIncrementGenerator::new(alias.clone());
             self.mongo_auto_increment_generators.insert(alias.clone(), Arc::new(mongo_generator));
-            info!("为MongoDB数据库 {} 创建自增ID生成器", alias);
+            debug!("为MongoDB数据库 {} 创建自增ID生成器", alias);
         }
         
         // 如果这是第一个数据库，设置为默认
@@ -76,7 +76,7 @@ impl PoolManager {
             let mut default_alias = self.default_alias.write().await;
             if default_alias.is_none() {
                 *default_alias = Some(alias.clone());
-                info!("设置默认数据库别名: {}", alias);
+                debug!("设置默认数据库别名: {}", alias);
             }
         }
         

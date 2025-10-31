@@ -157,7 +157,7 @@ macro_rules! define_model {
                 static ONCE: std::sync::Once = std::sync::Once::new();
                 ONCE.call_once(|| {
                     if let Err(e) = $crate::manager::register_model(model_meta.clone()) {
-                        eprintln!("⚠️  模型注册失败: {}", e);
+                        panic!("❌ 模型注册失败: {}", e);
                     } else {
                         debug!("✅ 模型自动注册成功: {}", model_meta.collection_name);
                     }

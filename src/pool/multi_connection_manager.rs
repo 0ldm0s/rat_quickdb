@@ -57,10 +57,7 @@ impl MultiConnectionManager {
             (adapter, "普通适配器")
         };
         
-        // 只在第一个工作器创建时输出适配器类型信息
-        if index == 0 {
-            info!("数据库 '{}' 使用 {}", self.db_config.alias, adapter_type);
-        }
+        debug!("数据库 '{}' 使用 {}", self.db_config.alias, adapter_type);
         
         Ok(ConnectionWorker {
             id: format!("{}-worker-{}", self.db_config.alias, index),
@@ -229,7 +226,7 @@ impl MultiConnectionManager {
     
     /// 运行多连接管理器
     pub async fn run(mut self) {
-        info!("多连接管理器开始运行: 别名={}", self.db_config.alias);
+        debug!("多连接管理器开始运行: 别名={}", self.db_config.alias);
         
         // 创建初始连接
         if let Err(e) = self.create_initial_connections().await {
@@ -246,7 +243,7 @@ impl MultiConnectionManager {
             }
         }
         
-        info!("多连接管理器停止运行");
+        debug!("多连接管理器停止运行");
     }
     
     /// 处理数据库操作
@@ -368,7 +365,7 @@ impl MultiConnectionManager {
                 match self.create_connection_worker(worker_index).await {
                     Ok(new_worker) => {
                         self.workers[worker_index] = new_worker;
-                        info!("工作器 {} 连接已重新创建", worker_index);
+                        debug!("工作器 {} 连接已重新创建", worker_index);
                     },
                     Err(create_err) => {
                         error!("重新创建工作器 {} 连接失败: {}", worker_index, create_err);

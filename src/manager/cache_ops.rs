@@ -66,7 +66,7 @@ impl PoolManager {
         let handle = tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(300)); // 每5分钟清理一次
             
-            info!("启动连接池清理任务");
+            debug!("启动连接池清理任务");
             
             loop {
                 interval.tick().await;
@@ -95,7 +95,7 @@ impl PoolManager {
         
         if let Some(handle) = cleanup_handle.take() {
             handle.abort();
-            info!("连接池清理任务已停止");
+            debug!("连接池清理任务已停止");
         }
     }
 }
