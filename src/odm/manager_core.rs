@@ -100,8 +100,8 @@ impl AsyncOdmManager {
                     let result = Self::handle_get_server_version(alias).await;
                     let _ = response.send(result);
                 },
-                OdmRequest::CreateStoredProcedure { config, alias, response } => {
-                    let result = Self::handle_create_stored_procedure(config, alias).await;
+                OdmRequest::CreateStoredProcedure { config, response } => {
+                    let result = Self::handle_create_stored_procedure(config).await;
                     let _ = response.send(result);
                 },
                 OdmRequest::ExecuteStoredProcedure { procedure_name, database_alias, params, response } => {
@@ -118,24 +118,15 @@ impl AsyncOdmManager {
     #[doc(hidden)]
     pub async fn handle_create_stored_procedure(
         config: crate::stored_procedure::StoredProcedureConfig,
-        alias: Option<String>,
     ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
-        let database_alias = match alias {
-            Some(a) => a,
-            None => {
-                // 使用连接池管理器的默认别名
-                let manager = get_global_pool_manager();
-                manager.get_default_alias().await
-                    .unwrap_or_else(|| "default".to_string())
-            }
-        };
+        let database_alias = &config.database;
 
         debug!("处理存储过程创建请求: procedure={}, database={}", config.procedure_name, database_alias);
 
         // 获取连接池管理器
         let manager = get_global_pool_manager();
         let connection_pools = manager.get_connection_pools();
-        let connection_pool = connection_pools.get(&database_alias)
+        let connection_pool = connection_pools.get(database_alias)
             .ok_or_else(|| QuickDbError::AliasNotFound {
                 alias: database_alias.clone(),
             })?;

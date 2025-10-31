@@ -85,7 +85,6 @@ pub enum OdmRequest {
     },
     CreateStoredProcedure {
         config: crate::stored_procedure::StoredProcedureConfig,
-        alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>>,
     },
     ExecuteStoredProcedure {

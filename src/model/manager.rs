@@ -246,4 +246,30 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         // 使用现有的ensure_table_and_indexes功能
         crate::manager::ensure_table_and_indexes(&collection_name, alias).await
     }
+
+    /// 创建存储过程
+    ///
+    /// 通过模型管理器创建跨模型的存储过程，以当前模型作为基表
+    async fn create_stored_procedure(
+        config: crate::stored_procedure::StoredProcedureConfig,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
+        debug!("通过模型管理器创建存储过程: {}", config.procedure_name);
+        let odm_manager = odm::get_odm_manager().await;
+        // 使用config中包含的数据库别名，不传递额外的alias参数
+        odm_manager.create_stored_procedure(config).await
+    }
+
+    /// 执行存储过程查询
+    ///
+    /// 通过模型管理器执行存储过程查询，使用当前模型的数据库别名
+    async fn execute_stored_procedure(
+        procedure_name: &str,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult> {
+        debug!("通过模型管理器执行存储过程: {}", procedure_name);
+        let odm_manager = odm::get_odm_manager().await;
+        // 使用模型的数据库别名，如果没有则使用默认
+        let database_alias = T::database_alias().or_else(|| Some("default".to_string()));
+        odm_manager.execute_stored_procedure(procedure_name, database_alias.as_deref(), params).await
+    }
 }

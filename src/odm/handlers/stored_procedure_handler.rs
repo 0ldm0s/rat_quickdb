@@ -13,11 +13,11 @@ pub async fn handle_stored_procedure_request(
     _manager: &AsyncOdmManager,
 ) -> Result<Option<crate::odm::types::OdmRequest>, QuickDbError> {
     match request {
-        OdmRequest::CreateStoredProcedure { config, alias, response } => {
+        OdmRequest::CreateStoredProcedure { config, response } => {
             debug!("处理存储过程创建请求: {}", config.procedure_name);
 
             // 直接调用静态方法处理请求
-            let result = AsyncOdmManager::handle_create_stored_procedure(config, alias).await;
+            let result = AsyncOdmManager::handle_create_stored_procedure(config).await;
 
             // 发送响应
             if let Err(e) = response.send(result) {

@@ -230,9 +230,7 @@ pub async fn create_stored_procedure(
     config: crate::stored_procedure::StoredProcedureConfig,
 ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
     let manager = get_odm_manager().await;
-    // 从配置中提取数据库别名
-    let database_alias = config.database.clone();
-    manager.create_stored_procedure(config, Some(&database_alias)).await
+    manager.create_stored_procedure(config).await
 }
 
 /// 执行存储过程查询

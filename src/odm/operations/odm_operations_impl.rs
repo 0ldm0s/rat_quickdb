@@ -333,13 +333,11 @@ impl OdmOperations for AsyncOdmManager {
     async fn create_stored_procedure(
         &self,
         config: crate::stored_procedure::StoredProcedureConfig,
-        alias: Option<&str>,
     ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
         let (sender, receiver) = oneshot::channel();
 
         let request = OdmRequest::CreateStoredProcedure {
             config,
-            alias: alias.map(|s| s.to_string()),
             response: sender,
         };
 

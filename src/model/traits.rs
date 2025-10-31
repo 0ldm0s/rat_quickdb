@@ -439,4 +439,19 @@ pub trait ModelOperations<T: Model> {
     ///
     /// 使用模型的元数据直接创建表，无需插入数据
     async fn create_table() -> QuickDbResult<()>;
+
+    /// 创建存储过程
+    ///
+    /// 通过模型管理器创建跨模型的存储过程，以当前模型作为基表
+    async fn create_stored_procedure(
+        config: crate::stored_procedure::StoredProcedureConfig,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>;
+
+    /// 执行存储过程查询
+    ///
+    /// 通过模型管理器执行存储过程查询，使用当前模型的数据库别名
+    async fn execute_stored_procedure(
+        procedure_name: &str,
+        params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
+    ) -> QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult>;
 }
