@@ -68,7 +68,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             tls_config: None,
         },
-        pool: PoolConfig::default(),
+        pool: PoolConfig::builder()
+                .max_connections(10)
+                .min_connections(1)
+                .connection_timeout(10)
+                .idle_timeout(300)
+                .max_lifetime(1800)
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()
+                .unwrap(),
         alias: "default".to_string(),
         id_strategy: IdStrategy::Uuid,
         cache: None,

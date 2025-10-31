@@ -85,13 +85,17 @@ async fn test_auto_increment() -> QuickDbResult<()> {
             },
             tls_config: None,
         },
-        pool: PoolConfig {
-            min_connections: 1,
-            max_connections: 5,
-            connection_timeout: 30,
-            idle_timeout: 300,
-            max_lifetime: 1800,
-        },
+        pool: PoolConfig::builder()
+            .min_connections(1)
+            .max_connections(5)
+            .connection_timeout(30)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()?,
         alias: "auto_increment_db".to_string(),
         cache: None,
         id_strategy: IdStrategy::AutoIncrement,
@@ -179,13 +183,17 @@ async fn test_uuid() -> QuickDbResult<()> {
             },
             tls_config: None,
         },
-        pool: PoolConfig {
-            min_connections: 1,
-            max_connections: 5,
-            connection_timeout: 30,
-            idle_timeout: 300,
-            max_lifetime: 1800,
-        },
+        pool: PoolConfig::builder()
+            .min_connections(1)
+            .max_connections(5)
+            .connection_timeout(30)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()?,
         alias: "uuid_db".to_string(),
         cache: None,
         id_strategy: IdStrategy::Uuid,
@@ -266,13 +274,17 @@ async fn test_snowflake() -> QuickDbResult<()> {
             },
             tls_config: None,
         },
-        pool: PoolConfig {
-            min_connections: 1,
-            max_connections: 5,
-            connection_timeout: 30,
-            idle_timeout: 300,
-            max_lifetime: 1800,
-        },
+        pool: PoolConfig::builder()
+            .min_connections(1)
+            .max_connections(5)
+            .connection_timeout(30)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()?,
         alias: "snowflake_db".to_string(),
         cache: None,
         id_strategy: IdStrategy::snowflake(1, 1),

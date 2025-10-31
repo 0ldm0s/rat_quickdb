@@ -1115,9 +1115,13 @@ async fn main() -> QuickDbResult<()> {
     let pool_config = PoolConfig::builder()
         .max_connections(10)
         .min_connections(2)
-        .connection_timeout(5000)
-        .idle_timeout(300000)
-        .max_lifetime(1800000)
+        .connection_timeout(5)
+        .idle_timeout(300)
+        .max_lifetime(1800)
+        .max_retries(3)
+        .retry_interval_ms(1000)
+        .keepalive_interval_sec(60)
+        .health_check_timeout_sec(10)
         .build()?;
 
     // 创建数据库配置

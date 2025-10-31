@@ -1119,6 +1119,10 @@ async fn main() -> QuickDbResult<()> {
         .connection_timeout(5000)
         .idle_timeout(300000)
         .max_lifetime(1800000)
+        .max_retries(3)
+        .retry_interval_ms(1000)
+        .keepalive_interval_sec(60)
+        .health_check_timeout_sec(10)
         .build()?;
 
     // 创建数据库配置 - 使用MySQL
