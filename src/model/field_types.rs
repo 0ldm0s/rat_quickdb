@@ -279,14 +279,18 @@ impl FieldDefinition {
                     DataValue::String(s) => {
                         // 验证字符串格式的UUID
                         debug!("🔍 UUID字段验证 - 字符串格式: '{}' (字段: {})", s, field_name);
-                        if uuid::Uuid::parse_str(s).is_err() {
+                        // 空字符串表示需要自动生成UUID，允许通过
+                        if s.is_empty() {
+                            debug!("✅ UUID字段验证通过 - 空字符串（将自动生成UUID） (字段: {})", field_name);
+                        } else if uuid::Uuid::parse_str(s).is_err() {
                             debug!("❌ UUID字段验证失败 - 无效的UUID格式: '{}' (字段: {})", s, field_name);
                             return Err(QuickDbError::ValidationError {
                                 field: "uuid_format".to_string(),
                                 message: format!("无效的UUID格式: '{}' (字段: {})", s, field_name)
                             });
+                        } else {
+                            debug!("✅ UUID字段验证通过 - 字符串格式: '{}' (字段: {})", s, field_name);
                         }
-                        debug!("✅ UUID字段验证通过 - 字符串格式: '{}' (字段: {})", s, field_name);
                     },
                     DataValue::Uuid(u) => {
                         // DataValue::Uuid类型本身就是有效的，无需验证

@@ -254,16 +254,24 @@ pub(crate) async fn execute_update(
     sql: &str,
     params: &[DataValue],
 ) -> QuickDbResult<u64> {
+    rat_logger::debug!("🔍 PostgreSQL execute_update: SQL={}", sql);
     let mut query = sqlx::query(sql);
 
     // 绑定参数
-    for param in params {
+    for (i, param) in params.iter().enumerate() {
+        rat_logger::debug!("🔍 PostgreSQL execute_update: 参数[{}] = {:?}", i, param);
         query = match param {
             DataValue::String(s) => {
                 // 尝试判断是否为UUID格式，如果是则转换为UUID类型
                 match s.parse::<uuid::Uuid>() {
-                    Ok(uuid) => query.bind(uuid), // 绑定为UUID类型
-                    Err(_) => query.bind(s),       // 不是UUID格式，绑定为字符串
+                    Ok(uuid) => {
+                        rat_logger::debug!("🔍 PostgreSQL: 字符串 '{}' 成功解析为UUID", s);
+                        query.bind(uuid) // 绑定为UUID类型
+                    },
+                    Err(_) => {
+                        rat_logger::debug!("🔍 PostgreSQL: 字符串 '{}' 不是有效UUID，作为字符串处理", s);
+                        query.bind(s)       // 不是UUID格式，绑定为字符串
+                    }
                 }
             },
             DataValue::Int(i) => query.bind(*i),

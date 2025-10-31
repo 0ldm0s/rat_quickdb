@@ -23,7 +23,7 @@ define_model! {
     }
     collection = "users",
     fields = {
-        id: string_field(None, None, None).required().unique(),
+        id: uuid_field().required().unique(),
         name: string_field(Some(100), Some(1), None).required(),
         email: string_field(Some(255), Some(1), None).required(),
         age: integer_field(Some(0), Some(150)).required(),
@@ -187,7 +187,7 @@ impl PgCachePerformanceTest {
             },
             alias: "cached_db".to_string(),
             cache: Some(cache_config),
-            id_strategy: IdStrategy::AutoIncrement,
+            id_strategy: IdStrategy::Uuid,
         };
 
         db_config
@@ -228,7 +228,7 @@ impl PgCachePerformanceTest {
             },
             alias: "non_cached_db".to_string(),
             cache: None, // 明确禁用缓存
-            id_strategy: IdStrategy::AutoIncrement,
+            id_strategy: IdStrategy::Uuid,
         }
     }
 
@@ -260,39 +260,37 @@ impl PgCachePerformanceTest {
 
         // 缓存数据库的用户数据
         let cached_users = vec![
-            self.create_user("user1", "张三", "zhangsan_cached@example.com", 25),
-            self.create_user("user2", "李四", "lisi_cached@example.com", 30),
-            self.create_user("user3", "王五", "wangwu_cached@example.com", 28),
-            self.create_user("user4", "赵六", "zhaoliu_cached@example.com", 35),
-            self.create_user("user5", "钱七", "qianqi_cached@example.com", 22),
+            self.create_user("张三", "zhangsan_cached@example.com", 25),
+            self.create_user("李四", "lisi_cached@example.com", 30),
+            self.create_user("王五", "wangwu_cached@example.com", 28),
+            self.create_user("赵六", "zhaoliu_cached@example.com", 35),
+            self.create_user("钱七", "qianqi_cached@example.com", 22),
         ];
 
-        // 批量用户数据 - 缓存数据库
+        // 批量用户数据 - 缓存数据库 - 自动生成ID
         let batch_cached_users: Vec<User> = (6..=25)
             .map(|i| self.create_user(
-                &format!("batch_user_{}", i),
                 &format!("批量用户{}", i),
                 &format!("batch{}_cached@example.com", i),
-                20 + (i % 30),
+                (20 + (i % 30)) as i32,
             ))
             .collect();
 
-        // 非缓存数据库的用户数据（完全不同的数据）
+        // 非缓存数据库的用户数据（相同数据，用于性能对比）
         let non_cached_users = vec![
-            self.create_user("non_user1", "非缓存张三", "non_zhangsan@example.com", 25),
-            self.create_user("non_user2", "非缓存李四", "non_lisi@example.com", 30),
-            self.create_user("non_user3", "非缓存王五", "non_wangwu@example.com", 28),
-            self.create_user("non_user4", "非缓存赵六", "non_zhaoliu@example.com", 35),
-            self.create_user("non_user5", "非缓存钱七", "non_qianqi@example.com", 22),
+            self.create_user("张三", "zhangsan_non_cached@example.com", 25),
+            self.create_user("李四", "lisi_non_cached@example.com", 30),
+            self.create_user("王五", "wangwu_non_cached@example.com", 28),
+            self.create_user("赵六", "zhaoliu_non_cached@example.com", 35),
+            self.create_user("钱七", "qianqi_non_cached@example.com", 22),
         ];
 
-        // 批量用户数据 - 非缓存数据库
+        // 批量用户数据 - 非缓存数据库 - 自动生成ID
         let batch_non_cached_users: Vec<User> = (26..=45)
             .map(|i| self.create_user(
-                &format!("non_batch_user_{}", i),
-                &format!("非缓存批量用户{}", i),
-                &format!("non_batch{}@example.com", i),
-                20 + (i % 30),
+                &format!("批量用户{}", i),
+                &format!("batch{}_non_cached@example.com", i),
+                (20 + (i % 30)) as i32,
             ))
             .collect();
 
@@ -317,10 +315,10 @@ impl PgCachePerformanceTest {
         Ok(())
     }
 
-    /// 创建用户数据
-    fn create_user(&self, id: &str, name: &str, email: &str, age: i32) -> User {
+    /// 创建用户数据（自动生成ID）
+    fn create_user(&self, name: &str, email: &str, age: i32) -> User {
         User {
-            id: id.to_string(),
+            id: String::new(), // 传入空字符串，让底层ID生成器自动生成
             name: name.to_string(),
             email: email.to_string(),
             age,
@@ -687,6 +685,9 @@ async fn cleanup_test_files() {
 
 #[tokio::main]
 async fn main() -> QuickDbResult<()> {
+    // 初始化日志系统（默认级别）
+    rat_logger::init();
+
     println!("🚀 RatQuickDB PostgreSQL缓存性能对比测试");
     println!("=====================================\n");
 
