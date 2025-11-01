@@ -24,6 +24,34 @@
 - **🐍 Python绑定**: 可选Python API支持
 - **📋 任务队列**: 内置异步任务队列系统
 - **🔍 类型安全**: 强类型模型定义和验证
+- **📋 存储过程**: 跨数据库的统一存储过程API，支持多表JOIN和聚合查询
+
+## 🔄 版本变更说明
+
+### v0.3.6 (当前版本) - 存储过程虚拟表系统
+
+⚠️ **重要变更：连接池配置参数单位变更**
+
+**v0.3.6** 对连接池配置进行了重大改进，**所有超时参数现在使用秒为单位**：
+
+```rust
+// v0.3.6 新写法（推荐）
+let pool_config = PoolConfig::builder()
+    .connection_timeout(30)        // 30秒（之前是5000毫秒）
+    .idle_timeout(300)             // 300秒（之前是300000毫秒）
+    .max_lifetime(1800)            // 1800秒（之前是1800000毫秒）
+    .max_retries(3)                // 新增：最大重试次数
+    .retry_interval_ms(1000)       // 新增：重试间隔（毫秒）
+    .keepalive_interval_sec(60)    // 新增：保活间隔（秒）
+    .health_check_timeout_sec(10)  // 新增：健康检查超时（秒）
+    .build()?;
+```
+
+**新功能：**
+- 🎯 **存储过程虚拟表系统**：跨四种数据库的统一存储过程API
+- 🔗 **多表JOIN支持**：自动生成JOIN语句和聚合管道
+- 📊 **聚合查询优化**：自动GROUP BY子句生成（SQL数据库）
+- 🧠 **类型安全存储过程**：编译时验证和类型检查
 
 ## 📦 安装
 
@@ -31,7 +59,7 @@
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.4"
+rat_quickdb = "0.3.6"
 ```
 
 ### 🔧 特性控制
@@ -40,7 +68,7 @@ rat_quickdb 使用 Cargo 特性来控制不同数据库的支持和功能。默�
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = [
+rat_quickdb = { version = "0.3.6", features = [
     "sqlite-support",    # 支持SQLite数据库
     "postgres-support",  # 支持PostgreSQL数据库
     "mysql-support",     # 支持MySQL数据库
@@ -65,19 +93,19 @@ rat_quickdb = { version = "0.3.4", features = [
 **仅使用SQLite**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.3.6", features = ["sqlite-support"] }
 ```
 
 **使用PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = ["postgres-support"] }
+rat_quickdb = { version = "0.3.6", features = ["postgres-support"] }
 ```
 
 **使用所有数据库**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = ["full"] }
+rat_quickdb = { version = "0.3.6", features = ["full"] }
 ```
 
 **L2缓存配置注意事项**:
@@ -806,9 +834,13 @@ use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig, IdStrategy}
 let pool_config = PoolConfig::builder()
     .max_connections(10)
     .min_connections(2)
-    .connection_timeout(5000)
-    .idle_timeout(300000)
-    .max_lifetime(1800000)
+    .connection_timeout(30)        // 秒
+    .idle_timeout(300)             // 秒
+    .max_lifetime(1800)            // 秒
+    .max_retries(3)
+    .retry_interval_ms(1000)
+    .keepalive_interval_sec(60)
+    .health_check_timeout_sec(10)
     .build()?;
 
 // SQLite 配置

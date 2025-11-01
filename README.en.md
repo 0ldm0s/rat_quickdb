@@ -31,7 +31,7 @@ Add dependency in `Cargo.toml`:
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.4"
+rat_quickdb = "0.3.6"
 ```
 
 ### 🔧 Feature Control

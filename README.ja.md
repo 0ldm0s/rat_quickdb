@@ -31,7 +31,7 @@
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.4"
+rat_quickdb = "0.3.6"
 ```
 
 ### 🔧 特性制御
