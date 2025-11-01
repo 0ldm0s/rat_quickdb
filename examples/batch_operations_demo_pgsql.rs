@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             port: 5432,
             database: "testdb".to_string(),
             username: "testdb".to_string(),
-            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            password: "testdb123456".to_string(),
             ssl_mode: Some("prefer".to_string()),
             tls_config: None,
         },

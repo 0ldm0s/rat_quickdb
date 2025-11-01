@@ -77,7 +77,7 @@ async fn test_auto_increment() -> QuickDbResult<()> {
             port: 3306,
             database: "testdb".to_string(),
             username: "testdb".to_string(),
-            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            password: "testdb123456".to_string(),
             ssl_opts: {
                 let mut opts = HashMap::new();
                 opts.insert("ssl_mode".to_string(), "PREFERRED".to_string());
@@ -175,7 +175,7 @@ async fn test_uuid() -> QuickDbResult<()> {
             port: 3306,
             database: "testdb".to_string(),
             username: "testdb".to_string(),
-            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            password: "testdb123456".to_string(),
             ssl_opts: {
                 let mut opts = HashMap::new();
                 opts.insert("ssl_mode".to_string(), "PREFERRED".to_string());
@@ -266,7 +266,7 @@ async fn test_snowflake() -> QuickDbResult<()> {
             port: 3306,
             database: "testdb".to_string(),
             username: "testdb".to_string(),
-            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            password: "testdb123456".to_string(),
             ssl_opts: {
                 let mut opts = HashMap::new();
                 opts.insert("ssl_mode".to_string(), "PREFERRED".to_string());

@@ -61,7 +61,7 @@ async fn main() -> QuickDbResult<()> {
             port: 3306,
             database: "testdb".to_string(),
             username: "testdb".to_string(),
-            password: "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string(),
+            password: "testdb123456".to_string(),
             ssl_opts: {
                 let mut opts = std::collections::HashMap::new();
                 opts.insert("ssl_mode".to_string(), "PREFERRED".to_string());

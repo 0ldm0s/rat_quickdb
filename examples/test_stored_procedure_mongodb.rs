@@ -57,9 +57,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool_config = PoolConfig::builder()
         .max_connections(10)
         .min_connections(1)
-        .connection_timeout(5000)
-        .idle_timeout(300000)
-        .max_lifetime(1800000)
+        .connection_timeout(30)
+        .idle_timeout(300)
+        .max_lifetime(1800)
+        .max_retries(3)
+        .retry_interval_ms(1000)
+        .keepalive_interval_sec(60)
+        .health_check_timeout_sec(10)
         .build()?;
 
     let db_config = DatabaseConfig::builder()
@@ -69,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             port: 27017,
             database: "testdb".to_string(),
             username: Some("testdb".to_string()),
-            password: Some("yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string()),
+            password: Some("testdb123456".to_string()),
             auth_source: Some("testdb".to_string()),
             direct_connection: true,
             tls_config: Some(rat_quickdb::types::TlsConfig {
@@ -102,46 +106,109 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     add_database(db_config).await?;
     set_default_alias("test_db").await?;
 
+    // 0. 清理可能存在的测试数据
+    println!("清理已有测试数据...");
+    match drop_table("test_db", "users").await {
+        Ok(_) => println!("✅ 清理用户集合"),
+        Err(e) => println!("⚠️  清理用户集合失败（可能集合不存在）: {}", e),
+    }
+    match drop_table("test_db", "orders").await {
+        Ok(_) => println!("✅ 清理订单集合"),
+        Err(e) => println!("⚠️  清理订单集合失败（可能集合不存在）: {}", e),
+    }
+
+    // 1. 准备测试数据
+    println!("1. 准备测试数据...");
+
+    // 创建一些测试用户（使用硬编码UUID，确保与订单user_id匹配）
+    let test_users = vec![
+        User {
+            id: "dcac4b2c-e8d1-4552-a939-7cf1be50e8f0".to_string(), // 硬编码UUID
+            username: "张三".to_string(),
+            email: "zhangsan@example.com".to_string(),
+        },
+        User {
+            id: "0e2b2fd5-56ad-4c49-83f6-52609103f3ca".to_string(), // 硬编码UUID
+            username: "李四".to_string(),
+            email: "lisi@example.com".to_string(),
+        },
+        User {
+            id: "f6c87af1-1cdc-4bd1-82c2-15a1e6eb6b66".to_string(), // 硬编码UUID
+            username: "王五".to_string(),
+            email: "wangwu@example.com".to_string(),
+        },
+    ];
+
+    // 创建一些测试订单（使用硬编码UUID，确保与用户ID匹配）
+    let test_orders = vec![
+        Order {
+            id: "550e8400-e29b-41d4-a716-446655440011".to_string(),
+            user_id: "dcac4b2c-e8d1-4552-a939-7cf1be50e8f0".to_string(), // 张三的UUID
+            total: 100.50,
+        },
+        Order {
+            id: "550e8400-e29b-41d4-a716-446655440012".to_string(),
+            user_id: "dcac4b2c-e8d1-4552-a939-7cf1be50e8f0".to_string(), // 张三的UUID
+            total: 200.75,
+        },
+        Order {
+            id: "550e8400-e29b-41d4-a716-446655440013".to_string(),
+            user_id: "0e2b2fd5-56ad-4c49-83f6-52609103f3ca".to_string(), // 李四的UUID
+            total: 150.00,
+        },
+    ];
+
+    // 插入测试用户
+    for user in &test_users {
+        let user_instance = User {
+            id: user.id.clone(),
+            username: user.username.clone(),
+            email: user.email.clone(),
+        };
+        match user_instance.save().await {
+            Ok(_) => println!("✅ 创建用户: {} ({})", user.username, user.email),
+            Err(e) => println!("❌ 创建用户失败: {}", e),
+        }
+    }
+
+    // 插入测试订单
+    for order in &test_orders {
+        let order_instance = Order {
+            id: order.id.clone(),
+            user_id: order.user_id.clone(),
+            total: order.total,
+        };
+        match order_instance.save().await {
+            Ok(_) => println!("✅ 创建订单: 用户ID={}, 总金额={}", order.user_id, order.total),
+            Err(e) => println!("❌ 创建订单失败: {}", e),
+        }
+    }
+
     let config = StoredProcedureConfig::builder("get_users_with_orders", "test_db")
         .with_dependency::<User>()
         .with_dependency::<Order>()
         .with_mongo_aggregation()
+            // 添加简单的lookup
             .project(vec![
                 ("user_id", crate::stored_procedure::types::MongoFieldExpression::field("_id")),
                 ("user_name", crate::stored_procedure::types::MongoFieldExpression::field("username")),
                 ("user_email", crate::stored_procedure::types::MongoFieldExpression::field("email")),
             ])
             .lookup("orders", "_id", "user_id", "orders_joined")
-            .unwind("orders_joined")
-            .group(
-                crate::stored_procedure::types::MongoGroupKey::Field("_id".to_string()),
-                vec![
-                    ("user_id", crate::stored_procedure::types::MongoAccumulator::Push { field: "_id".to_string() }),
-                    ("user_name", crate::stored_procedure::types::MongoAccumulator::Push { field: "username".to_string() }),
-                    ("user_email", crate::stored_procedure::types::MongoAccumulator::Push { field: "email".to_string() }),
-                    ("order_count", crate::stored_procedure::types::MongoAccumulator::Count),
-                    ("total_spent", crate::stored_procedure::types::MongoAccumulator::Sum { field: "total".to_string() }),
-                ],
-            )
-            .add_fields(vec![
-                ("order_count", crate::stored_procedure::types::MongoFieldExpression::if_null(
-                    "orders_joined",
-                    crate::stored_procedure::types::MongoFieldExpression::constant(crate::types::DataValue::Int(0))
-                )),
-            ])
             .project(vec![
                 ("user_id", crate::stored_procedure::types::MongoFieldExpression::field("user_id")),
                 ("user_name", crate::stored_procedure::types::MongoFieldExpression::field("user_name")),
                 ("user_email", crate::stored_procedure::types::MongoFieldExpression::field("user_email")),
-                ("order_count", crate::stored_procedure::types::MongoFieldExpression::field("order_count")),
-                ("total_spent", crate::stored_procedure::types::MongoFieldExpression::field("total_spent")),
+                ("orders_count", crate::stored_procedure::types::MongoFieldExpression::Aggregate(
+                    crate::stored_procedure::types::MongoAggregateExpression::Size { field: "orders_joined".to_string() }
+                )),
             ])
             .with_common_placeholders()  // 添加常用占位符
             .build();
 
-    // 1. 创建存储过程
-    println!("1. 创建存储过程...");
-    match create_stored_procedure(config).await {
+    // 2. 创建存储过程
+    println!("2. 创建存储过程...");
+    match ModelManager::<User>::create_stored_procedure(config).await {
         Ok(result) => {
             println!("✅ MongoDB存储过程创建成功: {:?}", result);
         },
@@ -151,14 +218,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 2. 执行存储过程（独立操作）
-    println!("\n2. 执行存储过程查询...");
+    // 3. 执行存储过程（独立操作）
+    println!("\n3. 执行存储过程查询...");
 
     // 无参数查询
-    println!("2.1 无参数查询:");
-    match execute_stored_procedure("get_users_with_orders", Some("test_db"), None).await {
+    println!("3.1 无参数查询:");
+    match ModelManager::<User>::execute_stored_procedure("get_users_with_orders", None).await {
         Ok(results) => {
             println!("✅ 查询成功，返回 {} 条记录", results.len());
+            for (i, row) in results.iter().enumerate() {
+                println!("  记录 {}: {:?}", i+1, row);
+                if let (Some(user_id), Some(user_name), Some(user_email), Some(orders_count)) = (
+                    row.get("user_id"),
+                    row.get("user_name"),
+                    row.get("user_email"),
+                    row.get("orders_count")
+                ) {
+                    println!("    用户: {} - {} ({}), 订单数: {}",
+                        user_name.to_string(),
+                        user_email.to_string(),
+                        user_id.to_string(),
+                        orders_count.to_string()
+                    );
+                }
+            }
         },
         Err(e) => println!("❌ 查询失败: {}", e),
     }

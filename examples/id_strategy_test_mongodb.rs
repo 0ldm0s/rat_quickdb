@@ -78,7 +78,7 @@ async fn test_auto_increment() -> QuickDbResult<()> {
             port: 27017,
             database: "testdb".to_string(),
             username: Some("testdb".to_string()),
-            password: Some("yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string()),
+            password: Some("testdb123456".to_string()),
             auth_source: Some("testdb".to_string()),
             direct_connection: true,
             tls_config: Some(rat_quickdb::types::TlsConfig {
@@ -172,7 +172,7 @@ async fn test_uuid() -> QuickDbResult<()> {
             port: 27017,
             database: "testdb".to_string(),
             username: Some("testdb".to_string()),
-            password: Some("yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string()),
+            password: Some("testdb123456".to_string()),
             auth_source: Some("testdb".to_string()),
             direct_connection: true,
             tls_config: Some(rat_quickdb::types::TlsConfig {
@@ -270,7 +270,7 @@ async fn test_snowflake() -> QuickDbResult<()> {
             port: 27017,
             database: "testdb".to_string(),
             username: Some("testdb".to_string()),
-            password: Some("yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^".to_string()),
+            password: Some("testdb123456".to_string()),
             auth_source: Some("testdb".to_string()),
             direct_connection: true,
             tls_config: Some(rat_quickdb::types::TlsConfig {

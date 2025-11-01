@@ -46,6 +46,7 @@ impl AsyncOdmManager {
 
         // 根据ID策略处理ID字段
         let mut processed_data = data.clone();
+
         if let Ok(id_generator) = manager.get_id_generator(&actual_alias) {
             match id_generator.strategy() {
                 crate::types::IdStrategy::AutoIncrement => {
@@ -90,7 +91,6 @@ impl AsyncOdmManager {
                                     crate::types::IdType::Number(n) => DataValue::Int(*n),
                                     crate::types::IdType::String(s) => DataValue::String(s.clone()),
                                 };
-                                debug!("✅ 成功生成ID: {:?}, 转换后: {:?}", id_type, id_value);
                                 // 根据数据库类型决定使用"id"还是"_id"字段
                                 match connection_pool.db_config.db_type {
                                     crate::types::DatabaseType::MongoDB => {
@@ -104,7 +104,6 @@ impl AsyncOdmManager {
                                 }
                             },
                             Err(e) => {
-                                error!("❌❌❌ ID生成失败: {} - 立即停止执行！❌❌❌", e);
                                 return Err(QuickDbError::Other(e));
                             }
                         }

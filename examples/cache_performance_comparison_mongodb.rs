@@ -178,7 +178,7 @@ impl CachePerformanceTest {
             27017,
             "testdb".to_string()
         )
-            .with_auth("testdb", "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^")
+            .with_auth("testdb", "testdb123456")
             .with_auth_source("testdb")
             .with_direct_connection(true)
             .with_tls_config(tls_config)
@@ -231,7 +231,7 @@ impl CachePerformanceTest {
             27017,
             "testdb".to_string()
         )
-            .with_auth("testdb", "yash2vCiBA&B#h$#i&gb@IGSTh&cP#QC^")
+            .with_auth("testdb", "testdb123456")
             .with_auth_source("testdb")
             .with_direct_connection(true)
             .with_tls_config(tls_config)

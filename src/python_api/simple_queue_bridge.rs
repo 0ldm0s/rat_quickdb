@@ -537,7 +537,6 @@ impl SimpleQueueBridge {
                 .await
                 .map_err(|e| format!("创建表和索引失败: {}", e))?;
 
-            info!("✅ 模型注册成功，表和索引已创建: {}", collection_name);
             Ok(serde_json::json!({
                 "success": true,
                 "message": "模型注册成功，表和索引已创建"

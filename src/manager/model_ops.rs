@@ -99,7 +99,6 @@ impl PoolManager {
                 if !table_exists {
                     debug!("表 {} 不存在，正在创建", collection_name);
                     pool.create_table(&collection_name, &fields, &pool.db_config.id_strategy).await?;
-                    debug!("✅ 创建表成功: {}", collection_name);
                 }
 
                 // 创建索引
@@ -131,7 +130,6 @@ impl PoolManager {
                             warn!("创建索引失败: {} (错误: {})", index_name, e);
                         }
                     } else {
-                        debug!("✅ 创建索引成功: {}", index_name);
                     }
                 }
             } else {

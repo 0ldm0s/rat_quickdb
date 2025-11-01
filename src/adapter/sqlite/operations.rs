@@ -41,7 +41,6 @@ impl DatabaseAdapter for SqliteAdapter {
 
                         // 使用模型元数据创建表
                         self.create_table(connection, table, &model_meta.fields, id_strategy).await?;
-                        debug!("✅ 使用模型元数据创建SQLite表 '{}' 成功", table);
                         // 等待100ms确保数据库事务完全提交
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                         debug!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
@@ -469,7 +468,6 @@ impl DatabaseAdapter for SqliteAdapter {
                     .unwrap_or(IdStrategy::AutoIncrement);
 
                 self.create_table(connection, table_name, &model_meta.fields, &id_strategy).await?;
-                debug!("✅ 依赖表 {} 创建成功，ID策略: {:?}", table_name, id_strategy);
             }
         }
 

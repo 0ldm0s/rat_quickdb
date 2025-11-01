@@ -104,12 +104,16 @@ impl MongoAdapter {
                     for (name, acc) in accumulators {
                         acc_map.insert(name.clone(), self.convert_accumulator_to_json(acc));
                     }
-                    json!({
-                        "$group": {
-                            "_id": self.convert_group_key_to_json(id),
-                            "accumulators": acc_map
-                        }
-                    })
+                    // 构建正确的$group语法，不使用accumulators包装
+                    let mut group_obj = serde_json::Map::new();
+                    group_obj.insert("_id".to_string(), self.convert_group_key_to_json(id));
+
+                    // 将累加器字段直接添加到group对象中
+                    for (key, value) in acc_map {
+                        group_obj.insert(key, value);
+                    }
+
+                    json!({ "$group": group_obj })
                 },
                 crate::stored_procedure::types::MongoAggregationOperation::Sort { fields } => {
                     let sort_fields: Vec<serde_json::Value> = fields.iter()
@@ -471,5 +475,58 @@ impl MongoAdapter {
 
         rat_logger::info!("生成的MongoDB存储过程聚合管道: {}", pipeline_json);
         Ok(pipeline_json)
+    }
+
+    /// 执行MongoDB聚合管道查询
+    pub async fn aggregate_query(
+        &self,
+        connection: &crate::pool::DatabaseConnection,
+        collection_name: &str,
+        pipeline_stages: Vec<serde_json::Value>,
+    ) -> crate::error::QuickDbResult<Vec<std::collections::HashMap<String, crate::types::DataValue>>> {
+        use mongodb::bson::Document;
+        use std::collections::HashMap;
+
+        if let crate::pool::DatabaseConnection::MongoDB(db) = connection {
+            let collection = crate::adapter::mongodb::utils::get_collection(self, db, collection_name);
+
+            // 将JSON阶段转换为MongoDB Document
+            let pipeline_docs: Result<Vec<Document>, _> = pipeline_stages.iter()
+                .map(|stage| mongodb::bson::to_document(stage))
+                .collect();
+
+            let pipeline_docs = pipeline_docs.map_err(|e| crate::error::QuickDbError::SerializationError {
+                message: format!("聚合管道序列化失败: {}", e),
+            })?;
+
+            rat_logger::debug!("执行MongoDB聚合管道: 集合={}, 阶段数={}", collection_name, pipeline_docs.len());
+
+            // 执行聚合查询
+            let mut cursor = collection.aggregate(pipeline_docs, None)
+                .await
+                .map_err(|e| crate::error::QuickDbError::QueryError {
+                    message: format!("MongoDB聚合查询失败: {}", e),
+                })?;
+
+            let mut results = Vec::new();
+            while cursor.advance().await.map_err(|e| crate::error::QuickDbError::QueryError {
+                message: format!("MongoDB聚合游标遍历失败: {}", e),
+            })? {
+                let doc = cursor.deserialize_current().map_err(|e| crate::error::QuickDbError::QueryError {
+                    message: format!("MongoDB聚合文档反序列化失败: {}", e),
+                })?;
+
+                // 将BSON文档转换为DataValue映射
+                let data_map = crate::adapter::mongodb::utils::document_to_data_map(self, &doc)?;
+                results.push(data_map);
+            }
+
+            rat_logger::debug!("MongoDB聚合查询完成，返回 {} 条记录", results.len());
+            Ok(results)
+        } else {
+            Err(crate::error::QuickDbError::ConnectionError {
+                message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            })
+        }
     }
 }

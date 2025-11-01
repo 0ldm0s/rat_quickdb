@@ -40,7 +40,6 @@ impl DatabaseAdapter for PostgresAdapter {
 
                         // 使用模型元数据创建表
                         postgres_schema::create_table(self, connection, table, &model_meta.fields, id_strategy).await?;
-                        debug!("✅ 使用模型元数据创建PostgreSQL表 '{}' 成功", table);
 
                         // 等待100ms确保数据库事务完全提交
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -629,7 +628,6 @@ impl DatabaseAdapter for PostgresAdapter {
                     .unwrap_or(IdStrategy::AutoIncrement);
 
                 self.create_table(connection, table_name, &model_meta.fields, &id_strategy).await?;
-                debug!("✅ 依赖表 {} 创建成功，ID策略: {:?}", table_name, id_strategy);
             }
         }
 
