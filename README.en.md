@@ -1116,6 +1116,94 @@ This project is licensed under [LGPL-v3](LICENSE) license.
 
 Welcome to submit Issues and Pull Requests to improve this project!
 
+## 🔧 Troubleshooting
+
+### Network Latency Issues in Concurrent Operations
+
+In high-concurrency operations, especially when accessing databases across network environments, you may encounter data synchronization issues:
+
+#### Problem Description
+When performing queries immediately after high-concurrency writes, inconsistent query results may occur. This is typically caused by:
+
+1. **Network Latency**: Latency from cloud databases or cross-region access
+2. **Database Master-Slave Sync**: Synchronization delays in master-slave replication architectures
+3. **Connection Pool Buffering**: Operation queue buffering in connection pools
+
+#### Solutions
+
+**Solution 1: Configure Wait Time Based on Network Environment**
+
+```rust
+// Network environment and recommended wait times
+let wait_ms = match network_environment {
+    NetworkEnv::Local => 0,        // Local database
+    NetworkEnv::LAN => 10,         // Local area network
+    NetworkEnv::Cloud => 100,      // Cloud database
+    NetworkEnv::CrossRegion => 200, // Cross-region
+};
+
+// Add wait after write operations
+tokio::time::sleep(tokio::time::Duration::from_millis(wait_ms)).await;
+```
+
+**Solution 2: Use Retry Mechanism**
+
+```rust
+async fn safe_query_with_retry<T, F, Fut>(operation: F) -> Result<T>
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    let mut retries = 3;
+    loop {
+        match operation().await {
+            Ok(result) => return Ok(result),
+            Err(e) if retries > 0 => {
+                retries -= 1;
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            },
+            Err(e) => return Err(e),
+        }
+    }
+}
+```
+
+**Solution 3: Smart Latency Detection**
+
+```rust
+// Dynamically detect network latency and adjust wait time
+async fn adaptive_network_delay() -> Duration {
+    let start = Instant::now();
+    let _ = health_check().await;
+    let base_latency = start.elapsed();
+
+    // Wait time is 3x base latency, min 10ms, max 200ms
+    let wait_time = std::cmp::max(
+        Duration::from_millis(10),
+        std::cmp::min(base_latency * 3, Duration::from_millis(200))
+    );
+
+    wait_time
+}
+```
+
+#### Best Practices
+
+- **Local Development**: No wait needed or 5-10ms wait
+- **LAN Environment**: 10-50ms wait
+- **Cloud Database**: 100-200ms wait or use retry mechanism
+- **Production Environment**: Strongly recommend retry mechanism instead of fixed wait
+- **High Concurrency Scenarios**: Consider batch operations to reduce network round trips
+
+#### Architecture Notes
+
+rat_quickdb uses a single-worker architecture to ensure data consistency:
+- **Single Worker**: Avoids data conflicts from concurrent multi-connection writes
+- **Persistent Connections**: Worker maintains persistent connections with database, reducing connection overhead
+- **Message Queue**: Processes requests through async message queue, ensuring ordering
+
+This design provides good concurrency performance while maintaining data consistency.
+
 ## 📞 Contact
 
 For questions or suggestions, please contact:

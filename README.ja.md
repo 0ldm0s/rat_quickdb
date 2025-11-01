@@ -1116,6 +1116,94 @@ rat_quickdbはモダンアーキテクチャ設計を採用：
 
 このプロジェクトを改善するためのIssueやPull Requestの提出を歓迎します！
 
+## 🔧 トラブルシューティング
+
+### 並行操作におけるネットワーク遅延の問題
+
+高並行操作、特にネットワーク環境を介してデータベースにアクセスする際に、データ同期の問題が発生することがあります：
+
+#### 問題の説明
+高並行書き込み直後にクエリ操作を実行する際、クエリ結果が一貫しない場合があります。これは通常、以下の原因によって発生します：
+
+1. **ネットワーク遅延**: クラウドデータベースやクロスリージョンアクセスによる遅延
+2. **データベースのマスター/スレーブ同期**: マスター/スレーブレプリケーションアーキテクチャにおける同期遅延
+3. **コネクションプールのバッファリング**: コネクションプール内の操作キューのバッファリング
+
+#### 解決策
+
+**解決策1: ネットワーク環境に基づいた待機時間の設定**
+
+```rust
+// ネットワーク環境と推奨待機時間
+let wait_ms = match network_environment {
+    NetworkEnv::Local => 0,        // ローカルデータベース
+    NetworkEnv::LAN => 10,         // ローカルエリアネットワーク
+    NetworkEnv::Cloud => 100,      // クラウドデータベース
+    NetworkEnv::CrossRegion => 200, // クロスリージョン
+};
+
+// 書き込み操作後に待機時間を追加
+tokio::time::sleep(tokio::time::Duration::from_millis(wait_ms)).await;
+```
+
+**解決策2: リトライメカニズムの使用**
+
+```rust
+async fn safe_query_with_retry<T, F, Fut>(operation: F) -> Result<T>
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    let mut retries = 3;
+    loop {
+        match operation().await {
+            Ok(result) => return Ok(result),
+            Err(e) if retries > 0 => {
+                retries -= 1;
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            },
+            Err(e) => return Err(e),
+        }
+    }
+}
+```
+
+**解決策3: スマート遅延検出**
+
+```rust
+// ネットワーク遅延を動的に検出し、待機時間を調整
+async fn adaptive_network_delay() -> Duration {
+    let start = Instant::now();
+    let _ = health_check().await;
+    let base_latency = start.elapsed();
+
+    // 待機時間はベース遅延の3倍、最小10ms、最大200ms
+    let wait_time = std::cmp::max(
+        Duration::from_millis(10),
+        std::cmp::min(base_latency * 3, Duration::from_millis(200))
+    );
+
+    wait_time
+}
+```
+
+#### ベストプラクティス
+
+- **ローカル開発**: 待機不要または5-10ms待機
+- **LAN環境**: 10-50ms待機
+- **クラウドデータベース**: 100-200ms待機またはリトライメカニズムを使用
+- **本番環境**: 固定待機の代わりにリトライメカニズムの使用を強く推奨
+- **高並行シナリオ**: ネットワーク往復を減らすためバッチ操作を検討
+
+#### アーキテクチャの説明
+
+rat_quickdbはデータ一貫性を確保するためにシングルワーカーアーキテクチャを採用しています：
+- **シングルワーカー**: 並行マルチコネクション書き込みによるデータ競合を回避
+- **永続的接続**: ワーカーはデータベースとの永続的接続を維持し、接続オーバーヘッドを削減
+- **メッセージキュー**: 非同期メッセージキューを介してリクエストを処理し、順序性を保証
+
+この設計により、データ一貫性を維持しながら良好な並行パフォーマンスを提供します。
+
 ## 📞 お問い合わせ
 
 質問や提案については、以下の方法でお問い合わせください：
