@@ -131,7 +131,7 @@ impl ConnectionPool {
         
         // 等待工作器启动完成
         startup_rx.await.map_err(|_| QuickDbError::ConnectionError {
-            message: format!("SQLite工作器启动失败: 别名={}", db_config.alias),
+            message: crate::i18n::tf("error.sqlite_worker_startup", &[("alias", &db_config.alias)]),
         })?;
         
         info!("SQLite工作器启动完成: 别名={}", db_config.alias);
@@ -171,7 +171,7 @@ impl ConnectionPool {
                 (path.clone(), *create_if_missing)
             }
             _ => return Err(QuickDbError::ConfigError {
-                message: "SQLite连接配置类型不匹配".to_string(),
+                message: crate::i18n::t("error.sqlite_config_mismatch"),
             }),
         };
 
@@ -181,7 +181,7 @@ impl ConnectionPool {
             let pool = sqlx::SqlitePool::connect(&path)
                 .await
                 .map_err(|e| QuickDbError::ConnectionError {
-                    message: format!("SQLite内存数据库连接失败: {}", e),
+                    message: crate::i18n::tf("error.sqlite_memory", &[("message", &e.to_string())]),
                 })?;
             return Ok(DatabaseConnection::SQLite(pool));
         }
@@ -192,7 +192,7 @@ impl ConnectionPool {
         // 如果文件不存在且不允许创建，则返回错误
         if !file_exists && !create_if_missing {
             return Err(QuickDbError::ConnectionError {
-                message: format!("SQLite数据库文件不存在且未启用自动创建: {}", path),
+                message: crate::i18n::tf("error.sqlite_file_not_found", &[("path", &path)]),
             });
         }
 
@@ -201,21 +201,21 @@ impl ConnectionPool {
             if let Some(parent) = std::path::Path::new(&path).parent() {
                 tokio::fs::create_dir_all(parent).await
                     .map_err(|e| QuickDbError::ConnectionError {
-                        message: format!("创建SQLite数据库目录失败: {}", e),
+                        message: crate::i18n::tf("error.sqlite_dir_create", &[("message", &e.to_string())]),
                     })?;
             }
 
             // 创建空的数据库文件
             tokio::fs::File::create(&path).await
                 .map_err(|e| QuickDbError::ConnectionError {
-                    message: format!("创建SQLite数据库文件失败: {}", e),
+                    message: crate::i18n::tf("error.sqlite_file_create", &[("message", &e.to_string())]),
                 })?;
         }
 
         let pool = sqlx::SqlitePool::connect(&path)
             .await
             .map_err(|e| QuickDbError::ConnectionError {
-                message: format!("SQLite连接失败: {}", e),
+                message: crate::i18n::tf("error.sqlite_connection", &[("message", &e.to_string())]),
             })?;
         Ok(DatabaseConnection::SQLite(pool))
     }

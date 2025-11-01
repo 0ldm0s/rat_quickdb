@@ -21,6 +21,7 @@ pub mod config;
 pub mod task_queue;
 pub mod table;
 pub mod security;
+pub mod i18n;
 
 // 条件编译的模块
 pub mod cache;
@@ -89,10 +90,13 @@ use rat_logger::{info, debug};
 
 /// 初始化rat_quickdb库
 ///
-/// 这个函数会初始化rat_quickdb库
+/// 这个函数会初始化rat_quickdb库，包括多语言错误消息系统
 ///
 /// 注意：日志系统由调用者自行初始化，本库不再自动初始化日志
 pub fn init() {
+    // 初始化多语言错误消息系统
+    i18n::ErrorMessageI18n::init();
+
     // 库的基本初始化逻辑
     // 日志系统由调用者负责初始化
 }

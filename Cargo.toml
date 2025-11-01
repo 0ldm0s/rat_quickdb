@@ -1,6 +1,6 @@
 [package]
 name = "rat_quickdb"
-version = "0.3.6"
+version = "0.3.7"
 edition = "2024"
 authors = ["0ldm0s <oldmos@gmail.com>"]
 description = "强大的跨数据库ODM库，支持自动索引创建、统一接口和现代异步架构"
@@ -21,6 +21,9 @@ categories = [
 [dependencies]
 # 日志系统 - 使用 rat_logger
 rat_logger = "0.2.8"
+
+# 多语言支持系统
+rat_embed_lang = "0.1.1"
 
 # 异步运行时
 tokio = { version = "1.0", features = ["full"] }
