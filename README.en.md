@@ -24,6 +24,34 @@
 - **🐍 Python Bindings**: Optional Python API support
 - **📋 Task Queue**: Built-in async task queue system
 - **🔍 Type Safety**: Strong type model definitions and validation
+- **📋 Stored Procedures**: Cross-database unified stored procedure API with multi-table JOIN and aggregation queries
+
+## 🔄 Version Changes
+
+### v0.3.6 (Current Version) - Stored Procedure Virtual Table System
+
+⚠️ **Important Change: Connection Pool Configuration Parameter Unit Changes**
+
+**v0.3.6** introduces major improvements to connection pool configuration. **All timeout parameters now use seconds as units**:
+
+```rust
+// v0.3.6 new syntax (recommended)
+let pool_config = PoolConfig::builder()
+    .connection_timeout(30)        // 30 seconds (previously 5000 milliseconds)
+    .idle_timeout(300)             // 300 seconds (previously 300000 milliseconds)
+    .max_lifetime(1800)            // 1800 seconds (previously 1800000 milliseconds)
+    .max_retries(3)                // New: Maximum retry count
+    .retry_interval_ms(1000)       // New: Retry interval (milliseconds)
+    .keepalive_interval_sec(60)    // New: Keepalive interval (seconds)
+    .health_check_timeout_sec(10)  // New: Health check timeout (seconds)
+    .build()?;
+```
+
+**New Features:**
+- 🎯 **Stored Procedure Virtual Table System**: Cross-four-database unified stored procedure API
+- 🔗 **Multi-table JOIN Support**: Automatic JOIN statement and aggregation pipeline generation
+- 📊 **Aggregation Query Optimization**: Automatic GROUP BY clause generation (SQL databases)
+- 🧠 **Type-safe Stored Procedures**: Compile-time validation and type checking
 
 ## 📦 Installation
 
@@ -40,7 +68,7 @@ rat_quickdb uses Cargo features to control different database support and functi
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = [
+rat_quickdb = { version = "0.3.6", features = [
     "sqlite-support",    # Support SQLite database
     "postgres-support",  # Support PostgreSQL database
     "mysql-support",     # Support MySQL database
@@ -65,19 +93,19 @@ rat_quickdb = { version = "0.3.4", features = [
 **SQLite only**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.3.6", features = ["sqlite-support"] }
 ```
 
 **PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = ["postgres-support"] }
+rat_quickdb = { version = "0.3.6", features = ["postgres-support"] }
 ```
 
 **All databases**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = ["full"] }
+rat_quickdb = { version = "0.3.6", features = ["full"] }
 ```
 
 **L2 Cache Configuration Notes**:

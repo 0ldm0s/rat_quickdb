@@ -24,6 +24,34 @@
 - **🐍 Pythonバインディング**: オプションのPython APIサポート
 - **📋 タスクキュー**: 組み込み非同期タスクキューシステム
 - **🔍 型安全性**: 強力な型モデル定義と検証
+- **📋 ストアドプロシージャ**: 複データベースの統一ストアドプロシージャAPI、マルチテーブルJOINと集約クエリをサポート
+
+## 🔄 バージョン変更
+
+### v0.3.6（現在のバージョン） - ストアドプロシージャ仮想テーブルシステム
+
+⚠️ **重要な変更：接続プール設定パラメータ単位の変更**
+
+**v0.3.6**では接続プール設定に大幅な改善が行われました。**すべてのタイムアウトパラメータが秒単位になりました**：
+
+```rust
+// v0.3.6 新しい構文（推奨）
+let pool_config = PoolConfig::builder()
+    .connection_timeout(30)        // 30秒（以前は5000ミリ秒）
+    .idle_timeout(300)             // 300秒（以前は300000ミリ秒）
+    .max_lifetime(1800)            // 1800秒（以前は1800000ミリ秒）
+    .max_retries(3)                // 新規：最大再試行回数
+    .retry_interval_ms(1000)       // 新規：再試行間隔（ミリ秒）
+    .keepalive_interval_sec(60)    // 新規：キープアライブ間隔（秒）
+    .health_check_timeout_sec(10)  // 新規：ヘルスチェックタイムアウト（秒）
+    .build()?;
+```
+
+**新機能：**
+- 🎯 **ストアドプロシージャ仮想テーブルシステム**：4つのデータベースにまたがる統一ストアドプロシージャAPI
+- 🔗 **マルチテーブルJOINサポート**：JOINステートメントと集約パイプラインの自動生成
+- 📊 **集約クエリ最適化**：GROUP BY句の自動生成（SQLデータベース）
+- 🧠 **タイプセーフストアドプロシージャ**：コンパイル時検証と型チェック
 
 ## 📦 インストール
 
@@ -40,7 +68,7 @@ rat_quickdbはCargo機能を使用して異なるデータベースサポート�
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = [
+rat_quickdb = { version = "0.3.6", features = [
     "sqlite-support",    # SQLiteデータベースサポート
     "postgres-support",  # PostgreSQLデータベースサポート
     "mysql-support",     # MySQLデータベースサポート
@@ -65,19 +93,19 @@ rat_quickdb = { version = "0.3.4", features = [
 **SQLiteのみ**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.3.6", features = ["sqlite-support"] }
 ```
 
 **PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = ["postgres-support"] }
+rat_quickdb = { version = "0.3.6", features = ["postgres-support"] }
 ```
 
 **すべてのデータベース**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.4", features = ["full"] }
+rat_quickdb = { version = "0.3.6", features = ["full"] }
 ```
 
 **L2キャッシュ設定に関する注意事項**:
