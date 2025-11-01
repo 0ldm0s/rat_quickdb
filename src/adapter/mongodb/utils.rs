@@ -435,25 +435,15 @@ pub(crate) fn data_value_to_bson(adapter: &MongoAdapter, value: &DataValue) -> B
     pub(crate) fn map_data_fields(adapter: &MongoAdapter, data: &HashMap<String, DataValue>) -> HashMap<String, DataValue> {
         let mut mapped_data = HashMap::new();
 
-        // 首先处理_id字段（如果存在且不为空）
-        if let Some(_id_value) = data.get("_id") {
-            if let DataValue::String(s) = _id_value {
-                if !s.is_empty() {
-                    mapped_data.insert("_id".to_string(), _id_value.clone());
-                }
-            } else {
-                mapped_data.insert("_id".to_string(), _id_value.clone());
-            }
-        }
-
-        // 然后处理其他字段，避免覆盖_id字段
+        // 处理ID字段映射（id -> _id）
         for (key, value) in data {
-            if key != "_id" { // 跳过_id字段，避免覆盖
-                let mapped_key = map_field_name(adapter, key);
-                if mapped_key != "_id" { // 确保不会映射到_id
-                    mapped_data.insert(mapped_key, value.clone());
-                }
-            }
+            let mapped_key = if key == "id" {
+                "_id".to_string()  // 将id映射为_id
+            } else {
+                map_field_name(adapter, key)
+            };
+
+            mapped_data.insert(mapped_key, value.clone());
         }
 
         mapped_data

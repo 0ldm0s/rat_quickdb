@@ -10,7 +10,8 @@ use crate::manager;
 use async_trait::async_trait;
 use rat_logger::debug;
 use std::collections::HashMap;
-use mongodb::bson::{doc, Document};
+use mongodb::bson::{doc, Document, Bson};
+use serde_json::json;
 
 use super::query as mongodb_query;
 use super::schema as mongodb_schema;
@@ -27,7 +28,6 @@ impl DatabaseAdapter for MongoAdapter {
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::MongoDB(db) = connection {
             // 调试：打印原始接收到的数据
-            debug!("🔍 MongoDB适配器原始接收到的数据: {:?}", data);
             // 自动建表逻辑：检查集合是否存在，如果不存在则创建
             if !mongodb_schema::table_exists(self, connection, table).await? {
                 // 获取表创建锁，防止并发创建
@@ -40,7 +40,6 @@ impl DatabaseAdapter for MongoAdapter {
                         debug!("集合 {} 不存在，使用预定义模型元数据创建", table);
 
                         // MongoDB不需要预创建表结构，集合是无模式的
-                        debug!("✅ MongoDB集合 '{}' 不存在，使用无模式设计，将根据数据推断结构", table);
                     } else {
                         return Err(QuickDbError::ValidationError {
                             field: "collection_creation".to_string(),
@@ -59,7 +58,6 @@ impl DatabaseAdapter for MongoAdapter {
             let mut mapped_data = mongodb_utils::map_data_fields(self, data);
 
             // 调试：打印接收到的数据
-            debug!("🔍 MongoDB适配器接收到的数据: {:?}", mapped_data);
 
             // 根据ID策略处理ID字段
             if mapped_data.contains_key("_id") {
@@ -88,11 +86,16 @@ impl DatabaseAdapter for MongoAdapter {
             } else {
                 // 没有ID字段，检查策略是否需要ID
                 match id_strategy {
-                    IdStrategy::Snowflake { .. } | IdStrategy::Uuid => {
+                    IdStrategy::Snowflake { .. } => {
+                        // 雪花策略需要ID字段
                         return Err(QuickDbError::ValidationError {
                             field: "_id".to_string(),
                             message: format!("使用{:?}策略时必须提供ID字段", id_strategy),
                         });
+                    },
+                    IdStrategy::Uuid => {
+                        // MongoDB的UUID策略不要求提供ID字段，可以自动生成字符串UUID
+                        // 符合我们的设计：MongoDB将UUID作为字符串处理
                     },
                     _ => {} // 其他策略不需要ID字段
                 }
@@ -100,7 +103,31 @@ impl DatabaseAdapter for MongoAdapter {
 
             let mut doc = Document::new();
             for (key, value) in &mapped_data {
-                doc.insert(key, mongodb_utils::data_value_to_bson(self, value));
+                // 特殊处理_id字段，根据ID策略决定BSON类型
+                if key == "_id" {
+                    let bson_value = match (value, id_strategy) {
+                        (crate::types::DataValue::String(s), crate::types::IdStrategy::Uuid) => {
+                            // UUID策略：保持字符串格式，防止被MongoDB转换为ObjectId
+                            // 使用Bson::String包装，MongoDB应该保持字符串格式
+                            Bson::String(s.clone())
+                        },
+                        (crate::types::DataValue::String(s), crate::types::IdStrategy::ObjectId) => {
+                            // ObjectId策略：尝试转换为ObjectId
+                            if let Ok(object_id) = mongodb::bson::oid::ObjectId::parse_str(s) {
+                                Bson::ObjectId(object_id)
+                            } else {
+                                Bson::String(s.clone()) // 如果解析失败，保持字符串
+                            }
+                        },
+                        _ => {
+                            // 其他情况，使用默认转换
+                            mongodb_utils::data_value_to_bson(self, value)
+                        }
+                    };
+                    doc.insert(key, bson_value);
+                } else {
+                    doc.insert(key, mongodb_utils::data_value_to_bson(self, value));
+                }
             }
 
             debug!("执行MongoDB插入到集合 {}: {:?}", table, doc);
@@ -501,7 +528,6 @@ impl DatabaseAdapter for MongoAdapter {
                     .unwrap_or(IdStrategy::AutoIncrement);
 
                 self.create_table(connection, collection_name, &model_meta.fields, &id_strategy).await?;
-                debug!("✅ 依赖集合 {} 创建成功，ID策略: {:?}", collection_name, id_strategy);
             }
         }
 
@@ -519,7 +545,6 @@ impl DatabaseAdapter for MongoAdapter {
 
         let mut procedures = self.stored_procedures.lock().await;
         procedures.insert(config.procedure_name.clone(), procedure_info);
-        debug!("✅ MongoDB存储过程 {} 聚合管道已存储到适配器映射表", config.procedure_name);
 
         Ok(StoredProcedureCreateResult {
             success: true,
@@ -583,7 +608,7 @@ impl DatabaseAdapter for MongoAdapter {
         debug!("执行MongoDB聚合管道: 集合={}, 阶段数={}", collection_name, pipeline_stages.len());
 
         // 执行聚合管道查询
-        let query_result = self.aggregate_query(connection, collection_name, pipeline_stages).await?;
+        let query_result = self.aggregate_query(connection, collection_name, pipeline_stages.to_vec()).await?;
 
         // 转换结果格式
         let mut result = Vec::new();
@@ -609,85 +634,26 @@ impl MongoAdapter {
     ) -> QuickDbResult<serde_json::Value> {
         let mut final_pipeline = pipeline_template.clone();
 
-        // 如果有参数，替换占位符阶段
-        if let Some(param_map) = params {
-            if let Some(pipeline_array) = final_pipeline.get_mut("pipeline").and_then(|v| v.as_array_mut()) {
-                // 过滤掉占位符阶段，根据参数动态添加实际的阶段
-                let mut filtered_stages = Vec::new();
-
-                for stage in pipeline_array.iter() {
-                    // 检查是否是占位符阶段
+        // 简单过滤占位符阶段
+        if let Some(pipeline_array) = final_pipeline.get_mut("pipeline").and_then(|v| v.as_array_mut()) {
+            let filtered_stages: Vec<serde_json::Value> = pipeline_array.iter()
+                .filter(|stage| {
+                    // 过滤掉纯占位符的$addFields阶段
                     if let Some(add_fields) = stage.get("$addFields") {
-                        let mut is_placeholder = false;
-                        let mut new_add_fields = serde_json::Map::new();
-
-                        for (field_name, field_value) in add_fields.as_object().unwrap_or(&serde_json::Map::new()) {
-                            if field_name.starts_with("_") && field_name.ends_with("_PLACEHOLDER") {
-                                is_placeholder = true;
-                                let placeholder_type = field_name
-                                    .strip_prefix("_")
-                                    .and_then(|s| s.strip_suffix("_PLACEHOLDER"))
-                                    .unwrap();
-
-                                // 根据参数决定是否添加相应的阶段
-                                if let Some(param_value) = param_map.get(placeholder_type) {
-                                    match placeholder_type {
-                                        "WHERE" => {
-                                            if let crate::types::DataValue::String(where_clause) = param_value {
-                                                filtered_stages.push(json!({
-                                                    "$match": serde_json::from_str::<serde_json::Value>(&where_clause)
-                                                        .unwrap_or_else(|_| json!({}))
-                                                }));
-                                            }
-                                        },
-                                        "ORDER_BY" => {
-                                            if let crate::types::DataValue::String(order_clause) = param_value {
-                                                filtered_stages.push(json!({
-                                                    "$sort": serde_json::from_str::<serde_json::Value>(&order_clause)
-                                                        .unwrap_or_else(|_| json!({}))
-                                                }));
-                                            }
-                                        },
-                                        "LIMIT" => {
-                                            if let crate::types::DataValue::Int(limit) = param_value {
-                                                filtered_stages.push(json!({
-                                                    "$limit": limit
-                                                }));
-                                            }
-                                        },
-                                        "OFFSET" => {
-                                            if let crate::types::DataValue::Int(offset) = param_value {
-                                                filtered_stages.push(json!({
-                                                    "$skip": offset
-                                                }));
-                                            }
-                                        },
-                                        _ => {
-                                            // 其他占位符类型，暂时跳过
-                                        }
-                                    }
-                                }
-                            } else {
-                                // 非占位符字段，保留
-                                new_add_fields.insert(field_name.clone(), field_value.clone());
-                            }
-                        }
-
-                        // 如果有非占位符字段，保留该阶段
-                        if !new_add_fields.is_empty() {
-                            filtered_stages.push(json!({
-                                "$addFields": new_add_fields
-                            }));
+                        if let Some(obj) = add_fields.as_object() {
+                            // 检查是否所有字段都是占位符
+                            !obj.keys().all(|key| key.starts_with("_") && key.ends_with("_PLACEHOLDER"))
+                        } else {
+                            true
                         }
                     } else {
-                        // 非占位符阶段，直接保留
-                        filtered_stages.push(stage.clone());
+                        true
                     }
-                }
+                })
+                .cloned()
+                .collect();
 
-                // 更新管道
-                final_pipeline["pipeline"] = serde_json::Value::Array(filtered_stages);
-            }
+            final_pipeline["pipeline"] = serde_json::Value::Array(filtered_stages);
         }
 
         debug!("构建的最终聚合管道: {}", serde_json::to_string_pretty(&final_pipeline).unwrap_or_default());
