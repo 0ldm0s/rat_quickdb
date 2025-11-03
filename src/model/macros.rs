@@ -159,7 +159,7 @@ macro_rules! define_model {
                     if let Err(e) = $crate::manager::register_model(model_meta.clone()) {
                         panic!("❌ 模型注册失败: {}", e);
                     } else {
-                        debug!("✅ 模型自动注册成功: {}", model_meta.collection_name);
+                        $crate::debug_log!("✅ 模型自动注册成功: {}", model_meta.collection_name);
                     }
                 });
 
@@ -171,12 +171,12 @@ macro_rules! define_model {
                 use $crate::model::conversion::ToDataValue;
                 let mut data_map = std::collections::HashMap::new();
 
-                debug!("🔍 开始 to_data_map_direct 转换...");
+                $crate::debug_log!("🔍 开始 to_data_map_direct 转换...");
 
                 $(
-                    debug!("🔍 转换字段 {}: {:?}", stringify!($field), self.$field);
+                    $crate::debug_log!("🔍 转换字段 {}: {:?}", stringify!($field), self.$field);
                     let data_value = self.$field.to_data_value();
-                    debug!("🔍 字段 {} 转换为: {:?}", stringify!($field), data_value);
+                    $crate::debug_log!("🔍 字段 {} 转换为: {:?}", stringify!($field), data_value);
                     data_map.insert(stringify!($field).to_string(), data_value);
                 )*
 
@@ -194,7 +194,7 @@ macro_rules! define_model {
                     }
                 }
 
-                debug!("🔍 to_data_map_direct 转换完成");
+                $crate::debug_log!("🔍 to_data_map_direct 转换完成");
                 Ok(data_map)
             }
         }

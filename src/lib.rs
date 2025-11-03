@@ -85,7 +85,25 @@ pub use odm::get_server_version;
 // 注意：Python绑定相关的导出已移至专门的Python绑定库中
 
 // 日志系统导入
-use rat_logger::{info, debug};
+use rat_logger::info;
+
+// 条件编译调试宏 - 只有在 debug 模式下才输出调试信息
+#[cfg(debug_assertions)]
+#[macro_export]
+macro_rules! debug_log {
+    ($($arg:tt)*) => {
+        rat_logger::debug!($($arg)*);
+    };
+}
+
+#[cfg(not(debug_assertions))]
+#[macro_export]
+macro_rules! debug_log {
+    ($($arg:tt)*) => {
+        // 在 release 模式下不输出调试信息
+    };
+}
+
 
 
 /// 初始化rat_quickdb库
@@ -160,11 +178,11 @@ pub fn process_data_fields_from_metadata(
                     match serde_json::from_str::<serde_json::Value>(json_str.as_str()) {
                         Ok(json_value) => {
                             let converted = crate::types::data_value::json_value_to_data_value(json_value);
-                            debug!("字段 {} JSON转换成功: {:?} -> {:?}", field_name, json_str, converted);
+                            debug_log!("字段 {} JSON转换成功: {:?} -> {:?}", field_name, json_str, converted);
                             Some(converted)
                         }
                         Err(e) => {
-                            debug!("字段 {} JSON解析失败，保持原字符串: {} (错误: {})", field_name, json_str, e);
+                            debug_log!("字段 {} JSON解析失败，保持原字符串: {} (错误: {})", field_name, json_str, e);
                             None // 解析失败，保持原字符串值
                         }
                     }
@@ -172,10 +190,10 @@ pub fn process_data_fields_from_metadata(
                 // 处理布尔字段的整数转换（SQLite等数据库的兼容性）
                 DataValue::Int(int_val) if matches!(field_def.field_type, crate::model::FieldType::Boolean) => {
                     if *int_val == 0 || *int_val == 1 {
-                        debug!("字段 {} 整数转布尔: {} -> {}", field_name, int_val, *int_val == 1);
+                        debug_log!("字段 {} 整数转布尔: {} -> {}", field_name, int_val, *int_val == 1);
                         Some(DataValue::Bool(*int_val == 1))
                     } else {
-                        debug!("字段 {} 整数值超出布尔范围: {}，保持原值", field_name, int_val);
+                        debug_log!("字段 {} 整数值超出布尔范围: {}，保持原值", field_name, int_val);
                         None
                     }
                 },
