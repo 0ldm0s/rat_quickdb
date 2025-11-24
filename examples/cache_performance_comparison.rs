@@ -13,10 +13,10 @@ use tokio::time::sleep;
 use std::path::PathBuf;
 use rat_logger::{LoggerBuilder, handler::term::TermConfig, debug};
 
-// 定义用户模型
+// 定义缓存数据库用户模型
 define_model! {
-    /// 用户模型
-    struct User {
+    /// 用户模型（缓存版本）
+    struct CachedUser {
         id: String,
         name: String,
         email: String,
@@ -24,6 +24,34 @@ define_model! {
         created_at: chrono::DateTime<chrono::Utc>,
     }
     collection = "users",
+    database = "cached_db",
+    fields = {
+        id: string_field(None, None, None).required().unique(),
+        name: string_field(Some(100), Some(1), None).required(),
+        email: string_field(Some(255), Some(1), None).required(),
+        age: integer_field(Some(0), Some(150)).required(),
+        created_at: datetime_field().required(),
+    }
+    indexes = [
+        { fields: ["name"], unique: false, name: "idx_name" },
+        { fields: ["age"], unique: false, name: "idx_age" },
+        { fields: ["email"], unique: true, name: "idx_email" },
+        { fields: ["created_at"], unique: false, name: "idx_created_at" },
+    ],
+}
+
+// 定义非缓存数据库用户模型
+define_model! {
+    /// 用户模型（非缓存版本）
+    struct NonCachedUser {
+        id: String,
+        name: String,
+        email: String,
+        age: i32,
+        created_at: chrono::DateTime<chrono::Utc>,
+    }
+    collection = "users",
+    database = "non_cached_db",
     fields = {
         id: string_field(None, None, None).required().unique(),
         name: string_field(Some(100), Some(1), None).required(),
@@ -230,17 +258,34 @@ impl CachePerformanceTest {
         let _ = drop_table("non_cached_db", "users").await;
 
         // 创建测试用户数据
-        let test_users = vec![
-            self.create_user("user1", "张三", "zhangsan@example.com", 25),
-            self.create_user("user2", "李四", "lisi@example.com", 30),
-            self.create_user("user3", "王五", "wangwu@example.com", 28),
-            self.create_user("user4", "赵六", "zhaoliu@example.com", 35),
-            self.create_user("user5", "钱七", "qianqi@example.com", 22),
+        let test_cached_users = vec![
+            self.create_cached_user("user1", "张三", "zhangsan@example.com", 25),
+            self.create_cached_user("user2", "李四", "lisi@example.com", 30),
+            self.create_cached_user("user3", "王五", "wangwu@example.com", 28),
+            self.create_cached_user("user4", "赵六", "zhaoliu@example.com", 35),
+            self.create_cached_user("user5", "钱七", "qianqi@example.com", 22),
+        ];
+
+        let test_non_cached_users = vec![
+            self.create_non_cached_user("user1", "张三", "zhangsan@example.com", 25),
+            self.create_non_cached_user("user2", "李四", "lisi@example.com", 30),
+            self.create_non_cached_user("user3", "王五", "wangwu@example.com", 28),
+            self.create_non_cached_user("user4", "赵六", "zhaoliu@example.com", 35),
+            self.create_non_cached_user("user5", "钱七", "qianqi@example.com", 22),
         ];
 
         // 批量用户数据
-        let batch_users: Vec<User> = (6..=25)
-            .map(|i| self.create_user(
+        let batch_cached_users: Vec<CachedUser> = (6..=25)
+            .map(|i| self.create_cached_user(
+                &format!("batch_user_{}", i),
+                &format!("批量用户{}", i),
+                &format!("batch{}@example.com", i),
+                20 + (i % 30),
+            ))
+            .collect();
+
+        let batch_non_cached_users: Vec<NonCachedUser> = (6..=25)
+            .map(|i| self.create_non_cached_user(
                 &format!("batch_user_{}", i),
                 &format!("批量用户{}", i),
                 &format!("batch{}@example.com", i),
@@ -250,26 +295,35 @@ impl CachePerformanceTest {
 
         // 创建测试数据到两个数据库
         println!("  创建测试数据到缓存数据库...");
-        set_default_alias("cached_db").await?;
-        for user in test_users.iter().chain(batch_users.iter()) {
+        for user in test_cached_users.iter().chain(batch_cached_users.iter()) {
             let mut user_clone = user.clone();
             user_clone.save().await?;
         }
 
         println!("  创建测试数据到非缓存数据库...");
-        set_default_alias("non_cached_db").await?;
-        for user in test_users.iter().chain(batch_users.iter()) {
+        for user in test_non_cached_users.iter().chain(batch_non_cached_users.iter()) {
             let mut user_clone = user.clone();
             user_clone.save().await?;
         }
 
-        println!("  ✅ 创建了 {} 条测试记录", test_users.len() + batch_users.len());
+        println!("  ✅ 创建了 {} 条测试记录", test_cached_users.len() + batch_cached_users.len());
         Ok(())
     }
 
-    /// 创建用户数据
-    fn create_user(&self, id: &str, name: &str, email: &str, age: i32) -> User {
-        User {
+    /// 创建缓存用户数据
+    fn create_cached_user(&self, id: &str, name: &str, email: &str, age: i32) -> CachedUser {
+        CachedUser {
+            id: id.to_string(),
+            name: name.to_string(),
+            email: email.to_string(),
+            age,
+            created_at: chrono::Utc::now(),
+        }
+    }
+
+    /// 创建非缓存用户数据
+    fn create_non_cached_user(&self, id: &str, name: &str, email: &str, age: i32) -> NonCachedUser {
+        NonCachedUser {
             id: id.to_string(),
             name: name.to_string(),
             email: email.to_string(),
@@ -295,11 +349,11 @@ impl CachePerformanceTest {
         ];
 
         // 预热查询
-        let _result = ModelManager::<User>::find(conditions, None).await?;
+        let _result = ModelManager::<CachedUser>::find(conditions, None).await?;
 
         // 按ID查询预热
-        let _result = ModelManager::<User>::find_by_id("user1").await?;
-        let _result = ModelManager::<User>::find_by_id("user2").await?;
+        let _result = ModelManager::<CachedUser>::find_by_id("user1").await?;
+        let _result = ModelManager::<CachedUser>::find_by_id("user2").await?;
 
         println!("  ✅ 缓存预热完成");
         Ok(())
@@ -320,12 +374,12 @@ impl CachePerformanceTest {
         // 第一次查询（冷启动，从数据库读取）
         set_default_alias("cached_db").await?;
         let start = Instant::now();
-        let _result1 = ModelManager::<User>::find(conditions.clone(), None).await?;
+        let _result1 = ModelManager::<CachedUser>::find(conditions.clone(), None).await?;
         let first_query_duration = start.elapsed();
 
         // 第二次查询（缓存命中）
         let start = Instant::now();
-        let _result2 = ModelManager::<User>::find(conditions, None).await?;
+        let _result2 = ModelManager::<CachedUser>::find(conditions, None).await?;
         let cached_duration = start.elapsed();
 
         let result = PerformanceResult::new(
@@ -360,7 +414,7 @@ impl CachePerformanceTest {
         set_default_alias("non_cached_db").await?;
         let start = Instant::now();
         for _ in 0..query_count {
-            let _result = ModelManager::<User>::find(conditions.clone(), None).await?;
+            let _result = ModelManager::<NonCachedUser>::find(conditions.clone(), None).await?;
             // 短暂延迟以模拟真实场景
             sleep(Duration::from_millis(5)).await;
         }
@@ -368,12 +422,12 @@ impl CachePerformanceTest {
 
         // 首次查询（建立缓存）
         set_default_alias("cached_db").await?;
-        let _result = ModelManager::<User>::find(conditions.clone(), None).await?;
+        let _result = ModelManager::<NonCachedUser>::find(conditions.clone(), None).await?;
 
         // 测试重复查询（应该从缓存读取）
         let start = Instant::now();
         for _ in 0..query_count {
-            let _result = ModelManager::<User>::find(conditions.clone(), None).await?;
+            let _result = ModelManager::<NonCachedUser>::find(conditions.clone(), None).await?;
             // 短暂延迟以模拟真实场景
             sleep(Duration::from_millis(5)).await;
         }
@@ -410,14 +464,14 @@ impl CachePerformanceTest {
         set_default_alias("cached_db").await?;
         let start = Instant::now();
         for user_id in &user_ids {
-            let _result = ModelManager::<User>::find_by_id(user_id).await?;
+            let _result = ModelManager::<CachedUser>::find_by_id(user_id).await?;
         }
         let first_batch_duration = start.elapsed();
 
         // 第二次批量查询（缓存命中）
         let start = Instant::now();
         for user_id in &user_ids {
-            let _result = ModelManager::<User>::find_by_id(user_id).await?;
+            let _result = ModelManager::<CachedUser>::find_by_id(user_id).await?;
         }
         let cached_duration = start.elapsed();
 
@@ -449,7 +503,7 @@ impl CachePerformanceTest {
 
         // 查找要更新的用户
         set_default_alias("cached_db").await?;
-        let users = ModelManager::<User>::find(conditions.clone(), None).await?;
+        let users = ModelManager::<CachedUser>::find(conditions.clone(), None).await?;
         if let Some(user) = users.first() {
             // 第一次更新操作
             let start = Instant::now();
