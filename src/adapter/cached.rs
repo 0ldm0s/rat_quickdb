@@ -42,8 +42,9 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         table: &str,
         data: &HashMap<String, DataValue>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<DataValue> {
-        let result = self.inner.create(connection, table, data, id_strategy).await;
+        let result = self.inner.create(connection, table, data, id_strategy, alias).await;
         
         // 创建成功后只清理查询缓存，保留记录缓存
         if result.is_ok() {
@@ -62,6 +63,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<Option<DataValue>> {
         // 将DataValue转换为IdType
         let id_type = match id {
@@ -69,7 +71,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
             DataValue::String(s) => IdType::String(s.clone()),
             _ => {
                 warn!("无法将DataValue转换为IdType: {:?}", id);
-                return self.inner.find_by_id(connection, table, id).await;
+                return self.inner.find_by_id(connection, table, id, alias).await;
             }
         };
 
@@ -88,7 +90,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         }
         
         // 缓存未命中或查询失败，查询数据库
-        let result = self.inner.find_by_id(connection, table, id).await;
+        let result = self.inner.find_by_id(connection, table, id, alias).await;
         
         // 查询成功时缓存结果
         if let Ok(Some(ref record)) = result {
@@ -107,6 +109,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         table: &str,
         conditions: &[QueryCondition],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         // 将简单条件转换为条件组合（AND逻辑）
         let condition_groups = if conditions.is_empty() {
@@ -122,7 +125,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         };
         
         // 统一使用 find_with_groups 实现
-        self.find_with_groups(connection, table, &condition_groups, options).await
+        self.find_with_groups(connection, table, &condition_groups, options, alias).await
     }
 
     /// 使用条件组合查找记录 - 先检查缓存，缓存未命中时查询数据库并缓存结果
@@ -132,6 +135,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         table: &str,
         condition_groups: &[QueryConditionGroup],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         // 生成条件组合查询缓存键
         let cache_key = self.cache_manager.generate_condition_groups_cache_key(table, condition_groups, options);
@@ -151,7 +155,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         }
         
         // 缓存未命中，查询数据库
-        let result = self.inner.find_with_groups(connection, table, condition_groups, options).await?;
+        let result = self.inner.find_with_groups(connection, table, condition_groups, options, alias).await?;
         
         // 缓存查询结果
         if let Err(e) = self.cache_manager.cache_condition_groups_result(table, condition_groups, options, &result).await {
@@ -170,9 +174,10 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         table: &str,
         conditions: &[QueryCondition],
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<u64> {
         // 直接调用内部适配器更新记录
-        let result = self.inner.update(connection, table, conditions, data).await;
+        let result = self.inner.update(connection, table, conditions, data, alias).await;
         
         // 更新成功后只清理查询缓存，避免过度清理
         if let Ok(updated_count) = result {
@@ -194,9 +199,10 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         table: &str,
         conditions: &[QueryCondition],
         operations: &[crate::types::UpdateOperation],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         // 直接调用内部适配器更新记录
-        let result = self.inner.update_with_operations(connection, table, conditions, operations).await;
+        let result = self.inner.update_with_operations(connection, table, conditions, operations, alias).await;
 
         // 更新成功后只清理查询缓存，避免过度清理
         if let Ok(updated_count) = result {
@@ -218,9 +224,10 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         table: &str,
         id: &DataValue,
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<bool> {
         // 直接调用内部适配器更新记录
-        let result = self.inner.update_by_id(connection, table, id, data).await;
+        let result = self.inner.update_by_id(connection, table, id, data, alias).await;
         
         // 更新成功后精确清理相关缓存
         if let Ok(true) = result {
@@ -344,9 +351,10 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         table: &str,
         fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<()> {
         // 表结构操作不缓存，直接调用内部适配器
-        self.inner.create_table(connection, table, fields, id_strategy).await
+        self.inner.create_table(connection, table, fields, id_strategy, alias).await
     }
 
     /// 创建索引 - 直接调用内部适配器

@@ -21,6 +21,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         data: &HashMap<String, DataValue>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<DataValue> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -36,11 +37,11 @@ impl DatabaseAdapter for SqliteAdapter {
                 // 再次检查表是否存在（双重检查锁定模式）
                 if !self.table_exists(connection, table).await? {
                     // 尝试从模型管理器获取预定义的元数据
-                    if let Some(model_meta) = crate::manager::get_model(table) {
+                    if let Some(model_meta) = crate::manager::get_model_with_alias(table, alias) {
                         debug!("表 {} 不存在，使用预定义模型元数据创建", table);
 
                         // 使用模型元数据创建表
-                        self.create_table(connection, table, &model_meta.fields, id_strategy).await?;
+                        self.create_table(connection, table, &model_meta.fields, id_strategy, alias).await?;
                         // 等待100ms确保数据库事务完全提交
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                         debug!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
@@ -116,6 +117,7 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<Option<DataValue>> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -154,6 +156,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         conditions: &[QueryCondition],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         // 将简单条件转换为条件组合（AND逻辑）
         let condition_groups = if conditions.is_empty() {
@@ -169,7 +172,7 @@ impl DatabaseAdapter for SqliteAdapter {
         };
         
         // 统一使用 find_with_groups 实现
-        self.find_with_groups(connection, table, &condition_groups, options).await
+        self.find_with_groups(connection, table, &condition_groups, options, alias).await
     }
 
     async fn find_with_groups(
@@ -178,6 +181,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         condition_groups: &[QueryConditionGroup],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -230,6 +234,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         conditions: &[QueryCondition],
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<u64> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -270,6 +275,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         id: &DataValue,
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<bool> {
         let condition = QueryCondition {
             field: "id".to_string(),
@@ -277,7 +283,7 @@ impl DatabaseAdapter for SqliteAdapter {
             value: id.clone(),
         };
         
-        let affected_rows = self.update(connection, table, &[condition], data).await?;
+        let affected_rows = self.update(connection, table, &[condition], data, alias).await?;
         Ok(affected_rows > 0)
     }
 
@@ -287,6 +293,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         conditions: &[QueryCondition],
         operations: &[crate::types::UpdateOperation],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -397,6 +404,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<()> {
         sqlite_schema::create_table(self, connection, table, fields, id_strategy).await
     }
@@ -467,7 +475,7 @@ impl DatabaseAdapter for SqliteAdapter {
                 let id_strategy = crate::manager::get_id_strategy(&config.database)
                     .unwrap_or(IdStrategy::AutoIncrement);
 
-                self.create_table(connection, table_name, &model_meta.fields, &id_strategy).await?;
+                self.create_table(connection, table_name, &model_meta.fields, &id_strategy, &config.database).await?;
             }
         }
 

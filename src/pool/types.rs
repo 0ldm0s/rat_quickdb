@@ -29,12 +29,14 @@ pub enum DatabaseOperation {
         table: String,
         data: HashMap<String, DataValue>,
         id_strategy: IdStrategy,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<DataValue>>,
     },
     /// 根据ID查找记录
     FindById {
         table: String,
         id: DataValue,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<Option<DataValue>>>,
     },
     /// 查找记录
@@ -42,6 +44,7 @@ pub enum DatabaseOperation {
         table: String,
         conditions: Vec<QueryCondition>,
         options: QueryOptions,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
     },
     /// 使用条件组合查找记录（支持OR逻辑）
@@ -49,6 +52,7 @@ pub enum DatabaseOperation {
         table: String,
         condition_groups: Vec<QueryConditionGroup>,
         options: QueryOptions,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
     },
     /// 更新记录
@@ -56,6 +60,7 @@ pub enum DatabaseOperation {
         table: String,
         conditions: Vec<QueryCondition>,
         data: HashMap<String, DataValue>,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
     /// 使用操作数组更新记录
@@ -63,6 +68,7 @@ pub enum DatabaseOperation {
         table: String,
         conditions: Vec<QueryCondition>,
         operations: Vec<crate::types::UpdateOperation>,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
     /// 根据ID更新记录
@@ -70,6 +76,7 @@ pub enum DatabaseOperation {
         table: String,
         id: DataValue,
         data: HashMap<String, DataValue>,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<bool>>,
     },
     /// 删除记录
@@ -101,6 +108,7 @@ pub enum DatabaseOperation {
         table: String,
         fields: HashMap<String, FieldDefinition>,
         id_strategy: IdStrategy,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<()>>,
     },
     /// 创建索引

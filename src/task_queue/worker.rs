@@ -256,6 +256,7 @@ impl TaskWorker {
             table: table.to_string(),
             data,
             id_strategy: pool.db_config.id_strategy.clone(),
+            alias: pool.db_config.alias.clone(),
             response: tx,
         };
         
@@ -287,6 +288,7 @@ impl TaskWorker {
             table: table.to_string(),
             conditions,
             options: options.unwrap_or_default(),
+            alias: pool.db_config.alias.clone(),
             response: tx,
         };
 
@@ -316,6 +318,7 @@ impl TaskWorker {
             table: table.to_string(),
             condition_groups,
             options: options.unwrap_or_default(),
+            alias: pool.db_config.alias.clone(),
             response: tx,
         };
 
@@ -344,6 +347,7 @@ impl TaskWorker {
         let operation = DatabaseOperation::FindById {
             table: table.to_string(),
             id: DataValue::String(id.to_string()),
+            alias: pool.db_config.alias.clone(),
             response: tx,
         };
         
@@ -374,6 +378,7 @@ impl TaskWorker {
             table: table.to_string(),
             conditions,
             data,
+            alias: pool.db_config.alias.clone(),
             response: tx,
         };
         
@@ -404,6 +409,7 @@ impl TaskWorker {
             table: table.to_string(),
             id: DataValue::String(id.to_string()),
             data,
+            alias: pool.db_config.alias.clone(),
             response: tx,
         };
         
@@ -549,6 +555,7 @@ impl TaskWorker {
                 table: table.to_string(),
                 data,
                 id_strategy: pool.db_config.id_strategy.clone(),
+                alias: pool.db_config.alias.clone(),
                 response: tx,
             };
             
@@ -585,6 +592,7 @@ impl TaskWorker {
                 table: table.to_string(),
                 conditions,
                 data,
+                alias: pool.db_config.alias.clone(),
                 response: tx,
             };
             

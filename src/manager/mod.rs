@@ -108,8 +108,14 @@ pub fn register_model(model_meta: ModelMeta) -> QuickDbResult<()> {
 }
 
 /// 便捷函数 - 获取模型元数据
+#[deprecated(note = "使用 get_model(collection_name, alias) 替代")]
 pub fn get_model(collection_name: &str) -> Option<ModelMeta> {
     get_global_pool_manager().get_model(collection_name)
+}
+
+/// 便捷函数 - 获取带别名的模型元数据
+pub fn get_model_with_alias(collection_name: &str, alias: &str) -> Option<ModelMeta> {
+    get_global_pool_manager().get_model_with_alias(collection_name, alias)
 }
 
 /// 便捷函数 - 检查模型是否已注册

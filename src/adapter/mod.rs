@@ -46,6 +46,7 @@ pub trait DatabaseAdapter: Send + Sync {
         table: &str,
         data: &HashMap<String, DataValue>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<DataValue>;
 
     /// 根据ID查找记录
@@ -54,6 +55,7 @@ pub trait DatabaseAdapter: Send + Sync {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<Option<DataValue>>;
 
     /// 查找记录
@@ -63,6 +65,7 @@ pub trait DatabaseAdapter: Send + Sync {
         table: &str,
         conditions: &[QueryCondition],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>>;
 
     /// 使用条件组合查找记录（支持OR逻辑）
@@ -72,6 +75,7 @@ pub trait DatabaseAdapter: Send + Sync {
         table: &str,
         condition_groups: &[QueryConditionGroup],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>>;
 
     /// 更新记录
@@ -81,6 +85,7 @@ pub trait DatabaseAdapter: Send + Sync {
         table: &str,
         conditions: &[QueryCondition],
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<u64>;
 
     /// 使用操作数组更新记录
@@ -90,6 +95,7 @@ pub trait DatabaseAdapter: Send + Sync {
         table: &str,
         conditions: &[QueryCondition],
         operations: &[crate::types::UpdateOperation],
+        alias: &str,
     ) -> QuickDbResult<u64>;
 
     /// 根据ID更新记录
@@ -99,6 +105,7 @@ pub trait DatabaseAdapter: Send + Sync {
         table: &str,
         id: &DataValue,
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<bool>;
 
     /// 删除记录
@@ -140,6 +147,7 @@ pub trait DatabaseAdapter: Send + Sync {
         table: &str,
         fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<()>;
 
     /// 创建索引

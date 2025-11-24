@@ -244,6 +244,7 @@ impl ConnectionPool {
             table: table.to_string(),
             data: data.clone(),
             id_strategy: id_strategy.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         
@@ -269,6 +270,7 @@ impl ConnectionPool {
         let operation = DatabaseOperation::FindById {
             table: table.to_string(),
             id: id.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         
@@ -296,6 +298,7 @@ impl ConnectionPool {
             table: table.to_string(),
             conditions: conditions.to_vec(),
             options: options.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         
@@ -323,6 +326,7 @@ impl ConnectionPool {
             table: table.to_string(),
             conditions: conditions.to_vec(),
             data: data.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         
@@ -350,6 +354,7 @@ impl ConnectionPool {
             table: table.to_string(),
             id: id.clone(),
             data: data.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         
@@ -477,6 +482,7 @@ impl ConnectionPool {
             table: table.to_string(),
             fields: fields.clone(),
             id_strategy: id_strategy.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         

@@ -40,6 +40,7 @@ impl AsyncOdmManager {
         let operation = DatabaseOperation::FindById {
             table: collection.to_string(),
             id: DataValue::String(id.to_string()),
+            alias: actual_alias.clone(),
             response: response_tx,
         };
         
@@ -88,6 +89,7 @@ impl AsyncOdmManager {
             table: collection.to_string(),
             conditions,
             options: options.unwrap_or_default(),
+            alias: actual_alias.clone(),
             response: response_tx,
         };
         
@@ -136,6 +138,7 @@ impl AsyncOdmManager {
             table: collection.to_string(),
             condition_groups,
             options: options.unwrap_or_default(),
+            alias: actual_alias.clone(),
             response: response_tx,
         };
         

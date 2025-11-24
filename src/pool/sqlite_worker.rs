@@ -243,38 +243,38 @@ impl SqliteWorker {
         
         // 执行数据库操作，使用 Result 来处理错误而不是 panic 捕获
         let operation_result = match operation {
-            DatabaseOperation::Create { table, data, id_strategy, response } => {
-                let result = self.adapter.create(&self.connection, &table, &data, &id_strategy).await;
+            DatabaseOperation::Create { table, data, id_strategy, alias, response } => {
+                let result = self.adapter.create(&self.connection, &table, &data, &id_strategy, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::FindById { table, id, response } => {
-                let result = self.adapter.find_by_id(&self.connection, &table, &id).await;
+            DatabaseOperation::FindById { table, id, alias, response } => {
+                let result = self.adapter.find_by_id(&self.connection, &table, &id, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::Find { table, conditions, options, response } => {
-                let result = self.adapter.find(&self.connection, &table, &conditions, &options).await;
+            DatabaseOperation::Find { table, conditions, options, alias, response } => {
+                let result = self.adapter.find(&self.connection, &table, &conditions, &options, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::FindWithGroups { table, condition_groups, options, response } => {
-                let result = self.adapter.find_with_groups(&self.connection, &table, &condition_groups, &options).await;
+            DatabaseOperation::FindWithGroups { table, condition_groups, options, alias, response } => {
+                let result = self.adapter.find_with_groups(&self.connection, &table, &condition_groups, &options, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::Update { table, conditions, data, response } => {
-                let result = self.adapter.update(&self.connection, &table, &conditions, &data).await;
+            DatabaseOperation::Update { table, conditions, data, alias, response } => {
+                let result = self.adapter.update(&self.connection, &table, &conditions, &data, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::UpdateWithOperations { table, conditions, operations, response } => {
-                let result = self.adapter.update_with_operations(&self.connection, &table, &conditions, &operations).await;
+            DatabaseOperation::UpdateWithOperations { table, conditions, operations, alias, response } => {
+                let result = self.adapter.update_with_operations(&self.connection, &table, &conditions, &operations, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::UpdateById { table, id, data, response } => {
-                let result = self.adapter.update_by_id(&self.connection, &table, &id, &data).await;
+            DatabaseOperation::UpdateById { table, id, data, alias, response } => {
+                let result = self.adapter.update_by_id(&self.connection, &table, &id, &data, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
@@ -298,8 +298,8 @@ impl SqliteWorker {
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::CreateTable { table, fields, id_strategy, response } => {
-                let result = self.adapter.create_table(&self.connection, &table, &fields, &id_strategy).await;
+            DatabaseOperation::CreateTable { table, fields, id_strategy, alias, response } => {
+                let result = self.adapter.create_table(&self.connection, &table, &fields, &id_strategy, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
