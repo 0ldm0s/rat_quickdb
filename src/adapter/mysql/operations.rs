@@ -24,6 +24,7 @@ impl DatabaseAdapter for MysqlAdapter {
         table: &str,
         data: &HashMap<String, DataValue>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::MySQL(pool) = connection {
             // 自动建表逻辑：检查表是否存在，如果不存在则创建
@@ -33,11 +34,11 @@ impl DatabaseAdapter for MysqlAdapter {
                 // 再次检查表是否存在（双重检查锁定模式）
                 if !self.table_exists(connection, table).await? {
                     // 尝试从模型管理器获取预定义的元数据
-                    if let Some(model_meta) = manager::get_model(table) {
+                    if let Some(model_meta) = manager::get_model_with_alias(table, alias) {
                         debug!("表 {} 不存在，使用预定义模型元数据创建", table);
 
                         // 使用模型元数据创建表
-                        self.create_table(connection, table, &model_meta.fields, id_strategy).await?;
+                        self.create_table(connection, table, &model_meta.fields, id_strategy, alias).await?;
                         // 等待100ms确保数据库事务完全提交
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                         debug!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
@@ -178,6 +179,7 @@ impl DatabaseAdapter for MysqlAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<Option<DataValue>> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let condition = QueryCondition {
@@ -209,6 +211,7 @@ impl DatabaseAdapter for MysqlAdapter {
         table: &str,
         conditions: &[QueryCondition],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         // 将简单条件转换为条件组合（AND逻辑）
         let condition_groups = if conditions.is_empty() {
@@ -224,7 +227,7 @@ impl DatabaseAdapter for MysqlAdapter {
         };
         
         // 统一使用 find_with_groups 实现
-        self.find_with_groups(connection, table, &condition_groups, options).await
+        self.find_with_groups(connection, table, &condition_groups, options, alias).await
     }
 
     /// MySQL条件组合查找操作
@@ -234,6 +237,7 @@ impl DatabaseAdapter for MysqlAdapter {
         table: &str,
         condition_groups: &[QueryConditionGroup],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let mut builder = SqlQueryBuilder::new()
@@ -271,6 +275,7 @@ impl DatabaseAdapter for MysqlAdapter {
         table: &str,
         conditions: &[QueryCondition],
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let (sql, params) = SqlQueryBuilder::new()
@@ -295,6 +300,7 @@ impl DatabaseAdapter for MysqlAdapter {
         table: &str,
         id: &DataValue,
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<bool> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let condition = QueryCondition {
@@ -326,6 +332,7 @@ impl DatabaseAdapter for MysqlAdapter {
         table: &str,
         conditions: &[QueryCondition],
         operations: &[crate::types::UpdateOperation],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let mut set_clauses = Vec::new();
@@ -435,8 +442,9 @@ impl DatabaseAdapter for MysqlAdapter {
         table: &str,
         fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<()> {
-        mysql_schema::create_table(self, connection, table, fields, id_strategy).await
+        mysql_schema::create_table(self, connection, table, fields, id_strategy, alias).await
     }
 
     async fn create_index(
@@ -499,7 +507,7 @@ impl DatabaseAdapter for MysqlAdapter {
                 let id_strategy = crate::manager::get_id_strategy(&config.database)
                     .unwrap_or(IdStrategy::AutoIncrement);
 
-                self.create_table(connection, table_name, &model_meta.fields, &id_strategy).await?;
+                self.create_table(connection, table_name, &model_meta.fields, &id_strategy, &config.database).await?;
             }
         }
 
