@@ -11,10 +11,10 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use rat_logger::{LoggerBuilder, handler::term::TermConfig, debug};
 
-// 定义用户模型
+// 定义缓存数据库用户模型
 define_model! {
-    /// 用户模型
-    struct User {
+    /// 用户模型（缓存版本）
+    struct CachedUser {
         id: String,
         name: String,
         email: String,
@@ -22,6 +22,34 @@ define_model! {
         created_at: chrono::DateTime<chrono::Utc>,
     }
     collection = "users",
+    database = "cached_db",
+    fields = {
+        id: uuid_field().required().unique(),
+        name: string_field(Some(100), Some(1), None).required(),
+        email: string_field(Some(255), Some(1), None).required(),
+        age: integer_field(Some(0), Some(150)).required(),
+        created_at: datetime_field().required(),
+    }
+    indexes = [
+        { fields: ["name"], unique: false, name: "idx_name" },
+        { fields: ["age"], unique: false, name: "idx_age" },
+        { fields: ["email"], unique: true, name: "idx_email" },
+        { fields: ["created_at"], unique: false, name: "idx_created_at" },
+    ],
+}
+
+// 定义非缓存数据库用户模型
+define_model! {
+    /// 用户模型（非缓存版本）
+    struct NonCachedUser {
+        id: String,
+        name: String,
+        email: String,
+        age: i32,
+        created_at: chrono::DateTime<chrono::Utc>,
+    }
+    collection = "users",
+    database = "non_cached_db",
     fields = {
         id: uuid_field().required().unique(),
         name: string_field(Some(100), Some(1), None).required(),
@@ -161,7 +189,7 @@ impl PgCachePerformanceTest {
                 port: 5432,
                 database: "testdb".to_string(),
                 username: "testdb".to_string(),
-                password: "testdb123456".to_string(),
+                password: "testdb".to_string(),
                 ssl_mode: Some("prefer".to_string()),
                 tls_config: Some(rat_quickdb::types::TlsConfig {
                     enabled: true,
@@ -202,7 +230,7 @@ impl PgCachePerformanceTest {
                 port: 5432,
                 database: "testdb".to_string(),
                 username: "testdb".to_string(),
-                password: "testdb123456".to_string(),
+                password: "testdb".to_string(),
                 ssl_mode: Some("prefer".to_string()),
                 tls_config: Some(rat_quickdb::types::TlsConfig {
                     enabled: true,
@@ -268,7 +296,7 @@ impl PgCachePerformanceTest {
         ];
 
         // 批量用户数据 - 缓存数据库 - 自动生成ID
-        let batch_cached_users: Vec<User> = (6..=25)
+        let batch_cached_users: Vec<CachedUser> = (6..=25)
             .map(|i| self.create_user(
                 &format!("批量用户{}", i),
                 &format!("batch{}_cached@example.com", i),
@@ -278,16 +306,16 @@ impl PgCachePerformanceTest {
 
         // 非缓存数据库的用户数据（相同数据，用于性能对比）
         let non_cached_users = vec![
-            self.create_user("张三", "zhangsan_non_cached@example.com", 25),
-            self.create_user("李四", "lisi_non_cached@example.com", 30),
-            self.create_user("王五", "wangwu_non_cached@example.com", 28),
-            self.create_user("赵六", "zhaoliu_non_cached@example.com", 35),
-            self.create_user("钱七", "qianqi_non_cached@example.com", 22),
+            self.create_non_cached_user("张三", "zhangsan_non_cached@example.com", 25),
+            self.create_non_cached_user("李四", "lisi_non_cached@example.com", 30),
+            self.create_non_cached_user("王五", "wangwu_non_cached@example.com", 28),
+            self.create_non_cached_user("赵六", "zhaoliu_non_cached@example.com", 35),
+            self.create_non_cached_user("钱七", "qianqi_non_cached@example.com", 22),
         ];
 
         // 批量用户数据 - 非缓存数据库 - 自动生成ID
-        let batch_non_cached_users: Vec<User> = (26..=45)
-            .map(|i| self.create_user(
+        let batch_non_cached_users: Vec<NonCachedUser> = (26..=45)
+            .map(|i| self.create_non_cached_user(
                 &format!("批量用户{}", i),
                 &format!("batch{}_non_cached@example.com", i),
                 (20 + (i % 30)) as i32,
@@ -304,7 +332,11 @@ impl PgCachePerformanceTest {
 
         println!("  创建测试数据到非缓存数据库...");
         set_default_alias("non_cached_db").await?;
-        for user in non_cached_users.iter().chain(batch_non_cached_users.iter()) {
+        for user in non_cached_users.iter() {
+            let mut user_clone = user.clone();
+            user_clone.save().await?;
+        }
+        for user in batch_non_cached_users.iter() {
             let mut user_clone = user.clone();
             user_clone.save().await?;
         }
@@ -316,9 +348,20 @@ impl PgCachePerformanceTest {
     }
 
     /// 创建用户数据（自动生成ID）
-    fn create_user(&self, name: &str, email: &str, age: i32) -> User {
-        User {
-            id: String::new(), // 传入空字符串，让底层ID生成器自动生成
+    fn create_user(&self, name: &str, email: &str, age: i32) -> CachedUser {
+        CachedUser {
+            id: String::new(), // 框架会自动生成UUID
+            name: name.to_string(),
+            email: email.to_string(),
+            age,
+            created_at: chrono::Utc::now(),
+        }
+    }
+
+    /// 创建非缓存用户数据
+    fn create_non_cached_user(&self, name: &str, email: &str, age: i32) -> NonCachedUser {
+        NonCachedUser {
+            id: String::new(), // 框架会自动生成UUID
             name: name.to_string(),
             email: email.to_string(),
             age,
@@ -343,7 +386,7 @@ impl PgCachePerformanceTest {
         ];
 
         // 预热查询 - 按年龄查询
-        let _result = ModelManager::<User>::find(conditions, None).await?;
+        let _result = ModelManager::<CachedUser>::find(conditions, None).await?;
 
         // 按姓名查询预热（避免使用ID，因为PostgreSQL使用AutoIncrement）
         let name_conditions = vec![
@@ -353,7 +396,7 @@ impl PgCachePerformanceTest {
                 value: DataValue::String("张三".to_string()),
             }
         ];
-        let _result = ModelManager::<User>::find(name_conditions, None).await?;
+        let _result = ModelManager::<CachedUser>::find(name_conditions, None).await?;
 
         // 按邮箱查询预热
         let email_conditions = vec![
@@ -363,7 +406,7 @@ impl PgCachePerformanceTest {
                 value: DataValue::String("zhangsan_cached@example.com".to_string()),
             }
         ];
-        let _result = ModelManager::<User>::find(email_conditions, None).await?;
+        let _result = ModelManager::<CachedUser>::find(email_conditions, None).await?;
 
         println!("  ✅ 缓存预热完成");
         Ok(())
@@ -384,12 +427,12 @@ impl PgCachePerformanceTest {
         // 第一次查询（冷启动，从数据库读取）
         set_default_alias("cached_db").await?;
         let start = Instant::now();
-        let _result1 = ModelManager::<User>::find(conditions.clone(), None).await?;
+        let _result1 = ModelManager::<CachedUser>::find(conditions.clone(), None).await?;
         let first_query_duration = start.elapsed();
 
         // 第二次查询（缓存命中）
         let start = Instant::now();
-        let _result2 = ModelManager::<User>::find(conditions, None).await?;
+        let _result2 = ModelManager::<CachedUser>::find(conditions, None).await?;
         let cached_duration = start.elapsed();
 
         let result = PerformanceResult::new(
@@ -424,7 +467,7 @@ impl PgCachePerformanceTest {
         set_default_alias("non_cached_db").await?;
         let start = Instant::now();
         for _ in 0..query_count {
-            let _result = ModelManager::<User>::find(conditions.clone(), None).await?;
+            let _result = ModelManager::<NonCachedUser>::find(conditions.clone(), None).await?;
             // 短暂延迟以模拟真实场景
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
@@ -432,12 +475,12 @@ impl PgCachePerformanceTest {
 
         // 首次查询（建立缓存）
         set_default_alias("cached_db").await?;
-        let _result = ModelManager::<User>::find(conditions.clone(), None).await?;
+        let _result = ModelManager::<CachedUser>::find(conditions.clone(), None).await?;
 
         // 测试重复查询（应该从缓存读取）
         let start = Instant::now();
         for _ in 0..query_count {
-            let _result = ModelManager::<User>::find(conditions.clone(), None).await?;
+            let _result = ModelManager::<CachedUser>::find(conditions.clone(), None).await?;
             // 短暂延迟以模拟真实场景
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
@@ -480,7 +523,7 @@ impl PgCachePerformanceTest {
         // 首次批量查询（建立缓存）
         set_default_alias("cached_db").await?;
         println!("  🔍 批量查询前检查: 找到 {} 个名为'张三'的用户",
-                 ModelManager::<User>::find(vec![
+                 ModelManager::<CachedUser>::find(vec![
                      QueryCondition {
                          field: "name".to_string(),
                          operator: QueryOperator::Eq,
@@ -497,7 +540,7 @@ impl PgCachePerformanceTest {
                     value: DataValue::String(email.to_string()),
                 }
             ];
-            let _result = ModelManager::<User>::find(conditions, None).await?;
+            let _result = ModelManager::<CachedUser>::find(conditions, None).await?;
         }
         let first_batch_duration = start.elapsed();
 
@@ -511,7 +554,7 @@ impl PgCachePerformanceTest {
                     value: DataValue::String(email.to_string()),
                 }
             ];
-            let _result = ModelManager::<User>::find(conditions, None).await?;
+            let _result = ModelManager::<CachedUser>::find(conditions, None).await?;
         }
         let cached_duration = start.elapsed();
 
@@ -533,7 +576,7 @@ impl PgCachePerformanceTest {
                 value: DataValue::String("张三".to_string()),
             }
         ];
-        let zhangsan_check = ModelManager::<User>::find(zhangsan_conditions, None).await?;
+        let zhangsan_check = ModelManager::<CachedUser>::find(zhangsan_conditions, None).await?;
         println!("  🔍 批量查询后检查: 找到 {} 个名为'张三'的用户", zhangsan_check.len());
 
         self.results.push(result);
@@ -554,7 +597,7 @@ impl PgCachePerformanceTest {
 
         // 查找要更新的用户
         set_default_alias("cached_db").await?;
-        let users = ModelManager::<User>::find(conditions.clone(), None).await?;
+        let users = ModelManager::<CachedUser>::find(conditions.clone(), None).await?;
         println!("  🔍 更新测试: 找到 {} 个名为'张三'的用户", users.len());
         if let Some(user) = users.first() {
             println!("  🔍 更新测试: 找到用户 ID: {:?}", user.id);

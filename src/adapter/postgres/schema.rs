@@ -16,6 +16,7 @@ pub(crate) async fn create_table(
     table: &str,
     fields: &HashMap<String, FieldDefinition>,
     id_strategy: &IdStrategy,
+    alias: &str,
 ) -> QuickDbResult<()> {
     if let DatabaseConnection::PostgreSQL(pool) = connection {
         let mut field_definitions = Vec::new();
