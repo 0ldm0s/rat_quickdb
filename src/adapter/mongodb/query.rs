@@ -15,6 +15,7 @@ pub(crate) async fn find_by_id(
     connection: &DatabaseConnection,
     table: &str,
     id: &DataValue,
+    alias: &str,
 ) -> QuickDbResult<Option<DataValue>> {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = crate::adapter::mongodb::utils::get_collection(adapter, db, table);
@@ -67,6 +68,7 @@ pub(crate) async fn find_by_id(
     table: &str,
     conditions: &[QueryCondition],
     options: &QueryOptions,
+    alias: &str,
 ) -> QuickDbResult<Vec<DataValue>> {
         // 将简单条件转换为条件组合（AND逻辑）
         let condition_groups = if conditions.is_empty() {
@@ -82,7 +84,7 @@ pub(crate) async fn find_by_id(
         };
         
         // 统一使用 find_with_groups 实现
-        find_with_groups(adapter, connection, table, &condition_groups, options).await
+        find_with_groups(adapter, connection, table, &condition_groups, options, alias).await
     }
 
     pub(crate) async fn find_with_groups(
@@ -91,6 +93,7 @@ pub(crate) async fn find_by_id(
     table: &str,
     condition_groups: &[QueryConditionGroup],
     options: &QueryOptions,
+    alias: &str,
 ) -> QuickDbResult<Vec<DataValue>> {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = crate::adapter::mongodb::utils::get_collection(adapter, db, table);

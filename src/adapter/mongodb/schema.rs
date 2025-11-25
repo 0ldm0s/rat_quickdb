@@ -15,6 +15,7 @@ pub(crate) async fn create_table(
     table: &str,
     _fields: &HashMap<String, FieldDefinition>,
     _id_strategy: &IdStrategy,
+    alias: &str,
 ) -> QuickDbResult<()> {
         if let DatabaseConnection::MongoDB(db) = connection {
             // MongoDB是无模式的，集合会在第一次插入时自动创建
