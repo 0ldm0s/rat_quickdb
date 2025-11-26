@@ -2,6 +2,8 @@
 
 use crate::adapter::MongoAdapter;
 use crate::adapter::DatabaseAdapter;
+use crate::adapter::mongodb::query_builder::{MongoQueryBuilder, build_query_document};
+use crate::adapter::mongodb::utils::build_update_document;
 use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
@@ -225,7 +227,7 @@ impl DatabaseAdapter for MongoAdapter {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = mongodb_utils::get_collection(self, db, table);
 
-            let query = mongodb_utils::build_query_document(self, conditions)?;
+            let query = build_query_document(table, alias, conditions)?;
             let update = mongodb_utils::build_update_document(self, data);
 
             debug!("执行MongoDB更新: 查询={:?}, 更新={:?}", query, update);
@@ -273,7 +275,7 @@ impl DatabaseAdapter for MongoAdapter {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = mongodb_utils::get_collection(self, db, table);
 
-            let query = mongodb_utils::build_query_document(self, conditions)?;
+            let query = build_query_document(table, alias, conditions)?;
             let mut update_doc = Document::new();
 
             let mut set_doc = Document::new();
@@ -408,11 +410,12 @@ impl DatabaseAdapter for MongoAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = mongodb_utils::get_collection(self, db, table);
 
-            let query = mongodb_utils::build_query_document(self, conditions)?;
+            let query = build_query_document(table, alias, conditions)?;
 
             debug!("执行MongoDB删除: {:?}", query);
 
@@ -435,6 +438,7 @@ impl DatabaseAdapter for MongoAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<bool> {
         let conditions = vec![QueryCondition {
             field: "_id".to_string(), // MongoDB使用_id作为主键
@@ -442,7 +446,7 @@ impl DatabaseAdapter for MongoAdapter {
             value: id.clone(),
         }];
 
-        let affected = self.delete(connection, table, &conditions).await?;
+        let affected = self.delete(connection, table, &conditions, alias).await?;
         Ok(affected > 0)
     }
 
@@ -453,7 +457,7 @@ impl DatabaseAdapter for MongoAdapter {
         conditions: &[QueryCondition],
         alias: &str,
     ) -> QuickDbResult<u64> {
-        mongodb_query::count(self, connection, table, conditions).await
+        mongodb_query::count(self, connection, table, conditions, alias).await
     }
 
     

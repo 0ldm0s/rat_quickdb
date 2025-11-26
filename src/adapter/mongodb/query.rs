@@ -98,7 +98,9 @@ pub(crate) async fn find_by_id(
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = crate::adapter::mongodb::utils::get_collection(adapter, db, table);
             
-            let query = crate::adapter::mongodb::utils::build_condition_groups_document(adapter, condition_groups)?;
+            let query = crate::adapter::mongodb::query_builder::MongoQueryBuilder::new()
+            .where_condition_groups(condition_groups)
+            .build(table, alias)?;
             
             debug!("执行MongoDB条件组合查询: {:?}", query);
             
@@ -153,11 +155,12 @@ pub(crate) async fn find_by_id(
     connection: &DatabaseConnection,
     table: &str,
     conditions: &[QueryCondition],
+    alias: &str,
 ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = crate::adapter::mongodb::utils::get_collection(adapter, db, table);
             
-            let query = crate::adapter::mongodb::utils::build_query_document(adapter, conditions)?;
+            let query = crate::adapter::mongodb::query_builder::build_query_document(table, alias, conditions)?;
             
             debug!("执行MongoDB计数: {:?}", query);
             

@@ -11,6 +11,7 @@ pub mod adapter;
 pub mod operations;
 pub mod utils;
 pub mod query;
+pub mod query_builder;
 pub mod schema;
 
 // 重新导出核心类型
