@@ -3,7 +3,7 @@
 use crate::adapter::MysqlAdapter;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::{DataValue, QueryCondition, QueryConditionGroup, LogicalOperator, QueryOperator};
-use crate::adapter::query_builder::SqlQueryBuilder;
+use crate::adapter::mysql::query_builder::SqlQueryBuilder;
 use async_trait::async_trait;
 use rat_logger::{debug, warn, error};
 use std::collections::HashMap;

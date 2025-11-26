@@ -2,7 +2,7 @@
 
 use crate::adapter::MysqlAdapter;
 use crate::adapter::DatabaseAdapter;
-use crate::adapter::query_builder::SqlQueryBuilder;
+use crate::adapter::mysql::query_builder::SqlQueryBuilder;
 use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
@@ -55,10 +55,8 @@ impl DatabaseAdapter for MysqlAdapter {
             }
             
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::MySQL)
                 .insert(data.clone())
-                .from(table)
-                .build()?;
+                .build(table, alias)?;
 
             debug!("生成的INSERT SQL: {}", sql);
             debug!("绑定参数: {:?}", params);
@@ -75,11 +73,11 @@ impl DatabaseAdapter for MysqlAdapter {
                 for param in &params {
                     query = match param {
                         DataValue::String(s) => query.bind(s),
-                        DataValue::Int(i) => query.bind(*i),
-                        DataValue::Float(f) => query.bind(*f),
-                        DataValue::Bool(b) => query.bind(*b),
-                        DataValue::DateTime(dt) => query.bind(*dt),
-                        DataValue::Uuid(uuid) => query.bind(*uuid),
+                        DataValue::Int(i) => query.bind(i),
+                        DataValue::Float(f) => query.bind(f),
+                        DataValue::Bool(b) => query.bind(b),
+                        DataValue::DateTime(dt) => query.bind(dt),
+                        DataValue::Uuid(uuid) => query.bind(uuid),
                         DataValue::Json(json) => query.bind(json.to_string()),
                         DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
                         DataValue::Null => query.bind(Option::<String>::None),
@@ -189,12 +187,10 @@ impl DatabaseAdapter for MysqlAdapter {
             };
             
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::MySQL)
                 .select(&["*"])
-                .from(table)
                 .where_condition(condition)
                 .limit(1)
-                .build()?;
+                .build(table, alias)?;
             
             let results = self.execute_query(pool, &sql, &params).await?;
             Ok(results.into_iter().next())
@@ -241,9 +237,7 @@ impl DatabaseAdapter for MysqlAdapter {
     ) -> QuickDbResult<Vec<DataValue>> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let mut builder = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::MySQL)
                 .select(&["*"])
-                .from(table)
                 .where_condition_groups(condition_groups);
             
             // 添加排序
@@ -256,7 +250,7 @@ impl DatabaseAdapter for MysqlAdapter {
                 builder = builder.limit(pagination.limit).offset(pagination.skip);
             }
             
-            let (sql, params) = builder.build()?;
+            let (sql, params) = builder.build(table, alias)?;
             
             debug!("执行MySQL条件组合查询: {}", sql);
 
@@ -279,11 +273,9 @@ impl DatabaseAdapter for MysqlAdapter {
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::MySQL)
                 .update(data.clone())
-                .from(table)
                 .where_conditions(conditions)
-                .build()?;
+                .build(table, alias)?;
 
             self.execute_update(pool, &sql, &params).await
         } else {
@@ -310,11 +302,9 @@ impl DatabaseAdapter for MysqlAdapter {
             };
             
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::MySQL)
                 .update(data.clone())
-                .from(table)
                 .where_condition(condition)
-                .build()?;
+                .build(table, alias)?;
 
             let affected_rows = self.execute_update(pool, &sql, &params).await?;
             Ok(affected_rows > 0)
@@ -383,8 +373,7 @@ impl DatabaseAdapter for MysqlAdapter {
             // 添加WHERE条件
             if !conditions.is_empty() {
                 let (where_clause, mut where_params) = SqlQueryBuilder::new()
-                    .database_type(crate::types::DatabaseType::MySQL)
-                    .build_where_clause_with_offset(conditions, params.len() + 1)?;
+                    .build_where_clause_with_offset(conditions, params.len() + 1, table, alias)?;
 
                 sql.push_str(&format!(" WHERE {}", where_clause));
                 params.extend(where_params);
@@ -405,8 +394,9 @@ impl DatabaseAdapter for MysqlAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
-        mysql_query::delete(self, connection, table, conditions).await
+        mysql_query::delete(self, connection, table, conditions, alias).await
     }
 
     async fn delete_by_id(
@@ -414,8 +404,9 @@ impl DatabaseAdapter for MysqlAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<bool> {
-        mysql_query::delete_by_id(self, connection, table, id).await
+        mysql_query::delete_by_id(self, connection, table, id, alias).await
     }
 
     async fn count(
@@ -425,7 +416,7 @@ impl DatabaseAdapter for MysqlAdapter {
         conditions: &[QueryCondition],
         alias: &str,
     ) -> QuickDbResult<u64> {
-        mysql_query::count(self, connection, table, conditions).await
+        mysql_query::count(self, connection, table, conditions, alias).await
     }
 
     
