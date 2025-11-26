@@ -144,19 +144,7 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         ).await
     }
 
-    async fn exists(conditions: Vec<QueryCondition>) -> QuickDbResult<bool> {
-        let collection_name = T::collection_name();
-        let database_alias = T::database_alias();
-
-        debug!("检查模型是否存在: collection={}", collection_name);
-
-        odm::exists(
-            &collection_name,
-            conditions,
-            database_alias.as_deref(),
-        ).await
-    }
-
+    
     async fn find_with_groups(condition_groups: Vec<QueryConditionGroup>, options: Option<QueryOptions>) -> QuickDbResult<Vec<T>> {
         let collection_name = T::collection_name();
         let database_alias = T::database_alias();

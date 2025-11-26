@@ -94,14 +94,7 @@ pub trait OdmOperations {
         alias: Option<&str>,
     ) -> QuickDbResult<u64>;
     
-    /// 检查记录是否存在
-    async fn exists(
-        &self,
-        collection: &str,
-        conditions: Vec<QueryCondition>,
-        alias: Option<&str>,
-    ) -> QuickDbResult<bool>;
-
+    
     /// 获取数据库服务器版本信息
     async fn get_server_version(
         &self,

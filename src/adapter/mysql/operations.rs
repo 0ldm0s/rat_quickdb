@@ -423,19 +423,12 @@ impl DatabaseAdapter for MysqlAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         mysql_query::count(self, connection, table, conditions).await
     }
 
-    async fn exists(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool> {
-        mysql_query::exists(self, connection, table, conditions).await
-    }
-
+    
     async fn create_table(
         &self,
         connection: &DatabaseConnection,

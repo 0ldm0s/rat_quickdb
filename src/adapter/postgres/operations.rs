@@ -377,19 +377,12 @@ impl DatabaseAdapter for PostgresAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         postgres_query::count(self, connection, table, conditions).await
     }
 
-    async fn exists(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool> {
-        postgres_query::exists(self, connection, table, conditions).await
-    }
-
+    
     async fn create_table(
         &self,
         connection: &DatabaseConnection,

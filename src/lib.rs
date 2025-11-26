@@ -18,7 +18,7 @@ pub mod model;
 pub mod serializer;
 pub mod adapter;
 pub mod config;
-pub mod task_queue;
+// pub mod task_queue;
 pub mod table;
 pub mod security;
 pub mod i18n;
@@ -29,9 +29,13 @@ pub mod join_macro;
 pub mod id_generator;
 pub mod stored_procedure;
 
+// 任务队列模块（仅在启用 python-bindings 特性时编译）
+// #[cfg(feature = "python-bindings")]
+// // pub mod task_queue;
+
 // Python API 模块（仅在启用 python-bindings 特性时编译）
-#[cfg(feature = "python-bindings")]
-pub mod python_api;
+// #[cfg(feature = "python-bindings")]
+// pub mod python_api;
 
 // 重新导出常用类型和函数
 pub use error::{QuickDbError, QuickDbResult};
@@ -59,10 +63,12 @@ pub use config::{
     Environment, LogLevel, sqlite_config, postgres_config, mysql_config,
     mongodb_config
 };
-pub use task_queue::{
-    TaskQueueManager, get_global_task_queue, initialize_global_task_queue, 
-    shutdown_global_task_queue
-};
+// 任务队列导出（仅在启用 python-bindings 特性时编译）
+// #[cfg(feature = "python-bindings")]
+// pub use task_queue::{
+//     TaskQueueManager, get_global_task_queue, initialize_global_task_queue,
+//     shutdown_global_task_queue
+// };
 pub use table::{TableManager, TableSchema, ColumnDefinition, ColumnType, IndexType};
 
 // 条件导出缓存相关类型
@@ -75,7 +81,7 @@ pub use id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 pub use stored_procedure::*;
 
 // ODM 操作函数改为内部公开，仅用于框架内部使用
-pub(crate) use odm::{create, find_by_id, find, find_with_groups, update, update_by_id, delete, delete_by_id, count, exists};
+pub(crate) use odm::{create, find_by_id, find, find_with_groups, update, update_by_id, delete, delete_by_id, count};
 pub(crate) use odm::{create_stored_procedure, execute_stored_procedure};
 
 // 保留有用的工具函数公开导出

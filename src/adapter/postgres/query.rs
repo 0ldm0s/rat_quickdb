@@ -84,13 +84,3 @@ pub(crate) async fn count(
     }
 }
 
-/// PostgreSQL存在检查操作
-pub(crate) async fn exists(
-    adapter: &PostgresAdapter,
-    connection: &DatabaseConnection,
-    table: &str,
-    conditions: &[QueryCondition],
-) -> QuickDbResult<bool> {
-    let count = count(adapter, connection, table, conditions).await?;
-    Ok(count > 0)
-}

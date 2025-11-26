@@ -300,23 +300,18 @@ impl MultiConnectionManager {
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::Delete { table, conditions, response } => {
-                let result = worker.adapter.delete(&worker.connection, &table, &conditions).await;
+            DatabaseOperation::Delete { table, conditions, alias, response } => {
+                let result = worker.adapter.delete(&worker.connection, &table, &conditions, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::DeleteById { table, id, response } => {
-                let result = worker.adapter.delete_by_id(&worker.connection, &table, &id).await;
+            DatabaseOperation::DeleteById { table, id, alias, response } => {
+                let result = worker.adapter.delete_by_id(&worker.connection, &table, &id, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::Count { table, conditions, response } => {
-                let result = worker.adapter.count(&worker.connection, &table, &conditions).await;
-                let _ = response.send(result);
-                Ok(())
-            },
-            DatabaseOperation::Exists { table, conditions, response } => {
-                let result = worker.adapter.exists(&worker.connection, &table, &conditions).await;
+            DatabaseOperation::Count { table, conditions, alias, response } => {
+                let result = worker.adapter.count(&worker.connection, &table, &conditions, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },

@@ -1,5 +1,5 @@
-use crate::adapter::SqliteAdapter;
-use crate::adapter::{DatabaseAdapter, SqlQueryBuilder};
+use crate::adapter::{DatabaseAdapter, SqliteAdapter};
+use super::SqlQueryBuilder;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
 use crate::pool::DatabaseConnection;
@@ -12,6 +12,7 @@ pub(crate) async fn delete(
     connection: &DatabaseConnection,
     table: &str,
     conditions: &[QueryCondition],
+    alias: &str,
 ) -> QuickDbResult<u64> {
     let pool = match connection {
         DatabaseConnection::SQLite(pool) => pool,
@@ -22,9 +23,8 @@ pub(crate) async fn delete(
     {
         let (sql, params) = SqlQueryBuilder::new()
             .delete()
-            .from(table)
             .where_conditions(conditions)
-            .build()?;
+            .build(table, alias)?;
 
         let mut query = sqlx::query(&sql);
         for param in &params {
@@ -52,6 +52,7 @@ pub(crate) async fn delete_by_id(
     connection: &DatabaseConnection,
     table: &str,
     id: &DataValue,
+    alias: &str,
 ) -> QuickDbResult<bool> {
     let condition = QueryCondition {
         field: "id".to_string(),
@@ -59,7 +60,7 @@ pub(crate) async fn delete_by_id(
         value: id.clone(),
     };
 
-    let affected_rows = delete(adapter, connection, table, &[condition]).await?;
+    let affected_rows = delete(adapter, connection, table, &[condition], alias).await?;
     Ok(affected_rows > 0)
 }
 
@@ -69,6 +70,7 @@ pub(crate) async fn count(
     connection: &DatabaseConnection,
     table: &str,
     conditions: &[QueryCondition],
+    alias: &str,
 ) -> QuickDbResult<u64> {
     let pool = match connection {
         DatabaseConnection::SQLite(pool) => pool,
@@ -79,9 +81,8 @@ pub(crate) async fn count(
     {
         let (sql, params) = SqlQueryBuilder::new()
             .select(&["COUNT(*) as count"])
-            .from(table)
             .where_conditions(conditions)
-            .build()?;
+            .build(table, alias)?;
 
         let mut query = sqlx::query(&sql);
         for param in &params {
@@ -108,13 +109,3 @@ pub(crate) async fn count(
     }
 }
 
-/// SQLite存在性检查操作
-pub(crate) async fn exists(
-    adapter: &SqliteAdapter,
-    connection: &DatabaseConnection,
-    table: &str,
-    conditions: &[QueryCondition],
-) -> QuickDbResult<bool> {
-    let count = count(adapter, connection, table, conditions).await?;
-    Ok(count > 0)
-}

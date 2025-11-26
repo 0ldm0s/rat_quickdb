@@ -175,13 +175,4 @@ pub(crate) async fn find_by_id(
         }
     }
 
-    pub(crate) async fn exists(
-    adapter: &MongoAdapter,
-    connection: &DatabaseConnection,
-    table: &str,
-    conditions: &[QueryCondition],
-) -> QuickDbResult<bool> {
-    let count = count(adapter, connection, table, conditions).await?;
-    Ok(count > 0)
-}
-
+    

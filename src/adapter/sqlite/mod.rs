@@ -8,6 +8,8 @@ pub mod utils;
 pub mod operations;
 pub mod query;
 pub mod schema;
+pub mod query_builder;
 
 // 重新导出主要的公共类型和结构体
 pub use adapter::SqliteAdapter;
+pub use query_builder::SqlQueryBuilder;

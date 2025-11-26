@@ -83,27 +83,24 @@ pub enum DatabaseOperation {
     Delete {
         table: String,
         conditions: Vec<QueryCondition>,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
     /// 根据ID删除记录
     DeleteById {
         table: String,
         id: DataValue,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<bool>>,
     },
     /// 统计记录
     Count {
         table: String,
         conditions: Vec<QueryCondition>,
+        alias: String,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
-    /// 检查存在
-    Exists {
-        table: String,
-        conditions: Vec<QueryCondition>,
-        response: oneshot::Sender<QuickDbResult<bool>>,
-    },
-    /// 创建表
+        /// 创建表
     CreateTable {
         table: String,
         fields: HashMap<String, FieldDefinition>,

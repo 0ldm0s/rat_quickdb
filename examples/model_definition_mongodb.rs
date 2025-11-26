@@ -1411,8 +1411,11 @@ async fn demonstrate_model_validation() -> QuickDbResult<()> {
         }
     ];
 
-    match ModelManager::<User>::exists(exists_conditions).await {
-        Ok(exists) => println!("✅ 用户名'{}'存在: {}", query_username, exists),
+    match ModelManager::<User>::count(exists_conditions).await {
+        Ok(count) => {
+            let exists = count > 0;
+            println!("✅ 用户名'{}'存在: {}", query_username, exists);
+        },
         Err(e) => println!("❌ 存在性检查失败: {}", e),
     }
 
@@ -1601,8 +1604,11 @@ async fn demonstrate_complex_queries() -> QuickDbResult<()> {
         }
     ];
 
-    match ModelManager::<User>::exists(exists_conditions).await {
-        Ok(exists) => println!("✅ 用户名'{}'存在: {}", first_test_username, exists),
+    match ModelManager::<User>::count(exists_conditions).await {
+        Ok(count) => {
+            let exists = count > 0;
+            println!("✅ 用户名'{}'存在: {}", first_test_username, exists);
+        },
         Err(e) => println!("❌ 存在性查询失败: {}", e),
     }
 

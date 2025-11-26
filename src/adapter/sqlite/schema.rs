@@ -1,5 +1,5 @@
-use crate::adapter::SqliteAdapter;
-use crate::adapter::{DatabaseAdapter, SqlQueryBuilder};
+use crate::adapter::{DatabaseAdapter, SqliteAdapter};
+use super::SqlQueryBuilder;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
 use crate::model::{FieldDefinition, FieldType};

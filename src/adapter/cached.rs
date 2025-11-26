@@ -263,9 +263,10 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         // 直接调用内部适配器删除记录
-        let result = self.inner.delete(connection, table, conditions).await;
+        let result = self.inner.delete(connection, table, conditions, alias).await;
         
         // 删除成功后智能清理相关缓存
         if let Ok(deleted_count) = result {
@@ -290,9 +291,10 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<bool> {
         // 直接调用内部适配器删除记录
-        let result = self.inner.delete_by_id(connection, table, id).await;
+        let result = self.inner.delete_by_id(connection, table, id, alias).await;
         
         // 删除成功后精确清理相关缓存
         if let Ok(true) = result {
@@ -328,20 +330,10 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         // 统计操作不缓存，直接调用内部适配器
-        self.inner.count(connection, table, conditions).await
-    }
-
-    /// 检查记录是否存在 - 直接调用内部适配器，不缓存存在性检查结果
-    async fn exists(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool> {
-        // 存在性检查不缓存，直接调用内部适配器
-        self.inner.exists(connection, table, conditions).await
+        self.inner.count(connection, table, conditions, alias).await
     }
 
     /// 创建表/集合 - 直接调用内部适配器

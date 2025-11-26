@@ -19,9 +19,9 @@ mod postgres;
 mod mysql;
 #[cfg(feature = "mongodb-support")]
 mod mongodb;
-mod query_builder;
 mod cached;
 mod postgres_utils;
+mod utils;
 
 // 条件导出适配器
 #[cfg(feature = "sqlite-support")]
@@ -32,9 +32,9 @@ pub use postgres::PostgresAdapter;
 pub use mysql::MysqlAdapter;
 #[cfg(feature = "mongodb-support")]
 pub use mongodb::MongoAdapter;
-pub use query_builder::*;
 pub use cached::CachedDatabaseAdapter;
 pub use postgres_utils::{build_json_query_condition, convert_to_jsonb_value};
+pub use utils::get_field_type;
 
 /// 数据库适配器trait，定义统一的数据库操作接口
 #[async_trait]
@@ -114,6 +114,7 @@ pub trait DatabaseAdapter: Send + Sync {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64>;
 
     /// 根据ID删除记录
@@ -122,6 +123,7 @@ pub trait DatabaseAdapter: Send + Sync {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<bool>;
 
     /// 统计记录数量
@@ -130,16 +132,10 @@ pub trait DatabaseAdapter: Send + Sync {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64>;
 
-    /// 检查记录是否存在
-    async fn exists(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool>;
-
+    
     /// 创建表/集合
     async fn create_table(
         &self,

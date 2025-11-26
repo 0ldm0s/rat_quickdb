@@ -40,6 +40,7 @@ impl AsyncOdmManager {
         let operation = DatabaseOperation::Delete {
             table: collection.to_string(),
             conditions,
+            alias: actual_alias.clone(),
             response: response_tx,
         };
         
@@ -88,6 +89,7 @@ impl AsyncOdmManager {
         let operation = DatabaseOperation::DeleteById {
             table: collection.to_string(),
             id: DataValue::String(id.to_string()),
+            alias: actual_alias.clone(),
             response: response_tx,
         };
         
@@ -136,6 +138,7 @@ impl AsyncOdmManager {
         let operation = DatabaseOperation::Count {
             table: collection.to_string(),
             conditions,
+            alias: actual_alias.clone(),
             response: response_tx,
         };
         
@@ -153,51 +156,7 @@ impl AsyncOdmManager {
         Ok(count)
     }
     
-    /// 处理存在性检查请求
-    #[doc(hidden)]
-    pub async fn handle_exists(
-        collection: &str,
-        conditions: Vec<QueryCondition>,
-        alias: Option<String>,
-    ) -> QuickDbResult<bool> {
-        let manager = get_global_pool_manager();
-        let actual_alias = match alias {
-            Some(a) => a,
-            None => {
-                manager.get_default_alias().await
-                    .unwrap_or_else(|| "default".to_string())
-            }
-        };
-        debug!("处理存在性检查请求: collection={}, alias={}", collection, actual_alias);
-        
-        let manager = get_global_pool_manager();
-        let connection_pools = manager.get_connection_pools();
-        let connection_pool = connection_pools.get(&actual_alias)
-            .ok_or_else(|| QuickDbError::AliasNotFound {
-                alias: actual_alias.clone(),
-            })?;
-        
-        // 使用生产者/消费者模式发送操作到连接池
-        let (response_tx, response_rx) = tokio::sync::oneshot::channel();
-        let operation = DatabaseOperation::Exists {
-            table: collection.to_string(),
-            conditions,
-            response: response_tx,
-        };
-
-        connection_pool.operation_sender.send(operation)
-            .map_err(|_| QuickDbError::ConnectionError {
-                message: "连接池操作通道已关闭".to_string(),
-            })?;
-
-        let result = response_rx.await
-            .map_err(|_| QuickDbError::ConnectionError {
-                message: "等待数据库操作结果超时".to_string(),
-            })??;
-
-        Ok(result)
-    }
-
+    
     /// 处理获取服务器版本请求
     #[doc(hidden)]
     pub async fn handle_get_server_version(alias: Option<String>) -> QuickDbResult<String> {

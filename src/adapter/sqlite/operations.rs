@@ -1,5 +1,6 @@
 
-use crate::adapter::{DatabaseAdapter, SqlQueryBuilder};
+use crate::adapter::DatabaseAdapter;
+use super::SqlQueryBuilder;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
 use crate::model::{FieldDefinition, FieldType};
@@ -59,8 +60,7 @@ impl DatabaseAdapter for SqliteAdapter {
             
             let (sql, params) = SqlQueryBuilder::new()
                 .insert(data.clone())
-                .from(table)
-                .build()?;
+                .build(table, alias)?;
             
             // 构建参数化查询，使用正确的参数顺序
             let mut query = sqlx::query(&sql);
@@ -191,13 +191,11 @@ impl DatabaseAdapter for SqliteAdapter {
         };
         {
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(DatabaseType::SQLite)
                 .select(&["*"])
-                .from(table)
                 .where_condition_groups(condition_groups)
                 .limit(options.pagination.as_ref().map(|p| p.limit).unwrap_or(1000))
                 .offset(options.pagination.as_ref().map(|p| p.skip).unwrap_or(0))
-                .build()?;
+                .build(table, alias)?;
 
             debug!("执行SQLite条件组合查询: {}", sql);
 
@@ -245,9 +243,8 @@ impl DatabaseAdapter for SqliteAdapter {
         {
             let (sql, params) = SqlQueryBuilder::new()
                 .update(data.clone())
-                .from(table)
                 .where_conditions(conditions)
-                .build()?;
+                .build(table, alias)?;
             
             let mut query = sqlx::query(&sql);
             for param in &params {
@@ -350,8 +347,7 @@ impl DatabaseAdapter for SqliteAdapter {
         // 添加WHERE条件
         if !conditions.is_empty() {
             let (where_clause, mut where_params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::SQLite)
-                .build_where_clause_with_offset(conditions, params.len() + 1)?;
+                .build_where_clause_with_offset(conditions, params.len() + 1, table, alias)?;
 
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);
@@ -367,8 +363,9 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
-        sqlite_query::delete(self, connection, table, conditions).await
+        sqlite_query::delete(self, connection, table, conditions, alias).await
     }
 
     async fn delete_by_id(
@@ -376,8 +373,9 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<bool> {
-        sqlite_query::delete_by_id(self, connection, table, id).await
+        sqlite_query::delete_by_id(self, connection, table, id, alias).await
     }
 
     async fn count(
@@ -385,17 +383,9 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
-        sqlite_query::count(self, connection, table, conditions).await
-    }
-
-    async fn exists(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool> {
-        sqlite_query::exists(self, connection, table, conditions).await
+        sqlite_query::count(self, connection, table, conditions, alias).await
     }
 
     async fn create_table(

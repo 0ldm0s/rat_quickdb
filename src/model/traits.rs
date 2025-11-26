@@ -391,36 +391,34 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
     }
 }
 
-/// 模型操作特征
+/// 记录操作特征
 ///
-/// 提供模型的CRUD操作
+/// 提供记录的CRUD操作
 #[async_trait]
 pub trait ModelOperations<T: Model> {
-    /// 保存模型
+    /// 保存记录
     async fn save(&self) -> QuickDbResult<String>;
 
-    /// 根据ID查找模型
+    /// 根据ID查找记录
     async fn find_by_id(id: &str) -> QuickDbResult<Option<T>>;
 
-    /// 查找多个模型
+    /// 查找多条记录
     async fn find(conditions: Vec<QueryCondition>, options: Option<QueryOptions>) -> QuickDbResult<Vec<T>>;
 
-    /// 更新模型
+    /// 更新记录
     async fn update(&self, updates: HashMap<String, DataValue>) -> QuickDbResult<bool>;
 
-    /// 删除模型
+    /// 删除记录
     async fn delete(&self) -> QuickDbResult<bool>;
 
-    /// 统计模型数量
+    /// 统计记录数量
     async fn count(conditions: Vec<QueryCondition>) -> QuickDbResult<u64>;
 
-    /// 检查模型是否存在
-    async fn exists(conditions: Vec<QueryCondition>) -> QuickDbResult<bool>;
-
-    /// 使用条件组查找多个模型（支持复杂的AND/OR逻辑组合）
+    
+    /// 使用条件组查找多条记录（支持复杂的AND/OR逻辑组合）
     async fn find_with_groups(condition_groups: Vec<QueryConditionGroup>, options: Option<QueryOptions>) -> QuickDbResult<Vec<T>>;
 
-    /// 批量更新模型
+    /// 批量更新记录
     ///
     /// 根据条件批量更新多条记录，返回受影响的行数
     async fn update_many(conditions: Vec<QueryCondition>, updates: HashMap<String, DataValue>) -> QuickDbResult<u64>;

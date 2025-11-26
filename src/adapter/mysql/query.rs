@@ -92,13 +92,4 @@ pub(crate) async fn delete(
         }
     }
 
-    pub(crate) async fn exists(
-    adapter: &MysqlAdapter,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool> {
-        let count = count(adapter, connection, table, conditions).await?;
-        Ok(count > 0)
-    }
-
+    

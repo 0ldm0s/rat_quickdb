@@ -92,11 +92,7 @@ impl AsyncOdmManager {
                     let result = Self::handle_count(&collection, conditions, alias).await;
                     let _ = response.send(result);
                 },
-                OdmRequest::Exists { collection, conditions, alias, response } => {
-                    let result = Self::handle_exists(&collection, conditions, alias).await;
-                    let _ = response.send(result);
-                },
-                OdmRequest::GetServerVersion { alias, response } => {
+                                OdmRequest::GetServerVersion { alias, response } => {
                     let result = Self::handle_get_server_version(alias).await;
                     let _ = response.send(result);
                 },
