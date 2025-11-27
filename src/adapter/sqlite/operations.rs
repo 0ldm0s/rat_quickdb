@@ -142,7 +142,15 @@ impl DatabaseAdapter for SqliteAdapter {
             
             match row {
                 Some(r) => {
-                    let data_map = self.row_to_data_map(&r)?;
+                    // 获取字段元数据
+                    let model_meta = crate::manager::get_model_with_alias(table, alias)
+                        .ok_or_else(|| QuickDbError::ValidationError {
+                            field: "model".to_string(),
+                            message: format!("模型 '{}' 不存在", table),
+                        })?;
+
+                    // 使用新的元数据转换函数
+                    let data_map = super::data_conversion::row_to_data_map_with_metadata(&r, &model_meta.fields)?;
                     Ok(Some(DataValue::Object(data_map)))
                 },
                 None => Ok(None),
@@ -216,9 +224,17 @@ impl DatabaseAdapter for SqliteAdapter {
                     message: format!("执行SQLite条件组合查询失败: {}", e),
                 })?;
 
+            // 获取字段元数据
+            let model_meta = crate::manager::get_model_with_alias(table, alias)
+                .ok_or_else(|| QuickDbError::ValidationError {
+                    field: "model".to_string(),
+                    message: format!("模型 '{}' 不存在", table),
+                })?;
+
             let mut results = Vec::new();
             for row in rows {
-                let data_map = self.row_to_data_map(&row)?;
+                // 使用新的元数据转换函数
+                let data_map = super::data_conversion::row_to_data_map_with_metadata(&row, &model_meta.fields)?;
                 results.push(DataValue::Object(data_map));
             }
 

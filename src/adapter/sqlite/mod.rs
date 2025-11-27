@@ -9,6 +9,7 @@ pub mod operations;
 pub mod query;
 pub mod schema;
 pub mod query_builder;
+pub mod data_conversion;
 
 // 重新导出主要的公共类型和结构体
 pub use adapter::SqliteAdapter;
