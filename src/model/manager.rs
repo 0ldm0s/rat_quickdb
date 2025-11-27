@@ -25,6 +25,46 @@ impl<T: Model> ModelManager<T> {
             _phantom: PhantomData,
         }
     }
+
+    /// 批量删除模型（静态便利方法）
+    ///
+    /// 根据条件批量删除多条记录，返回受影响的行数
+    /// 这是 ModelOperations::delete_many 的静态便利包装器
+    pub async fn delete_many(conditions: Vec<QueryCondition>) -> QuickDbResult<u64> {
+        <Self as ModelOperations<T>>::delete_many(conditions).await
+    }
+
+    /// 查找模型（静态便利方法）
+    ///
+    /// 根据条件查找多条记录
+    /// 这是 ModelOperations::find 的静态便利包装器
+    pub async fn find(
+        conditions: Vec<QueryCondition>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
+        <Self as ModelOperations<T>>::find(conditions, options).await
+    }
+
+    /// 统计模型数量（静态便利方法）
+    ///
+    /// 根据条件统计记录数量
+    /// 这是 ModelOperations::count 的静态便利包装器
+    pub async fn count(conditions: Vec<QueryCondition>) -> QuickDbResult<u64> {
+        <Self as ModelOperations<T>>::count(conditions).await
+    }
+
+    /// 创建表（静态便利方法）
+    ///
+    /// 使用模型的元数据直接创建表，无需插入数据
+    /// 这是 ModelOperations::create_table 的静态便利包装器
+    ///
+    /// # 不推荐使用
+    ///
+    /// 这个方法通常不需要手动调用，因为在执行其他数据库操作时，
+    /// 表会根据需要自动创建。仅在确实需要预先创建表结构时使用。
+    pub async fn create_table() -> QuickDbResult<()> {
+        <Self as ModelOperations<T>>::create_table().await
+    }
 }
 
 #[async_trait]

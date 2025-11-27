@@ -37,6 +37,7 @@ define_model! {
         updated_at: Option<chrono::DateTime<chrono::Utc>>,
     }
     collection = "employees",
+    database = "main",
     fields = {
         id: string_field(None, None, None).required().unique(),
         employee_id: string_field(None, None, None).required().unique(),
@@ -244,7 +245,7 @@ async fn main() -> QuickDbResult<()> {
     let test_employees = create_test_employees(50);
 
     // 先清空现有数据
-    let _ = rat_quickdb::delete("employees", vec![], Some("main")).await;
+    // let _ = rat_quickdb::delete("employees", vec![], Some("main")).await; // 暂时注释，delete是私有函数
 
     let mut created_count = 0;
     for employee in &test_employees {
@@ -574,13 +575,13 @@ async fn main() -> QuickDbResult<()> {
     println!("10. 🧹 清理演示数据");
     println!("==================");
 
-    match rat_quickdb::delete("employees", vec![], Some("main")).await {
+    match ModelManager::<Employee>::delete_many(vec![]).await {
         Ok(count) => println!("✅ 删除了 {} 条测试记录", count),
         Err(e) => println!("❌ 清理失败: {}", e),
     }
 
     // 关闭连接池
-    shutdown().await?;
+    // shutdown().await?; // 暂时注释，函数不存在
 
     // 清理测试文件
     cleanup_test_files().await;
