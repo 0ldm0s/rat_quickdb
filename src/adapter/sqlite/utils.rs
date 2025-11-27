@@ -86,7 +86,7 @@ impl SqliteAdapter {
                 DataValue::Int(i) => query.bind(*i),
                 DataValue::Float(f) => query.bind(*f),
                 DataValue::Bool(b) => query.bind(i32::from(*b)), // SQLite使用整数表示布尔值
-                DataValue::DateTime(dt) => query.bind(*dt),
+                DataValue::DateTime(dt) => query.bind(dt.timestamp()),
                 DataValue::Uuid(uuid) => query.bind(uuid.to_string()),
                 DataValue::Json(json) => query.bind(json.to_string()),
                 DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),

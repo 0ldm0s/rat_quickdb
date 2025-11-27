@@ -71,7 +71,7 @@ impl DatabaseAdapter for SqliteAdapter {
                     DataValue::Float(f) => { query = query.bind(f); },
                     DataValue::Bool(b) => { query = query.bind(b); },
                     DataValue::Bytes(bytes) => { query = query.bind(bytes); },
-                    DataValue::DateTime(dt) => { query = query.bind(dt.to_rfc3339()); },
+                    DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); },
                     DataValue::Uuid(uuid) => { query = query.bind(uuid.to_string()); },
                     DataValue::Json(json) => { query = query.bind(json.to_string()); },
                     DataValue::Array(_) => {
