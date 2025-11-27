@@ -128,6 +128,7 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                         FieldType::Text => "String",
                         FieldType::Boolean => "Bool",
                         FieldType::DateTime => "DateTime",
+                        FieldType::DateTimeWithTz { .. } => "DateTime", // 带时区的DateTime
                         FieldType::Date => "DateTime",
                         FieldType::Time => "DateTime",
                         FieldType::Uuid => "Uuid",
@@ -177,6 +178,7 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                                     FieldType::Text => "String",
                                     FieldType::Boolean => "Bool",
                                     FieldType::DateTime => "DateTime",
+                                    FieldType::DateTimeWithTz { .. } => "DateTime", // 带时区的DateTime
                                     FieldType::Date => "DateTime",
                                     FieldType::Time => "DateTime",
                                     FieldType::Uuid => "Uuid",
