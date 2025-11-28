@@ -21,8 +21,8 @@ pub fn convert_string_to_datetime_with_tz<T: std::fmt::Debug + ToDataValue>(
 
     match data_value {
         DataValue::DateTime(dt) => {
-            // 如果已经是DateTime类型，直接返回
-            Ok(DataValue::DateTime(dt))
+            // 对于DateTimeWithTz字段，需要应用时区转换
+            apply_timezone_to_datetime(dt, timezone_offset)
         },
         DataValue::String(s) => {
             // 如果是字符串，尝试解析为DateTime
@@ -38,6 +38,33 @@ pub fn convert_string_to_datetime_with_tz<T: std::fmt::Debug + ToDataValue>(
                 ),
             })
         }
+    }
+}
+
+/// 将UTC DateTime应用时区偏移
+///
+/// 对于DateTimeWithTz字段，将UTC时间转换为指定时区的本地时间
+fn apply_timezone_to_datetime(
+    utc_dt: chrono::DateTime<chrono::Utc>,
+    timezone_offset: &str,
+) -> QuickDbResult<DataValue> {
+    // 解析时区偏移
+    let tz_offset = parse_timezone_offset(timezone_offset)?;
+
+    // 创建带时区的DateTime
+    if let Some(offset) = chrono::FixedOffset::west_opt(tz_offset) {
+        // UTC时间 + 时区偏移 = 本地时间
+        // 例如：UTC时间 + 8小时 = 北京时间
+        let local_dt = utc_dt + chrono::Duration::seconds(-tz_offset as i64);
+
+        // 保持UTC格式，但时间已调整为本地时间
+        let adjusted_utc = local_dt.with_timezone(&chrono::Utc);
+        Ok(DataValue::DateTime(adjusted_utc))
+    } else {
+        Err(QuickDbError::ValidationError {
+            field: "DateTimeWithTz字段".to_string(),
+            message: format!("无效的时区偏移: {}", timezone_offset),
+        })
     }
 }
 
