@@ -214,6 +214,7 @@ impl DatabaseAdapter for SqliteAdapter {
                     DataValue::Int(i) => { query = query.bind(i); },
                     DataValue::Float(f) => { query = query.bind(f); },
                     DataValue::Bool(b) => { query = query.bind(b); },
+                    DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); }, // DateTime转换为时间戳
                     DataValue::Null => { query = query.bind(Option::<String>::None); },
                     _ => { query = query.bind(param.to_string()); },
                 }

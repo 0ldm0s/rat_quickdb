@@ -55,6 +55,9 @@ pub use model::{
     array_field, list_field, string_field, integer_field, float_field, boolean_field,
     datetime_field, datetime_with_tz_field, uuid_field, json_field, dict_field, reference_field
 };
+
+// 导出DateTime转换工具
+pub use model::conversion::datetime_conversion::convert_string_to_datetime_with_tz;
 pub use serializer::{DataSerializer, SerializerConfig, OutputFormat, SerializationResult};
 pub use adapter::{DatabaseAdapter, create_adapter};
 pub use config::{

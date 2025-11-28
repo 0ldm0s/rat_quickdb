@@ -477,19 +477,23 @@ impl SqlQueryBuilder {
             }
             QueryOperator::Gt => {
                 new_index += 1;
-                (format!("{} > {}", safe_field, placeholder), vec![condition.value.clone()])
+                let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                (format!("{} > {}", safe_field, placeholder), vec![processed_value])
             }
             QueryOperator::Gte => {
                 new_index += 1;
-                (format!("{} >= {}", safe_field, placeholder), vec![condition.value.clone()])
+                let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                (format!("{} >= {}", safe_field, placeholder), vec![processed_value])
             }
             QueryOperator::Lt => {
                 new_index += 1;
-                (format!("{} < {}", safe_field, placeholder), vec![condition.value.clone()])
+                let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                (format!("{} < {}", safe_field, placeholder), vec![processed_value])
             }
             QueryOperator::Lte => {
                 new_index += 1;
-                (format!("{} <= {}", safe_field, placeholder), vec![condition.value.clone()])
+                let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                (format!("{} <= {}", safe_field, placeholder), vec![processed_value])
             }
             QueryOperator::Contains => {
                 new_index += 1;
@@ -609,22 +613,26 @@ impl SqlQueryBuilder {
                 }
                 QueryOperator::Gt => {
                     clauses.push(format!("{} > {}", safe_field, placeholder));
-                    params.push(condition.value.clone());
+                    let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    params.push(processed_value);
                     param_index += 1;
                 }
                 QueryOperator::Gte => {
                     clauses.push(format!("{} >= {}", safe_field, placeholder));
-                    params.push(condition.value.clone());
+                    let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    params.push(processed_value);
                     param_index += 1;
                 }
                 QueryOperator::Lt => {
                     clauses.push(format!("{} < {}", safe_field, placeholder));
-                    params.push(condition.value.clone());
+                    let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    params.push(processed_value);
                     param_index += 1;
                 }
                 QueryOperator::Lte => {
                     clauses.push(format!("{} <= {}", safe_field, placeholder));
-                    params.push(condition.value.clone());
+                    let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    params.push(processed_value);
                     param_index += 1;
                 }
                 QueryOperator::Contains => {
@@ -735,6 +743,112 @@ impl SqlQueryBuilder {
     /// 获取单个占位符
     fn get_placeholder(&self, _index: usize) -> String {
         "?".to_string()
+    }
+}
+
+/// 处理范围查询操作符的值
+///
+/// 对于 Gt/Gte/Lt/Lte 操作符，根据字段类型预处理查询值：
+/// - DateTime字段：String/DateTime -> timestamp (i64)
+/// - Integer字段：String -> i64
+/// - Float字段：String -> f64
+/// - 其他字段：保持原值
+fn process_range_query_value(
+    table: &str,
+    alias: &str,
+    field_name: &str,
+    value: &DataValue,
+) -> QuickDbResult<DataValue> {
+    // 获取字段类型
+    if let Some(field_type) = get_field_type(table, alias, field_name) {
+        match field_type {
+            // DateTime类型处理
+            crate::model::FieldType::DateTime | crate::model::FieldType::DateTimeWithTz { .. } => {
+                match value {
+                    DataValue::String(s) => {
+                        // 尝试解析RFC3339格式
+                        if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(s) {
+                            return Ok(DataValue::Int(dt.timestamp()));
+                        }
+                        // 尝试解析本地时间格式
+                        if let Ok(naive_dt) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S") {
+                            return Ok(DataValue::Int(naive_dt.and_utc().timestamp()));
+                        }
+                        // 转换失败，直接报错
+                        return Err(QuickDbError::ValidationError {
+                            field: field_name.to_string(),
+                            message: format!(
+                                "无法解析日期时间字符串 '{}'。支持的格式：RFC3339 (如 2024-01-15T14:30:00+08:00) 或本地时间 (如 2024-01-15 14:30:00)",
+                                s
+                            ),
+                        });
+                    },
+                    DataValue::DateTime(dt) => {
+                        // DateTime转换为timestamp
+                        return Ok(DataValue::Int(dt.timestamp()));
+                    },
+                    _ => Ok(value.clone()),
+                }
+            },
+            // Integer类型处理
+            crate::model::FieldType::Integer { .. } | crate::model::FieldType::BigInteger => {
+                match value {
+                    DataValue::Int(_) => Ok(value.clone()), // 已经是正确类型
+                    DataValue::String(s) => {
+                        // 兼容字符串形式的数字
+                        if let Ok(i) = s.parse::<i64>() {
+                            return Ok(DataValue::Int(i));
+                        }
+                        return Err(QuickDbError::ValidationError {
+                            field: field_name.to_string(),
+                            message: format!("Integer字段无法将字符串 '{}' 转换为整数", s),
+                        });
+                    },
+                    _ => {
+                        return Err(QuickDbError::ValidationError {
+                            field: field_name.to_string(),
+                            message: format!("Integer字段不支持的数据类型: {:?}，期望Int或String形式的数字", std::any::type_name_of_val(value)),
+                        });
+                    }
+                }
+            },
+            // Float类型处理
+            crate::model::FieldType::Float { .. } | crate::model::FieldType::Double => {
+                match value {
+                    DataValue::Float(_) => Ok(value.clone()), // 已经是正确类型
+                    DataValue::Int(i) => Ok(DataValue::Float(*i as f64)), // Int可以转为Float
+                    DataValue::String(s) => {
+                        // 兼容字符串形式的数字
+                        if let Ok(f) = s.parse::<f64>() {
+                            return Ok(DataValue::Float(f));
+                        }
+                        return Err(QuickDbError::ValidationError {
+                            field: field_name.to_string(),
+                            message: format!("Float字段无法将字符串 '{}' 转换为浮点数", s),
+                        });
+                    },
+                    _ => {
+                        return Err(QuickDbError::ValidationError {
+                            field: field_name.to_string(),
+                            message: format!("Float字段不支持的数据类型: {:?}，期望Float、Int或String形式的数字", std::any::type_name_of_val(value)),
+                        });
+                    }
+                }
+            },
+            // 其他字段类型不支持范围查询操作符
+            _ => {
+                return Err(QuickDbError::ValidationError {
+                    field: field_name.to_string(),
+                    message: format!("字段类型 {:?} 不支持范围查询操作符 (Gt/Gte/Lt/Lte)", field_type),
+                });
+            }
+        }
+    } else {
+        // 无法获取字段类型，报错
+        return Err(QuickDbError::ValidationError {
+            field: field_name.to_string(),
+            message: "无法获取字段类型信息，请确保模型已正确注册".to_string(),
+        });
     }
 }
 

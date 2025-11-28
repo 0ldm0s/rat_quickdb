@@ -173,11 +173,35 @@ macro_rules! define_model {
 
                 $crate::debug_log!("🔍 开始 to_data_map_direct 转换...");
 
+                // 获取字段元数据，用于智能转换
+                let meta = Self::meta();
+
                 $(
                     $crate::debug_log!("🔍 转换字段 {}: {:?}", stringify!($field), self.$field);
-                    let data_value = self.$field.to_data_value();
+
+                    // 根据字段类型进行智能转换
+                    let field_name = stringify!($field).to_string();
+                    let field_def = meta.fields.get(&field_name);
+
+                    let data_value = if let Some(field_type) = field_def.map(|f| &f.field_type) {
+                        // 有字段类型定义，进行元数据感知的转换
+                        match field_type {
+                            $crate::model::field_types::FieldType::DateTimeWithTz { timezone_offset } => {
+                                // 对于带时区的DateTime字段，尝试String到DateTime的转换
+                                $crate::convert_string_to_datetime_with_tz(&self.$field, timezone_offset)?
+                            },
+                            _ => {
+                                // 其他字段类型使用默认转换
+                                self.$field.to_data_value()
+                            }
+                        }
+                    } else {
+                        // 没有字段类型定义，使用默认转换
+                        self.$field.to_data_value()
+                    };
+
                     $crate::debug_log!("🔍 字段 {} 转换为: {:?}", stringify!($field), data_value);
-                    data_map.insert(stringify!($field).to_string(), data_value);
+                    data_map.insert(field_name, data_value);
                 )*
 
                 // 移除为None的id字段，让数据库自动生成ID

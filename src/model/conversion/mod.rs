@@ -6,6 +6,7 @@ pub mod to_data_value;
 pub mod primitive_impls;
 pub mod collection_impls;
 pub mod complex_impls;
+pub mod datetime_conversion;
 
 // 重新导出核心 trait
 pub use to_data_value::ToDataValue;
