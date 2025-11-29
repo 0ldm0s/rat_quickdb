@@ -263,7 +263,11 @@ impl MongoQueryBuilder {
             DataValue::Int(i) => Bson::Int64(*i),
             DataValue::Float(f) => Bson::Double(*f),
             DataValue::Bool(b) => Bson::Boolean(*b),
-            DataValue::DateTime(dt) => Bson::DateTime(mongodb::bson::DateTime::from_system_time(dt.clone().into())),
+            DataValue::DateTime(dt) => {
+                // 将DateTime<FixedOffset>转换为DateTime<Utc>，然后转换为MongoDB BSON DateTime
+                let utc_dt = chrono::DateTime::<chrono::Utc>::from(*dt);
+                Bson::DateTime(mongodb::bson::DateTime::from_system_time(utc_dt.into()))
+            },
             DataValue::Uuid(uuid) => Bson::String(uuid.to_string()),
             DataValue::Json(json) => {
                 // 尝试将JSON转换为BSON文档

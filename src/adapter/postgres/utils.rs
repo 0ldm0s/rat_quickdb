@@ -142,7 +142,7 @@ pub(crate) fn row_to_data_map(
                 // 对于不带时区的时间戳，先尝试作为chrono::DateTime<chrono::Utc>，如果失败则尝试作为chrono::NaiveDateTime
                 if let Ok(val) = row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>(column_name) {
                     match val {
-                        Some(dt) => DataValue::DateTime(dt.into()),
+                        Some(dt) => DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0))),
                         None => DataValue::Null,
                     }
                 } else if let Ok(val) = row.try_get::<Option<chrono::NaiveDateTime>, _>(column_name) {
@@ -150,7 +150,7 @@ pub(crate) fn row_to_data_map(
                         Some(ndt) => {
                             // 将NaiveDateTime转换为UTC时间
                             let utc_dt = ndt.and_utc();
-                            DataValue::DateTime(utc_dt.into())
+                            DataValue::DateTime(utc_dt.with_timezone(&chrono::FixedOffset::east(0)))
                         },
                         None => DataValue::Null,
                     }
