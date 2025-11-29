@@ -55,15 +55,13 @@ impl ToDataValue for bool {
 impl ToDataValue for chrono::DateTime<chrono::Utc> {
     fn to_data_value(&self) -> DataValue {
         let fixed_dt = self.with_timezone(&chrono::FixedOffset::east(0));
-        println!("🔍 ToDataValue UTC->FixedOffset: {} -> {}", self, fixed_dt);
-        DataValue::DateTime(fixed_dt)
+               DataValue::DateTime(fixed_dt)
     }
 }
 
 impl ToDataValue for chrono::DateTime<chrono::FixedOffset> {
     fn to_data_value(&self) -> DataValue {
-        println!("🔍 ToDataValue FixedOffset原样存储: {}", self);
-        DataValue::DateTime(*self)
+             DataValue::DateTime(*self)
     }
 }
 
