@@ -9,6 +9,20 @@ use rat_quickdb::manager::health_check;
 use rat_quickdb::{ModelManager, ModelOperations, QueryCondition, QueryOperator, DataValue, array_field, field_types};
 use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
 
+/// 显示结果的详细信息，包括Array字段的JSON格式
+fn display_array_test_result(index: usize, result: &ArrayTestModel) {
+    // 将Array字段转换为JSON字符串显示
+    let tags_json = serde_json::to_string(&result.tags).unwrap_or_else(|_| "[]".to_string());
+    let category_ids_json = serde_json::to_string(&result.category_ids).unwrap_or_else(|_| "[]".to_string());
+    let ratings_json = serde_json::to_string(&result.ratings).unwrap_or_else(|_| "[]".to_string());
+
+    println!("  {}. {}", index + 1, result.name);
+    println!("     tags: {}", tags_json);
+    println!("     category_ids: {}", category_ids_json);
+    println!("     ratings: {}", ratings_json);
+    println!();
+}
+
 // 定义测试模型
 define_model! {
     /// Array 字段测试模型
@@ -132,7 +146,7 @@ async fn main() -> QuickDbResult<()> {
         Ok(results) => {
             println!("✓ 找到 {} 个产品:", results.len());
             for (i, result) in results.iter().enumerate() {
-                println!("  {}. {}", i + 1, result.name);
+                display_array_test_result(i, result);
             }
         },
         Err(e) => {
@@ -156,7 +170,7 @@ async fn main() -> QuickDbResult<()> {
         Ok(results) => {
             println!("✓ 找到 {} 个产品:", results.len());
             for (i, result) in results.iter().enumerate() {
-                println!("  {}. {}", i + 1, result.name);
+                display_array_test_result(i, result);
             }
         },
         Err(e) => {
@@ -177,7 +191,7 @@ async fn main() -> QuickDbResult<()> {
         Ok(results) => {
             println!("✓ 找到 {} 个产品:", results.len());
             for (i, result) in results.iter().enumerate() {
-                println!("  {}. {}", i + 1, result.name);
+                display_array_test_result(i, result);
             }
         },
         Err(e) => {
@@ -198,7 +212,7 @@ async fn main() -> QuickDbResult<()> {
         Ok(results) => {
             println!("✓ 找到 {} 个产品:", results.len());
             for (i, result) in results.iter().enumerate() {
-                println!("  {}. {}", i + 1, result.name);
+                display_array_test_result(i, result);
             }
         },
         Err(e) => {
@@ -282,7 +296,7 @@ async fn main() -> QuickDbResult<()> {
         Ok(results) => {
             println!("✓ 找到 {} 个产品:", results.len());
             for (i, result) in results.iter().enumerate() {
-                println!("  {}. {}", i + 1, result.name);
+                display_array_test_result(i, result);
             }
         },
         Err(e) => {

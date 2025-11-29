@@ -604,19 +604,11 @@ impl SqlQueryBuilder {
                             });
                         }
                     } else {
-                        // 普通字段，使用标准SQL IN语法
-                        if let DataValue::Array(values) = &condition.value {
-                            let mut placeholders = Vec::new();
-                            for _ in 0..values.len() {
-                                placeholders.push(self.get_placeholder(new_index));
-                                new_index += 1;
-                            }
-                            (format!("{} IN ({})", safe_field, placeholders.join(", ")), values.clone())
-                        } else {
-                            return Err(QuickDbError::QueryError {
-                                message: "IN 操作符需要数组类型的值".to_string(),
-                            });
-                        }
+                        // 非Array字段不支持IN操作
+                        return Err(QuickDbError::ValidationError {
+                            field: condition.field.clone(),
+                            message: "IN操作只支持Array字段".to_string(),
+                        });
                     }
                 } else {
                     // 无法确定字段类型，说明元数据有问题，直接报错
@@ -746,13 +738,54 @@ impl SqlQueryBuilder {
                 }
                 QueryOperator::In => {
                     if let DataValue::Array(values) = &condition.value {
-                        let mut placeholders = Vec::new();
-                        for _ in 0..values.len() {
-                            placeholders.push(self.get_placeholder(param_index));
-                            param_index += 1;
+                        if values.is_empty() {
+                            return Err(QuickDbError::QueryError {
+                                message: "IN 操作符需要非空数组".to_string(),
+                            });
                         }
-                        clauses.push(format!("{} IN ({})", condition.field, placeholders.join(", ")));
-                        params.extend(values.clone());
+
+                        // 检查查询值是否为支持的简单类型
+                        for value in values {
+                            match value {
+                                DataValue::String(_) | DataValue::Int(_) | DataValue::Float(_) | DataValue::Uuid(_) => {
+                                    // 支持的类型
+                                },
+                                _ => {
+                                    return Err(QuickDbError::ValidationError {
+                                        field: condition.field.clone(),
+                                        message: format!("Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}", value),
+                                    });
+                                }
+                            }
+                        }
+
+                        if values.len() == 1 {
+                            // 单个值，使用LIKE查询：LIKE '%"value"%'
+                            let target_value = match &values[0] {
+                                DataValue::String(s) => format!("\"{}\"", s),
+                                DataValue::Int(i) => format!("\"{}\"", i),
+                                DataValue::Float(f) => format!("\"{}\"", f),
+                                DataValue::Uuid(uuid) => format!("\"{}\"", uuid),
+                                _ => unreachable!(), // 已经检查过
+                            };
+                            clauses.push(format!("{} LIKE {}", condition.field, self.get_placeholder(param_index)));
+                            params.push(DataValue::String(format!("%{}%", target_value)));
+                            param_index += 1;
+                        } else {
+                            // 多个值，使用OR连接的LIKE查询
+                            for value in values {
+                                let target_value = match value {
+                                    DataValue::String(s) => format!("\"{}\"", s),
+                                    DataValue::Int(i) => format!("\"{}\"", i),
+                                    DataValue::Float(f) => format!("\"{}\"", f),
+                                    DataValue::Uuid(uuid) => format!("\"{}\"", uuid),
+                                    _ => unreachable!(), // 已经检查过
+                                };
+                                clauses.push(format!("{} LIKE {}", condition.field, self.get_placeholder(param_index)));
+                                params.push(DataValue::String(format!("%{}%", target_value)));
+                                param_index += 1;
+                            }
+                        }
                     } else {
                         return Err(QuickDbError::QueryError {
                             message: "IN 操作符需要数组类型的值".to_string(),
