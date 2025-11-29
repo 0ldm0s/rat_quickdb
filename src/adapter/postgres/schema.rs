@@ -52,6 +52,10 @@ pub(crate) async fn create_table(
                     debug!("🔍 字段 {} 类型为 DateTime，required: {}", name, field_definition.required);
                     "TIMESTAMPTZ".to_string()
                 },
+                FieldType::DateTimeWithTz { .. } => {
+                    debug!("🔍 字段 {} 类型为 DateTimeWithTz，required: {}", name, field_definition.required);
+                    "TIMESTAMPTZ".to_string()
+                },
                 FieldType::Date => "DATE".to_string(),
                 FieldType::Time => "TIME".to_string(),
                 FieldType::Uuid => "UUID".to_string(),
