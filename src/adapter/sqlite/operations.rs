@@ -72,10 +72,27 @@ impl DatabaseAdapter for SqliteAdapter {
                     DataValue::Bool(b) => { query = query.bind(b); },
                     DataValue::Bytes(bytes) => { query = query.bind(bytes); },
                     DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); },
+                    DataValue::DateTimeUTC(dt) => { query = query.bind(dt.timestamp()); },
                     DataValue::Uuid(uuid) => { query = query.bind(uuid.to_string()); },
                     DataValue::Json(json) => { query = query.bind(json.to_string()); },
-                    DataValue::Array(_) => {
-                        let json = param.to_json_value().to_string();
+                    DataValue::Array(arr) => {
+                        // Array字段统一转为字符串数组存储
+                        let string_array: Result<Vec<String>, QuickDbError> = arr.iter().map(|item| {
+                            Ok(match item {
+                                DataValue::String(s) => s.clone(),
+                                DataValue::Int(i) => i.to_string(),
+                                DataValue::Float(f) => f.to_string(),
+                                DataValue::Uuid(uuid) => uuid.to_string(),
+                                _ => {
+                                    return Err(QuickDbError::ValidationError {
+                                        field: "array_field".to_string(),
+                                        message: format!("Array字段不支持该类型: {:?}，只支持String、Int、Float、Uuid类型", item),
+                                    });
+                                }
+                            })
+                        }).collect();
+                        let string_array = string_array?;
+                        let json = serde_json::to_string(&string_array).unwrap_or_default();
                         query = query.bind(json);
                     },
                     DataValue::Object(_) => {
@@ -214,7 +231,8 @@ impl DatabaseAdapter for SqliteAdapter {
                     DataValue::Int(i) => { query = query.bind(i); },
                     DataValue::Float(f) => { query = query.bind(f); },
                     DataValue::Bool(b) => { query = query.bind(b); },
-                    DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); }, // DateTime转换为时间戳
+                    DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); },
+                    DataValue::DateTimeUTC(dt) => { query = query.bind(dt.timestamp()); }, // DateTime转换为时间戳
                     DataValue::Null => { query = query.bind(Option::<String>::None); },
                     _ => { query = query.bind(param.to_string()); },
                 }
@@ -258,11 +276,42 @@ impl DatabaseAdapter for SqliteAdapter {
             }),
         };
         {
+            // 获取字段元数据进行验证和转换
+            let model_meta = crate::manager::get_model_with_alias(table, alias)
+                .ok_or_else(|| QuickDbError::ValidationError {
+                    field: "model".to_string(),
+                    message: format!("模型 '{}' 不存在", table),
+                })?;
+
+            // 使用timezone模块中的字段元数据处理函数进行验证和转换
+            let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> = model_meta.fields.iter()
+                .map(|(name, f)| (name.clone(), f.clone()))
+                .collect();
+            let validated_data = crate::utils::timezone::process_data_fields_from_metadata(data.clone(), &field_map);
+
             let (sql, params) = SqlQueryBuilder::new()
-                .update(data.clone())
+                .update(validated_data)
                 .where_conditions(conditions)
                 .build(table, alias)?;
-            
+
+            // 构建包含实际参数的完整SQL用于调试
+            let mut complete_sql = sql.clone();
+            for param in &params {
+                let param_value = match param {
+                    DataValue::String(s) => format!("'{}'", s.replace('\'', "''")),
+                    DataValue::Int(i) => i.to_string(),
+                    DataValue::Float(f) => f.to_string(),
+                    DataValue::Bool(b) => if *b { "1".to_string() } else { "0".to_string() },
+                    DataValue::DateTime(dt) => dt.timestamp().to_string(),
+                    DataValue::DateTimeUTC(dt) => dt.timestamp().to_string(),
+                    DataValue::Null => "NULL".to_string(),
+                    _ => format!("'{}'", param.to_string()),
+                };
+                complete_sql = complete_sql.replacen('?', &param_value, 1);
+            }
+
+            println!("🔍 SQLite Complete SQL: {}", complete_sql);
+
             let mut query = sqlx::query(&sql);
             for param in &params {
                 match param {
@@ -270,6 +319,8 @@ impl DatabaseAdapter for SqliteAdapter {
                     DataValue::Int(i) => { query = query.bind(i); },
                     DataValue::Float(f) => { query = query.bind(f); },
                     DataValue::Bool(b) => { query = query.bind(b); },
+                    DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); },
+                    DataValue::DateTimeUTC(dt) => { query = query.bind(dt.timestamp()); },
                     _ => { query = query.bind(param.to_string()); },
                 }
             }

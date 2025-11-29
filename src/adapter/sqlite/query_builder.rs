@@ -541,31 +541,136 @@ impl SqlQueryBuilder {
                 (format!("{} LIKE {}", safe_field, placeholder), vec![value])
             }
             QueryOperator::In => {
-                if let DataValue::Array(values) = &condition.value {
-                    let mut placeholders = Vec::new();
-                    for _ in 0..values.len() {
-                        placeholders.push(self.get_placeholder(new_index));
-                        new_index += 1;
+                // 检查字段类型，区分Array字段和普通字段
+                if let Some(field_type) = get_field_type(table, alias, &condition.field) {
+                    if matches!(field_type, crate::model::FieldType::Array { .. }) {
+                        // Array字段存储为字符串数组JSON，使用LIKE查询
+                        if let DataValue::Array(values) = &condition.value {
+                            if values.is_empty() {
+                                return Err(QuickDbError::QueryError {
+                                    message: "IN 操作符需要非空数组".to_string(),
+                                });
+                            }
+
+                            // 检查查询值是否为支持的简单类型
+                            for value in values {
+                                match value {
+                                    DataValue::String(_) | DataValue::Int(_) | DataValue::Float(_) | DataValue::Uuid(_) => {
+                                        // 支持的类型
+                                    },
+                                    _ => {
+                                        return Err(QuickDbError::ValidationError {
+                                            field: condition.field.clone(),
+                                            message: format!("Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}", value),
+                                        });
+                                    }
+                                }
+                            }
+
+                            if values.len() == 1 {
+                                // 单个值，使用LIKE查询：LIKE '%"value"%'
+                                let target_value = match &values[0] {
+                                    DataValue::String(s) => format!("\"{}\"", s),
+                                    DataValue::Int(i) => format!("\"{}\"", i),
+                                    DataValue::Float(f) => format!("\"{}\"", f),
+                                    DataValue::Uuid(uuid) => format!("\"{}\"", uuid),
+                                    _ => unreachable!(), // 已经检查过
+                                };
+                                new_index += 1;
+                                (format!("{} LIKE {}", safe_field, placeholder), vec![DataValue::String(format!("%{}%", target_value))])
+                            } else {
+                                // 多个值，使用OR连接的LIKE查询
+                                let mut like_conditions = Vec::new();
+                                let mut like_params = Vec::new();
+
+                                for value in values {
+                                    let target_value = match value {
+                                        DataValue::String(s) => format!("\"{}\"", s),
+                                        DataValue::Int(i) => format!("\"{}\"", i),
+                                        DataValue::Float(f) => format!("\"{}\"", f),
+                                        DataValue::Uuid(uuid) => format!("\"{}\"", uuid),
+                                        _ => unreachable!(), // 已经检查过
+                                    };
+                                    like_conditions.push(format!("{} LIKE {}", safe_field, self.get_placeholder(new_index)));
+                                    like_params.push(DataValue::String(format!("%{}%", target_value)));
+                                    new_index += 1;
+                                }
+
+                                (format!("({})", like_conditions.join(" OR ")), like_params)
+                            }
+                        } else {
+                            return Err(QuickDbError::QueryError {
+                                message: "Array字段的IN操作需要数组类型的值".to_string(),
+                            });
+                        }
+                    } else {
+                        // 普通字段，使用标准SQL IN语法
+                        if let DataValue::Array(values) = &condition.value {
+                            let mut placeholders = Vec::new();
+                            for _ in 0..values.len() {
+                                placeholders.push(self.get_placeholder(new_index));
+                                new_index += 1;
+                            }
+                            (format!("{} IN ({})", safe_field, placeholders.join(", ")), values.clone())
+                        } else {
+                            return Err(QuickDbError::QueryError {
+                                message: "IN 操作符需要数组类型的值".to_string(),
+                            });
+                        }
                     }
-                    (format!("{} IN ({})", safe_field, placeholders.join(", ")), values.clone())
                 } else {
-                    return Err(QuickDbError::QueryError {
-                        message: "IN 操作符需要数组类型的值".to_string(),
-                    });
+                    // 无法确定字段类型，使用默认的SQL IN语法
+                    if let DataValue::Array(values) = &condition.value {
+                        let mut placeholders = Vec::new();
+                        for _ in 0..values.len() {
+                            placeholders.push(self.get_placeholder(new_index));
+                            new_index += 1;
+                        }
+                        (format!("{} IN ({})", safe_field, placeholders.join(", ")), values.clone())
+                    } else {
+                        return Err(QuickDbError::QueryError {
+                            message: "IN 操作符需要数组类型的值".to_string(),
+                        });
+                    }
                 }
             }
             QueryOperator::NotIn => {
-                if let DataValue::Array(values) = &condition.value {
-                    let mut placeholders = Vec::new();
-                    for _ in 0..values.len() {
-                        placeholders.push(self.get_placeholder(new_index));
-                        new_index += 1;
+                // 检查字段类型
+                if let Some(field_type) = get_field_type(table, alias, &condition.field) {
+                    if matches!(field_type, crate::model::FieldType::Array { .. }) {
+                        // SQLite的Array字段不支持复杂的NOT IN查询
+                        return Err(QuickDbError::QueryError {
+                            message: "SQLite的Array字段不支持NOT IN操作，建议使用其他查询条件".to_string(),
+                        });
+                    } else {
+                        // 普通字段，使用标准SQL NOT IN语法
+                        if let DataValue::Array(values) = &condition.value {
+                            let mut placeholders = Vec::new();
+                            for _ in 0..values.len() {
+                                placeholders.push(self.get_placeholder(new_index));
+                                new_index += 1;
+                            }
+                            (format!("{} NOT IN ({})", safe_field, placeholders.join(", ")), values.clone())
+                        } else {
+                            return Err(QuickDbError::QueryError {
+                                message: "NOT IN 操作符需要数组类型的值".to_string(),
+                            });
+                        }
                     }
-                    (format!("{} NOT IN ({})", safe_field, placeholders.join(", ")), values.clone())
                 } else {
-                    return Err(QuickDbError::QueryError {
-                        message: "NOT IN 操作符需要数组类型的值".to_string(),
-                    });
+                    // 无法确定字段类型，使用默认的SQL NOT IN语法
+                    if let DataValue::Array(values) = &condition.value {
+                        let mut placeholders = Vec::new();
+                        for _ in 0..values.len() {
+                            placeholders.push(self.get_placeholder(new_index));
+                            new_index += 1;
+                        }
+                        (format!("{} NOT IN ({})", safe_field, placeholders.join(", ")), values.clone())
+                    } else {
+                        return Err(QuickDbError::QueryError {
+                            message: "NOT IN 操作符需要数组类型的值".to_string(),
+                        });
+                    }
                 }
             }
             QueryOperator::Regex => {
@@ -785,6 +890,10 @@ fn process_range_query_value(
                     },
                     DataValue::DateTime(dt) => {
                         // DateTime转换为timestamp
+                        return Ok(DataValue::Int(dt.timestamp()));
+                    },
+                    DataValue::DateTimeUTC(dt) => {
+                        // DateTimeUTC转换为timestamp
                         return Ok(DataValue::Int(dt.timestamp()));
                     },
                     _ => Ok(value.clone()),

@@ -102,7 +102,63 @@ pub fn row_to_data_map_with_metadata(
                         })?;
                     DataValue::String(value)
                 },
-                FieldType::Json | FieldType::Array { .. } | FieldType::Object { .. } => {
+                FieldType::Array { item_type, max_items: _, min_items: _ } => {
+                    // Array字段：读取字符串数组JSON并根据字段定义转换类型
+                    let json_string: String = row.try_get(column_name)
+                        .map_err(|e| QuickDbError::QueryError {
+                            message: format!("读取Array字段 '{}' 失败: {}", column_name, e),
+                        })?;
+
+                    // 解析为字符串数组
+                    match serde_json::from_str::<Vec<String>>(&json_string) {
+                        Ok(string_array) => {
+                            // 将字符串数组转换回原始DataValue数组
+                            let data_array: Vec<DataValue> = string_array.into_iter().map(|s| {
+                                // 根据item_type进行类型转换
+                                match &**item_type {
+                                    FieldType::String { .. } => DataValue::String(s),
+                                    FieldType::Integer { .. } => {
+                                        match s.parse::<i64>() {
+                                            Ok(i) => DataValue::Int(i),
+                                            Err(_) => {
+                                                debug!("Array字段 '{}' 整数转换失败: {}，保持字符串", column_name, s);
+                                                DataValue::String(s)
+                                            }
+                                        }
+                                    },
+                                    FieldType::Float { .. } => {
+                                        match s.parse::<f64>() {
+                                            Ok(f) => DataValue::Float(f),
+                                            Err(_) => {
+                                                debug!("Array字段 '{}' 浮点数转换失败: {}，保持字符串", column_name, s);
+                                                DataValue::String(s)
+                                            }
+                                        }
+                                    },
+                                    FieldType::Uuid => {
+                                        match s.parse::<uuid::Uuid>() {
+                                            Ok(uuid) => DataValue::Uuid(uuid),
+                                            Err(_) => {
+                                                debug!("Array字段 '{}' UUID转换失败: {}，保持字符串", column_name, s);
+                                                DataValue::String(s)
+                                            }
+                                        }
+                                    },
+                                    _ => {
+                                        debug!("Array字段 '{}' 不支持的item_type: {:?}，保持字符串", column_name, item_type);
+                                        DataValue::String(s)
+                                    }
+                                }
+                            }).collect();
+                            DataValue::Array(data_array)
+                        },
+                        Err(e) => {
+                            debug!("Array字段 '{}' JSON解析失败: {}，返回原始字符串", column_name, e);
+                            DataValue::String(json_string)
+                        }
+                    }
+                },
+                FieldType::Json | FieldType::Object { .. } => {
                     let value: String = row.try_get(column_name)
                         .map_err(|e| QuickDbError::QueryError {
                             message: format!("读取JSON字段 '{}' 失败: {}", column_name, e),
@@ -154,7 +210,7 @@ pub fn convert_local_to_timestamp(
     let utc_dt = naive_dt.and_utc();
 
     // 解析时区偏移
-    let offset_seconds = parse_timezone_offset_to_seconds(timezone_offset)?;
+    let offset_seconds = crate::utils::timezone::parse_timezone_offset_to_seconds(timezone_offset)?;
 
     // 本地时间 = UTC时间 + 时区偏移
     // UTC时间 = 本地时间 - 时区偏移
@@ -192,7 +248,7 @@ fn apply_timezone_offset_to_utc(
     utc_dt: chrono::DateTime<chrono::Utc>,
     timezone_offset: &str,
 ) -> QuickDbResult<chrono::DateTime<chrono::FixedOffset>> {
-    let offset_seconds = parse_timezone_offset_to_seconds(timezone_offset)?;
+    let offset_seconds = crate::utils::timezone::parse_timezone_offset_to_seconds(timezone_offset)?;
 
     // 检查时区偏移是否在有效范围内（-23:59 到 +23:59）
     if offset_seconds < -86399 || offset_seconds > 86399 {
@@ -205,34 +261,4 @@ fn apply_timezone_offset_to_utc(
     Ok(utc_dt.with_timezone(&chrono::FixedOffset::east(offset_seconds)))
 }
 
-/// 将时区偏移字符串转换为秒数
-///
-/// # 参数
-/// - `timezone_offset`: 时区偏移，格式 "+08:00", "-05:00"
-///
-/// # 返回
-/// 秒数
-fn parse_timezone_offset_to_seconds(timezone_offset: &str) -> QuickDbResult<i32> {
-    if timezone_offset.len() != 6 {
-        return Err(QuickDbError::ValidationError {
-            field: "timezone_offset".to_string(),
-            message: format!("无效的时区偏移格式: '{}', 期望格式: +HH:MM", timezone_offset),
-        });
-    }
-
-    let sign = if timezone_offset.starts_with('+') { 1 } else { -1 };
-    let hours: i32 = timezone_offset[1..3].parse()
-        .map_err(|_| QuickDbError::ValidationError {
-            field: "timezone_offset".to_string(),
-            message: format!("无效的小时格式: '{}'", &timezone_offset[1..3]),
-        })?;
-    let minutes: i32 = timezone_offset[4..6].parse()
-        .map_err(|_| QuickDbError::ValidationError {
-            field: "timezone_offset".to_string(),
-            message: format!("无效的分钟格式: '{}'", &timezone_offset[4..6]),
-        })?;
-
-    let total_seconds = sign * (hours * 3600 + minutes * 60);
-    Ok(total_seconds)
-}
 

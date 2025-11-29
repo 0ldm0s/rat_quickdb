@@ -423,6 +423,7 @@ impl TableSchema {
             },
             DataValue::Bytes(_) => ColumnType::Blob,
             DataValue::DateTime(_) => ColumnType::DateTime,
+            DataValue::DateTimeUTC(_) => ColumnType::DateTime,
             DataValue::Uuid(_) => ColumnType::Uuid,
             DataValue::Json(_) => ColumnType::Json,
             DataValue::Array(_) => ColumnType::Json, // 数组存储为JSON
