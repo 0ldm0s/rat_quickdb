@@ -619,59 +619,18 @@ impl SqlQueryBuilder {
                         }
                     }
                 } else {
-                    // 无法确定字段类型，使用默认的SQL IN语法
-                    if let DataValue::Array(values) = &condition.value {
-                        let mut placeholders = Vec::new();
-                        for _ in 0..values.len() {
-                            placeholders.push(self.get_placeholder(new_index));
-                            new_index += 1;
-                        }
-                        (format!("{} IN ({})", safe_field, placeholders.join(", ")), values.clone())
-                    } else {
-                        return Err(QuickDbError::QueryError {
-                            message: "IN 操作符需要数组类型的值".to_string(),
-                        });
-                    }
+                    // 无法确定字段类型，说明元数据有问题，直接报错
+                    return Err(QuickDbError::ValidationError {
+                        field: condition.field.clone(),
+                        message: "无法获取字段类型信息，请确保模型已正确注册".to_string(),
+                    });
                 }
             }
             QueryOperator::NotIn => {
-                // 检查字段类型
-                if let Some(field_type) = get_field_type(table, alias, &condition.field) {
-                    if matches!(field_type, crate::model::FieldType::Array { .. }) {
-                        // SQLite的Array字段不支持复杂的NOT IN查询
-                        return Err(QuickDbError::QueryError {
-                            message: "SQLite的Array字段不支持NOT IN操作，建议使用其他查询条件".to_string(),
-                        });
-                    } else {
-                        // 普通字段，使用标准SQL NOT IN语法
-                        if let DataValue::Array(values) = &condition.value {
-                            let mut placeholders = Vec::new();
-                            for _ in 0..values.len() {
-                                placeholders.push(self.get_placeholder(new_index));
-                                new_index += 1;
-                            }
-                            (format!("{} NOT IN ({})", safe_field, placeholders.join(", ")), values.clone())
-                        } else {
-                            return Err(QuickDbError::QueryError {
-                                message: "NOT IN 操作符需要数组类型的值".to_string(),
-                            });
-                        }
-                    }
-                } else {
-                    // 无法确定字段类型，使用默认的SQL NOT IN语法
-                    if let DataValue::Array(values) = &condition.value {
-                        let mut placeholders = Vec::new();
-                        for _ in 0..values.len() {
-                            placeholders.push(self.get_placeholder(new_index));
-                            new_index += 1;
-                        }
-                        (format!("{} NOT IN ({})", safe_field, placeholders.join(", ")), values.clone())
-                    } else {
-                        return Err(QuickDbError::QueryError {
-                            message: "NOT IN 操作符需要数组类型的值".to_string(),
-                        });
-                    }
-                }
+                // SQLite完全不支持NOT IN操作，直接报错
+                return Err(QuickDbError::QueryError {
+                    message: "SQLite不支持NOT IN操作，建议使用其他查询条件".to_string(),
+                });
             }
             QueryOperator::Regex => {
                 new_index += 1;
@@ -801,19 +760,10 @@ impl SqlQueryBuilder {
                     }
                 }
                 QueryOperator::NotIn => {
-                    if let DataValue::Array(values) = &condition.value {
-                        let mut placeholders = Vec::new();
-                        for _ in 0..values.len() {
-                            placeholders.push(self.get_placeholder(param_index));
-                            param_index += 1;
-                        }
-                        clauses.push(format!("{} NOT IN ({})", condition.field, placeholders.join(", ")));
-                        params.extend(values.clone());
-                    } else {
-                        return Err(QuickDbError::QueryError {
-                            message: "NOT IN 操作符需要数组类型的值".to_string(),
-                        });
-                    }
+                    // SQLite完全不支持NOT IN操作，直接报错
+                    return Err(QuickDbError::QueryError {
+                        message: "SQLite不支持NOT IN操作，建议使用其他查询条件".to_string(),
+                    });
                 }
                 QueryOperator::Regex => {
                     // 不同数据库的正则表达式语法不同，这里使用通用的LIKE
