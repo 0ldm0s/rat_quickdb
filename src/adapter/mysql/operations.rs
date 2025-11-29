@@ -68,7 +68,7 @@ impl DatabaseAdapter for MysqlAdapter {
                 })?;
             
             let affected_rows = {
-                let mut query = sqlx::query(&sql);
+                let mut query = sqlx::query::<sqlx::MySql>(&sql);
                 // 绑定参数
                 for param in &params {
                     query = match param {
@@ -76,7 +76,7 @@ impl DatabaseAdapter for MysqlAdapter {
                         DataValue::Int(i) => query.bind(i),
                         DataValue::Float(f) => query.bind(f),
                         DataValue::Bool(b) => query.bind(b),
-                        DataValue::DateTime(dt) => query.bind(dt),
+                        DataValue::DateTime(dt) => query.bind(dt.naive_utc().and_utc()),
                         DataValue::Uuid(uuid) => query.bind(uuid),
                         DataValue::Json(json) => query.bind(json.to_string()),
                         DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
@@ -118,7 +118,7 @@ impl DatabaseAdapter for MysqlAdapter {
             let id_value = match id_strategy {
                 IdStrategy::AutoIncrement => {
                     // AutoIncrement策略：获取MySQL自动生成的ID
-                    let last_id_row = sqlx::query("SELECT LAST_INSERT_ID()")
+                    let last_id_row = sqlx::query::<sqlx::MySql>("SELECT LAST_INSERT_ID()")
                         .fetch_one(&mut *tx)
                         .await
                         .map_err(|e| QuickDbError::QueryError {
@@ -555,7 +555,7 @@ impl DatabaseAdapter for MysqlAdapter {
 
         debug!("执行存储过程查询SQL: {}", final_sql);
 
-        let rows = sqlx::query(&final_sql).fetch_all(pool).await
+        let rows = sqlx::query::<sqlx::MySql>(&final_sql).fetch_all(pool).await
             .map_err(|e| QuickDbError::QueryError {
                 message: format!("执行存储过程查询失败: {}", e),
             })?;
