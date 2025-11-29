@@ -91,7 +91,25 @@ impl SqliteAdapter {
                 DataValue::Json(json) => query.bind(json.to_string()),
                 DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
                 DataValue::Null => query.bind(Option::<String>::None),
-                DataValue::Array(arr) => query.bind(serde_json::to_string(arr).unwrap_or_default()),
+                DataValue::Array(arr) => {
+                    // Array字段只支持简单类型：String、Int、Float、Uuid
+                    let string_array: Result<Vec<String>, QuickDbError> = arr.iter().map(|item| {
+                        Ok(match item {
+                            DataValue::String(s) => s.clone(),
+                            DataValue::Int(i) => i.to_string(),
+                            DataValue::Float(f) => f.to_string(),
+                            DataValue::Uuid(uuid) => uuid.to_string(),
+                            _ => {
+                                return Err(QuickDbError::ValidationError {
+                                    field: "array_field".to_string(),
+                                    message: format!("Array字段不支持该类型: {:?}，只支持String、Int、Float、Uuid类型", item),
+                                });
+                            }
+                        })
+                    }).collect();
+                    let string_array = string_array?;
+                    query.bind(serde_json::to_string(&string_array).unwrap_or_default())
+                },
                 DataValue::Object(obj) => query.bind(serde_json::to_string(obj).unwrap_or_default()),
             };
         }

@@ -102,7 +102,63 @@ pub fn row_to_data_map_with_metadata(
                         })?;
                     DataValue::String(value)
                 },
-                FieldType::Json | FieldType::Array { .. } | FieldType::Object { .. } => {
+                FieldType::Array { item_type, max_items: _, min_items: _ } => {
+                    // Array字段：读取字符串数组JSON并根据字段定义转换类型
+                    let json_string: String = row.try_get(column_name)
+                        .map_err(|e| QuickDbError::QueryError {
+                            message: format!("读取Array字段 '{}' 失败: {}", column_name, e),
+                        })?;
+
+                    // 解析为字符串数组
+                    match serde_json::from_str::<Vec<String>>(&json_string) {
+                        Ok(string_array) => {
+                            // 将字符串数组转换回原始DataValue数组
+                            let data_array: Vec<DataValue> = string_array.into_iter().map(|s| {
+                                // 根据item_type进行类型转换
+                                match &**item_type {
+                                    FieldType::String { .. } => DataValue::String(s),
+                                    FieldType::Integer { .. } => {
+                                        match s.parse::<i64>() {
+                                            Ok(i) => DataValue::Int(i),
+                                            Err(_) => {
+                                                debug!("Array字段 '{}' 整数转换失败: {}，保持字符串", column_name, s);
+                                                DataValue::String(s)
+                                            }
+                                        }
+                                    },
+                                    FieldType::Float { .. } => {
+                                        match s.parse::<f64>() {
+                                            Ok(f) => DataValue::Float(f),
+                                            Err(_) => {
+                                                debug!("Array字段 '{}' 浮点数转换失败: {}，保持字符串", column_name, s);
+                                                DataValue::String(s)
+                                            }
+                                        }
+                                    },
+                                    FieldType::Uuid => {
+                                        match s.parse::<uuid::Uuid>() {
+                                            Ok(uuid) => DataValue::Uuid(uuid),
+                                            Err(_) => {
+                                                debug!("Array字段 '{}' UUID转换失败: {}，保持字符串", column_name, s);
+                                                DataValue::String(s)
+                                            }
+                                        }
+                                    },
+                                    _ => {
+                                        debug!("Array字段 '{}' 不支持的item_type: {:?}，保持字符串", column_name, item_type);
+                                        DataValue::String(s)
+                                    }
+                                }
+                            }).collect();
+                            DataValue::Array(data_array)
+                        },
+                        Err(e) => {
+                            debug!("Array字段 '{}' JSON解析失败: {}，返回原始字符串", column_name, e);
+                            DataValue::String(json_string)
+                        }
+                    }
+                },
+                FieldType::Json | FieldType::Object { .. } => {
                     let value: String = row.try_get(column_name)
                         .map_err(|e| QuickDbError::QueryError {
                             message: format!("读取JSON字段 '{}' 失败: {}", column_name, e),

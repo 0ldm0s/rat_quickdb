@@ -74,8 +74,24 @@ impl DatabaseAdapter for SqliteAdapter {
                     DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); },
                     DataValue::Uuid(uuid) => { query = query.bind(uuid.to_string()); },
                     DataValue::Json(json) => { query = query.bind(json.to_string()); },
-                    DataValue::Array(_) => {
-                        let json = param.to_json_value().to_string();
+                    DataValue::Array(arr) => {
+                        // Array字段统一转为字符串数组存储
+                        let string_array: Result<Vec<String>, QuickDbError> = arr.iter().map(|item| {
+                            Ok(match item {
+                                DataValue::String(s) => s.clone(),
+                                DataValue::Int(i) => i.to_string(),
+                                DataValue::Float(f) => f.to_string(),
+                                DataValue::Uuid(uuid) => uuid.to_string(),
+                                _ => {
+                                    return Err(QuickDbError::ValidationError {
+                                        field: "array_field".to_string(),
+                                        message: format!("Array字段不支持该类型: {:?}，只支持String、Int、Float、Uuid类型", item),
+                                    });
+                                }
+                            })
+                        }).collect();
+                        let string_array = string_array?;
+                        let json = serde_json::to_string(&string_array).unwrap_or_default();
                         query = query.bind(json);
                     },
                     DataValue::Object(_) => {
