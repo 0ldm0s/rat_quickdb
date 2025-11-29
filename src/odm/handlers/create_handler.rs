@@ -123,6 +123,7 @@ impl AsyncOdmManager {
             table: collection.to_string(),
             data: processed_data,
             id_strategy,
+            alias: actual_alias.clone(),
             response: response_tx,
         };
         

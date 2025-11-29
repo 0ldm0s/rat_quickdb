@@ -5,7 +5,7 @@ use crate::adapter::DatabaseAdapter;
 use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
-use crate::adapter::query_builder::SqlQueryBuilder;
+use crate::adapter::postgres::query_builder::SqlQueryBuilder;
 use rat_logger::debug;
 
 /// PostgreSQL删除操作
@@ -14,14 +14,13 @@ pub(crate) async fn delete(
     connection: &DatabaseConnection,
     table: &str,
     conditions: &[QueryCondition],
+    alias: &str,
 ) -> QuickDbResult<u64> {
     if let DatabaseConnection::PostgreSQL(pool) = connection {
         let (sql, params) = SqlQueryBuilder::new()
-            .database_type(crate::types::DatabaseType::PostgreSQL)
-            .delete()
-            .from(table)
-            .where_conditions(conditions)
-            .build()?;
+                        .delete()
+                        .where_conditions(conditions)
+            .build(table, alias)?;
 
         debug!("执行PostgreSQL删除: {}", sql);
 
@@ -39,6 +38,7 @@ pub(crate) async fn delete_by_id(
     connection: &DatabaseConnection,
     table: &str,
     id: &DataValue,
+    alias: &str,
 ) -> QuickDbResult<bool> {
     let conditions = vec![QueryCondition {
         field: "id".to_string(),
@@ -46,7 +46,7 @@ pub(crate) async fn delete_by_id(
         value: id.clone(),
     }];
 
-    let affected = delete(adapter, connection, table, &conditions).await?;
+    let affected = delete(adapter, connection, table, &conditions, alias).await?;
     Ok(affected > 0)
 }
 
@@ -56,14 +56,13 @@ pub(crate) async fn count(
     connection: &DatabaseConnection,
     table: &str,
     conditions: &[QueryCondition],
+    alias: &str,
 ) -> QuickDbResult<u64> {
     if let DatabaseConnection::PostgreSQL(pool) = connection {
         let (sql, params) = SqlQueryBuilder::new()
-            .database_type(crate::types::DatabaseType::PostgreSQL)
-            .select(&["COUNT(*) as count"])
-            .from(table)
-            .where_conditions(conditions)
-            .build()?;
+                        .select(&["COUNT(*) as count"])
+                        .where_conditions(conditions)
+            .build(table, alias)?;
 
         debug!("执行PostgreSQL计数: {}", sql);
 
@@ -84,13 +83,3 @@ pub(crate) async fn count(
     }
 }
 
-/// PostgreSQL存在检查操作
-pub(crate) async fn exists(
-    adapter: &PostgresAdapter,
-    connection: &DatabaseConnection,
-    table: &str,
-    conditions: &[QueryCondition],
-) -> QuickDbResult<bool> {
-    let count = count(adapter, connection, table, conditions).await?;
-    Ok(count > 0)
-}

@@ -18,7 +18,7 @@ pub mod model;
 pub mod serializer;
 pub mod adapter;
 pub mod config;
-pub mod task_queue;
+// pub mod task_queue;
 pub mod table;
 pub mod security;
 pub mod i18n;
@@ -29,9 +29,13 @@ pub mod join_macro;
 pub mod id_generator;
 pub mod stored_procedure;
 
+// 任务队列模块（仅在启用 python-bindings 特性时编译）
+// #[cfg(feature = "python-bindings")]
+// // pub mod task_queue;
+
 // Python API 模块（仅在启用 python-bindings 特性时编译）
-#[cfg(feature = "python-bindings")]
-pub mod python_api;
+// #[cfg(feature = "python-bindings")]
+// pub mod python_api;
 
 // 重新导出常用类型和函数
 pub use error::{QuickDbError, QuickDbResult};
@@ -49,8 +53,12 @@ pub use odm::{AsyncOdmManager, get_odm_manager, get_odm_manager_mut, OdmOperatio
 pub use model::{
     Model, ModelOperations, ModelManager, FieldType, FieldDefinition, ModelMeta, IndexDefinition,
     array_field, list_field, string_field, integer_field, float_field, boolean_field,
-    datetime_field, uuid_field, json_field, dict_field, reference_field
+    datetime_field, datetime_with_tz_field, uuid_field, json_field, dict_field, reference_field
 };
+
+// 导出DateTime转换工具
+pub use model::conversion::datetime_conversion::convert_string_to_datetime_with_tz;
+pub use model::conversion::database_aware::convert_datetime_with_tz_aware;
 pub use serializer::{DataSerializer, SerializerConfig, OutputFormat, SerializationResult};
 pub use adapter::{DatabaseAdapter, create_adapter};
 pub use config::{
@@ -59,10 +67,12 @@ pub use config::{
     Environment, LogLevel, sqlite_config, postgres_config, mysql_config,
     mongodb_config
 };
-pub use task_queue::{
-    TaskQueueManager, get_global_task_queue, initialize_global_task_queue, 
-    shutdown_global_task_queue
-};
+// 任务队列导出（仅在启用 python-bindings 特性时编译）
+// #[cfg(feature = "python-bindings")]
+// pub use task_queue::{
+//     TaskQueueManager, get_global_task_queue, initialize_global_task_queue,
+//     shutdown_global_task_queue
+// };
 pub use table::{TableManager, TableSchema, ColumnDefinition, ColumnType, IndexType};
 
 // 条件导出缓存相关类型
@@ -75,7 +85,7 @@ pub use id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 pub use stored_procedure::*;
 
 // ODM 操作函数改为内部公开，仅用于框架内部使用
-pub(crate) use odm::{create, find_by_id, find, find_with_groups, update, update_by_id, delete, delete_by_id, count, exists};
+pub(crate) use odm::{create, find_by_id, find, find_with_groups, update, update_by_id, delete, delete_by_id, count};
 pub(crate) use odm::{create_stored_procedure, execute_stored_procedure};
 
 // 保留有用的工具函数公开导出
@@ -165,6 +175,66 @@ pub fn generate_object_id() -> String {
 ///
 /// # 返回值
 /// 返回处理后的数据映射，其中复杂字段被正确转换
+/// 对UTC时间应用时区偏移，返回本地时间
+///
+/// # 参数
+/// - `utc_dt`: UTC时间（FixedOffset格式，通常为+00:00）
+/// - `timezone_offset`: 时区偏移，格式 "+08:00", "-05:00"
+///
+/// # 返回
+/// 本地时间（带时区信息）
+fn apply_timezone_offset_to_datetime(
+    utc_dt: chrono::DateTime<chrono::FixedOffset>,
+    timezone_offset: &str,
+) -> QuickDbResult<chrono::DateTime<chrono::FixedOffset>> {
+    let offset_seconds = parse_timezone_offset_to_seconds(timezone_offset)?;
+
+    // 检查时区偏移是否在有效范围内（-23:59 到 +23:59）
+    if offset_seconds < -86399 || offset_seconds > 86399 {
+        return Err(QuickDbError::ValidationError {
+            field: "timezone_offset".to_string(),
+            message: format!("时区偏移超出有效范围: {}, 允许范围: -23:59 到 +23:59", timezone_offset),
+        });
+    }
+
+    // 将UTC时间转换为本地时间
+    let utc_chrono = utc_dt.with_timezone(&chrono::Utc);
+    let local_dt = utc_chrono.with_timezone(&chrono::FixedOffset::east(offset_seconds));
+
+    Ok(local_dt)
+}
+
+/// 将时区偏移字符串转换为秒数
+///
+/// # 参数
+/// - `timezone_offset`: 时区偏移，格式 "+08:00", "-05:00"
+///
+/// # 返回
+/// 秒数
+fn parse_timezone_offset_to_seconds(timezone_offset: &str) -> QuickDbResult<i32> {
+    if timezone_offset.len() != 6 {
+        return Err(QuickDbError::ValidationError {
+            field: "timezone_offset".to_string(),
+            message: format!("无效的时区偏移格式: '{}', 期望格式: +HH:MM", timezone_offset),
+        });
+    }
+
+    let sign = if timezone_offset.starts_with('+') { 1 } else { -1 };
+    let hours: i32 = timezone_offset[1..3].parse()
+        .map_err(|_| QuickDbError::ValidationError {
+            field: "timezone_offset".to_string(),
+            message: format!("无效的小时格式: '{}'", &timezone_offset[1..3]),
+        })?;
+    let minutes: i32 = timezone_offset[4..6].parse()
+        .map_err(|_| QuickDbError::ValidationError {
+            field: "timezone_offset".to_string(),
+            message: format!("无效的分钟格式: '{}'", &timezone_offset[4..6]),
+        })?;
+
+    let total_seconds = sign * (hours * 3600 + minutes * 60);
+    Ok(total_seconds)
+}
+
 pub fn process_data_fields_from_metadata(
     mut data_map: std::collections::HashMap<String, DataValue>,
     fields: &std::collections::HashMap<String, crate::model::FieldDefinition>,
@@ -194,6 +264,25 @@ pub fn process_data_fields_from_metadata(
                         Some(DataValue::Bool(*int_val == 1))
                     } else {
                         debug_log!("字段 {} 整数值超出布尔范围: {}，保持原值", field_name, int_val);
+                        None
+                    }
+                },
+                // 处理DateTimeWithTz字段的时区转换
+                DataValue::DateTime(dt) if matches!(field_def.field_type, crate::model::FieldType::DateTimeWithTz { .. }) => {
+                    if let crate::model::FieldType::DateTimeWithTz { timezone_offset } = &field_def.field_type {
+                        debug_log!("字段 {} DateTimeWithTz时区转换: {} -> 时区 {}", field_name, dt, timezone_offset);
+                        // 应用时区偏移转换
+                        match apply_timezone_offset_to_datetime(*dt, timezone_offset) {
+                            Ok(local_dt) => {
+                                debug_log!("字段 {} 时区转换成功: {} -> {}", field_name, dt, local_dt);
+                                Some(DataValue::DateTime(local_dt))
+                            },
+                            Err(e) => {
+                                debug_log!("字段 {} 时区转换失败: {} (错误: {})", field_name, dt, e);
+                                None // 转换失败，保持原值
+                            }
+                        }
+                    } else {
                         None
                     }
                 },

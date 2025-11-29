@@ -3,7 +3,7 @@
 use crate::adapter::MysqlAdapter;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::{DataValue, QueryCondition, QueryConditionGroup, LogicalOperator, QueryOperator};
-use crate::adapter::query_builder::SqlQueryBuilder;
+use crate::adapter::mysql::query_builder::SqlQueryBuilder;
 use async_trait::async_trait;
 use rat_logger::{debug, warn, error};
 use std::collections::HashMap;
@@ -407,7 +407,7 @@ impl MysqlAdapter {
                     debug!("准备读取日期时间字段: {}", column_name);
                     if let Ok(value) = row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>(column_name) {
                         let result = match value {
-                            Some(dt) => DataValue::DateTime(dt),
+                            Some(dt) => DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0))),
                             None => DataValue::Null,
                         };
                         debug!("成功读取日期时间字段 {}: {:?}", column_name, result);
@@ -449,7 +449,7 @@ impl MysqlAdapter {
         sql: &str,
         params: &[DataValue],
     ) -> QuickDbResult<Vec<DataValue>> {
-        let mut query = sqlx::query(sql);
+        let mut query = sqlx::query::<sqlx::MySql>(sql);
         
         // 绑定参数
         for param in params {
@@ -467,7 +467,7 @@ impl MysqlAdapter {
                 DataValue::Int(i) => query.bind(*i),
                 DataValue::Float(f) => query.bind(*f),
                 DataValue::Bool(b) => query.bind(*b),
-                DataValue::DateTime(dt) => query.bind(*dt),
+                DataValue::DateTime(dt) => query.bind(dt.naive_utc().and_utc()),
                 DataValue::Uuid(uuid) => query.bind(*uuid),
                 DataValue::Json(json) => query.bind(json.to_string()),
                 DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
@@ -548,7 +548,7 @@ impl MysqlAdapter {
                 DataValue::Int(i) => query.bind(*i),
                 DataValue::Float(f) => query.bind(*f),
                 DataValue::Bool(b) => query.bind(*b),
-                DataValue::DateTime(dt) => query.bind(*dt),
+                DataValue::DateTime(dt) => query.bind(dt.naive_utc().and_utc()),
                 DataValue::Uuid(uuid) => query.bind(*uuid),
                 DataValue::Json(json) => query.bind(json.to_string()),
                 DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),

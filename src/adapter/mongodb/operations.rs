@@ -2,6 +2,8 @@
 
 use crate::adapter::MongoAdapter;
 use crate::adapter::DatabaseAdapter;
+use crate::adapter::mongodb::query_builder::{MongoQueryBuilder, build_query_document};
+use crate::adapter::mongodb::utils::build_update_document;
 use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
@@ -25,6 +27,7 @@ impl DatabaseAdapter for MongoAdapter {
         table: &str,
         data: &HashMap<String, DataValue>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::MongoDB(db) = connection {
             // 调试：打印原始接收到的数据
@@ -36,7 +39,7 @@ impl DatabaseAdapter for MongoAdapter {
                 // 双重检查：再次确认集合不存在
                 if !mongodb_schema::table_exists(self, connection, table).await? {
                     // 尝试从模型管理器获取预定义的元数据
-                    if let Some(model_meta) = crate::manager::get_model(table) {
+                    if let Some(model_meta) = crate::manager::get_model_with_alias(table, alias) {
                         debug!("集合 {} 不存在，使用预定义模型元数据创建", table);
 
                         // MongoDB不需要预创建表结构，集合是无模式的
@@ -186,8 +189,9 @@ impl DatabaseAdapter for MongoAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<Option<DataValue>> {
-        mongodb_query::find_by_id(self, connection, table, id).await
+        mongodb_query::find_by_id(self, connection, table, id, alias).await
     }
 
     async fn find(
@@ -196,8 +200,9 @@ impl DatabaseAdapter for MongoAdapter {
         table: &str,
         conditions: &[QueryCondition],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
-        mongodb_query::find(self, connection, table, conditions, options).await
+        mongodb_query::find(self, connection, table, conditions, options, alias).await
     }
 
     async fn find_with_groups(
@@ -206,8 +211,9 @@ impl DatabaseAdapter for MongoAdapter {
         table: &str,
         condition_groups: &[QueryConditionGroup],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
-        mongodb_query::find_with_groups(self, connection, table, condition_groups, options).await
+        mongodb_query::find_with_groups(self, connection, table, condition_groups, options, alias).await
     }
 
     async fn update(
@@ -216,11 +222,12 @@ impl DatabaseAdapter for MongoAdapter {
         table: &str,
         conditions: &[QueryCondition],
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = mongodb_utils::get_collection(self, db, table);
 
-            let query = mongodb_utils::build_query_document(self, conditions)?;
+            let query = build_query_document(table, alias, conditions)?;
             let update = mongodb_utils::build_update_document(self, data);
 
             debug!("执行MongoDB更新: 查询={:?}, 更新={:?}", query, update);
@@ -245,6 +252,7 @@ impl DatabaseAdapter for MongoAdapter {
         table: &str,
         id: &DataValue,
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<bool> {
         let conditions = vec![QueryCondition {
             field: "_id".to_string(), // MongoDB使用_id作为主键
@@ -252,7 +260,7 @@ impl DatabaseAdapter for MongoAdapter {
             value: id.clone(),
         }];
 
-        let affected = self.update(connection, table, &conditions, data).await?;
+        let affected = self.update(connection, table, &conditions, data, alias).await?;
         Ok(affected > 0)
     }
 
@@ -262,11 +270,12 @@ impl DatabaseAdapter for MongoAdapter {
         table: &str,
         conditions: &[QueryCondition],
         operations: &[crate::types::UpdateOperation],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = mongodb_utils::get_collection(self, db, table);
 
-            let query = mongodb_utils::build_query_document(self, conditions)?;
+            let query = build_query_document(table, alias, conditions)?;
             let mut update_doc = Document::new();
 
             let mut set_doc = Document::new();
@@ -401,11 +410,12 @@ impl DatabaseAdapter for MongoAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = mongodb_utils::get_collection(self, db, table);
 
-            let query = mongodb_utils::build_query_document(self, conditions)?;
+            let query = build_query_document(table, alias, conditions)?;
 
             debug!("执行MongoDB删除: {:?}", query);
 
@@ -428,6 +438,7 @@ impl DatabaseAdapter for MongoAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<bool> {
         let conditions = vec![QueryCondition {
             field: "_id".to_string(), // MongoDB使用_id作为主键
@@ -435,7 +446,7 @@ impl DatabaseAdapter for MongoAdapter {
             value: id.clone(),
         }];
 
-        let affected = self.delete(connection, table, &conditions).await?;
+        let affected = self.delete(connection, table, &conditions, alias).await?;
         Ok(affected > 0)
     }
 
@@ -444,27 +455,21 @@ impl DatabaseAdapter for MongoAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
-        mongodb_query::count(self, connection, table, conditions).await
+        mongodb_query::count(self, connection, table, conditions, alias).await
     }
 
-    async fn exists(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool> {
-        mongodb_query::exists(self, connection, table, conditions).await
-    }
-
+    
     async fn create_table(
         &self,
         connection: &DatabaseConnection,
         table: &str,
         _fields: &HashMap<String, FieldDefinition>,
         _id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<()> {
-        mongodb_schema::create_table(self, connection, table, _fields, _id_strategy).await
+        mongodb_schema::create_table(self, connection, table, _fields, _id_strategy, alias).await
     }
 
     async fn create_index(
@@ -527,7 +532,7 @@ impl DatabaseAdapter for MongoAdapter {
                 let id_strategy = crate::manager::get_id_strategy(&config.database)
                     .unwrap_or(IdStrategy::AutoIncrement);
 
-                self.create_table(connection, collection_name, &model_meta.fields, &id_strategy).await?;
+                self.create_table(connection, collection_name, &model_meta.fields, &id_strategy, &config.database).await?;
             }
         }
 

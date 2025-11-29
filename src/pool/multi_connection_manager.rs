@@ -265,63 +265,58 @@ impl MultiConnectionManager {
         
         // 处理具体操作
         let result = match operation {
-            DatabaseOperation::Create { table, data, id_strategy, response } => {
-                let result = worker.adapter.create(&worker.connection, &table, &data, &id_strategy).await;
+            DatabaseOperation::Create { table, data, id_strategy, alias, response } => {
+                let result = worker.adapter.create(&worker.connection, &table, &data, &id_strategy, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::FindById { table, id, response } => {
-                let result = worker.adapter.find_by_id(&worker.connection, &table, &id).await;
+            DatabaseOperation::FindById { table, id, alias, response } => {
+                let result = worker.adapter.find_by_id(&worker.connection, &table, &id, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::Find { table, conditions, options, response } => {
-                let result = worker.adapter.find(&worker.connection, &table, &conditions, &options).await;
+            DatabaseOperation::Find { table, conditions, options, alias, response } => {
+                let result = worker.adapter.find(&worker.connection, &table, &conditions, &options, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::FindWithGroups { table, condition_groups, options, response } => {
-                let result = worker.adapter.find_with_groups(&worker.connection, &table, &condition_groups, &options).await;
+            DatabaseOperation::FindWithGroups { table, condition_groups, options, alias, response } => {
+                let result = worker.adapter.find_with_groups(&worker.connection, &table, &condition_groups, &options, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::Update { table, conditions, data, response } => {
-                let result = worker.adapter.update(&worker.connection, &table, &conditions, &data).await;
+            DatabaseOperation::Update { table, conditions, data, alias, response } => {
+                let result = worker.adapter.update(&worker.connection, &table, &conditions, &data, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::UpdateWithOperations { table, conditions, operations, response } => {
-                let result = worker.adapter.update_with_operations(&worker.connection, &table, &conditions, &operations).await;
+            DatabaseOperation::UpdateWithOperations { table, conditions, operations, alias, response } => {
+                let result = worker.adapter.update_with_operations(&worker.connection, &table, &conditions, &operations, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::UpdateById { table, id, data, response } => {
-                let result = worker.adapter.update_by_id(&worker.connection, &table, &id, &data).await;
+            DatabaseOperation::UpdateById { table, id, data, alias, response } => {
+                let result = worker.adapter.update_by_id(&worker.connection, &table, &id, &data, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::Delete { table, conditions, response } => {
-                let result = worker.adapter.delete(&worker.connection, &table, &conditions).await;
+            DatabaseOperation::Delete { table, conditions, alias, response } => {
+                let result = worker.adapter.delete(&worker.connection, &table, &conditions, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::DeleteById { table, id, response } => {
-                let result = worker.adapter.delete_by_id(&worker.connection, &table, &id).await;
+            DatabaseOperation::DeleteById { table, id, alias, response } => {
+                let result = worker.adapter.delete_by_id(&worker.connection, &table, &id, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::Count { table, conditions, response } => {
-                let result = worker.adapter.count(&worker.connection, &table, &conditions).await;
+            DatabaseOperation::Count { table, conditions, alias, response } => {
+                let result = worker.adapter.count(&worker.connection, &table, &conditions, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },
-            DatabaseOperation::Exists { table, conditions, response } => {
-                let result = worker.adapter.exists(&worker.connection, &table, &conditions).await;
-                let _ = response.send(result);
-                Ok(())
-            },
-            DatabaseOperation::CreateTable { table, fields, id_strategy, response } => {
-                let result = worker.adapter.create_table(&worker.connection, &table, &fields, &id_strategy).await;
+            DatabaseOperation::CreateTable { table, fields, id_strategy, alias, response } => {
+                let result = worker.adapter.create_table(&worker.connection, &table, &fields, &id_strategy, &alias).await;
                 let _ = response.send(result);
                 Ok(())
             },

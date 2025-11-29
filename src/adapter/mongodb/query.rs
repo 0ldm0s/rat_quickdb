@@ -15,6 +15,7 @@ pub(crate) async fn find_by_id(
     connection: &DatabaseConnection,
     table: &str,
     id: &DataValue,
+    alias: &str,
 ) -> QuickDbResult<Option<DataValue>> {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = crate::adapter::mongodb::utils::get_collection(adapter, db, table);
@@ -67,6 +68,7 @@ pub(crate) async fn find_by_id(
     table: &str,
     conditions: &[QueryCondition],
     options: &QueryOptions,
+    alias: &str,
 ) -> QuickDbResult<Vec<DataValue>> {
         // 将简单条件转换为条件组合（AND逻辑）
         let condition_groups = if conditions.is_empty() {
@@ -82,7 +84,7 @@ pub(crate) async fn find_by_id(
         };
         
         // 统一使用 find_with_groups 实现
-        find_with_groups(adapter, connection, table, &condition_groups, options).await
+        find_with_groups(adapter, connection, table, &condition_groups, options, alias).await
     }
 
     pub(crate) async fn find_with_groups(
@@ -91,11 +93,14 @@ pub(crate) async fn find_by_id(
     table: &str,
     condition_groups: &[QueryConditionGroup],
     options: &QueryOptions,
+    alias: &str,
 ) -> QuickDbResult<Vec<DataValue>> {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = crate::adapter::mongodb::utils::get_collection(adapter, db, table);
             
-            let query = crate::adapter::mongodb::utils::build_condition_groups_document(adapter, condition_groups)?;
+            let query = crate::adapter::mongodb::query_builder::MongoQueryBuilder::new()
+            .where_condition_groups(condition_groups)
+            .build(table, alias)?;
             
             debug!("执行MongoDB条件组合查询: {:?}", query);
             
@@ -150,11 +155,12 @@ pub(crate) async fn find_by_id(
     connection: &DatabaseConnection,
     table: &str,
     conditions: &[QueryCondition],
+    alias: &str,
 ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MongoDB(db) = connection {
             let collection = crate::adapter::mongodb::utils::get_collection(adapter, db, table);
             
-            let query = crate::adapter::mongodb::utils::build_query_document(adapter, conditions)?;
+            let query = crate::adapter::mongodb::query_builder::build_query_document(table, alias, conditions)?;
             
             debug!("执行MongoDB计数: {:?}", query);
             
@@ -172,13 +178,4 @@ pub(crate) async fn find_by_id(
         }
     }
 
-    pub(crate) async fn exists(
-    adapter: &MongoAdapter,
-    connection: &DatabaseConnection,
-    table: &str,
-    conditions: &[QueryCondition],
-) -> QuickDbResult<bool> {
-    let count = count(adapter, connection, table, conditions).await?;
-    Ok(count > 0)
-}
-
+    

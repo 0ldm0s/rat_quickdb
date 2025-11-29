@@ -5,7 +5,7 @@ use crate::adapter::DatabaseAdapter;
 use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
-use crate::adapter::query_builder::SqlQueryBuilder;
+use crate::adapter::mysql::query_builder::SqlQueryBuilder;
 use rat_logger::debug;
 
 /// MySQL删除操作
@@ -14,15 +14,14 @@ pub(crate) async fn delete(
     connection: &DatabaseConnection,
     table: &str,
     conditions: &[QueryCondition],
-    ) -> QuickDbResult<u64> {
+    alias: &str,
+) -> QuickDbResult<u64> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::MySQL)
                 .delete()
-                .from(table)
                 .where_conditions(conditions)
-                .build()?;
-            
+                .build(table, alias)?;
+
             adapter.execute_update(pool, &sql, &params).await
         } else {
             Err(QuickDbError::ConnectionError {
@@ -33,24 +32,23 @@ pub(crate) async fn delete(
 
     pub(crate) async fn delete_by_id(
     adapter: &MysqlAdapter,
-        connection: &DatabaseConnection,
-        table: &str,
-        id: &DataValue,
-    ) -> QuickDbResult<bool> {
+    connection: &DatabaseConnection,
+    table: &str,
+    id: &DataValue,
+    alias: &str,
+) -> QuickDbResult<bool> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let condition = QueryCondition {
                 field: "id".to_string(),
                 operator: QueryOperator::Eq,
                 value: id.clone(),
             };
-            
+
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::MySQL)
                 .delete()
-                .from(table)
                 .where_condition(condition)
-                .build()?;
-            
+                .build(table, alias)?;
+
             let affected_rows = adapter.execute_update(pool, &sql, &params).await?;
             Ok(affected_rows > 0)
         } else {
@@ -62,20 +60,19 @@ pub(crate) async fn delete(
 
     pub(crate) async fn count(
     adapter: &MysqlAdapter,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<u64> {
+    connection: &DatabaseConnection,
+    table: &str,
+    conditions: &[QueryCondition],
+    alias: &str,
+) -> QuickDbResult<u64> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::MySQL)
                 .select(&["COUNT(*) as count"])
-                .from(table)
                 .where_conditions(conditions)
-                .build()?;
-            
+                .build(table, alias)?;
+
             let results = adapter.execute_query(pool, &sql, &params).await?;
-            
+
             if let Some(result) = results.first() {
                 if let DataValue::Object(map) = result {
                     if let Some(DataValue::Int(count)) = map.get("count") {
@@ -83,7 +80,7 @@ pub(crate) async fn delete(
                     }
                 }
             }
-            
+
             Ok(0)
         } else {
             Err(QuickDbError::ConnectionError {
@@ -92,13 +89,4 @@ pub(crate) async fn delete(
         }
     }
 
-    pub(crate) async fn exists(
-    adapter: &MysqlAdapter,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool> {
-        let count = count(adapter, connection, table, conditions).await?;
-        Ok(count > 0)
-    }
-
+    

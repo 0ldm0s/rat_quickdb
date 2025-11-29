@@ -15,6 +15,7 @@ pub(crate) async fn create_table(
         table: &str,
         fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::MySQL(pool) = connection {
             let mut field_definitions = Vec::new();
@@ -52,6 +53,7 @@ pub(crate) async fn create_table(
                     FieldType::Text => "TEXT".to_string(),
                     FieldType::Boolean => "BOOLEAN".to_string(),
                     FieldType::DateTime => "DATETIME".to_string(),
+                    FieldType::DateTimeWithTz { .. } => "DATETIME".to_string(),
                     FieldType::Date => "DATE".to_string(),
                     FieldType::Time => "TIME".to_string(),
                     FieldType::Uuid => "VARCHAR(36)".to_string(),

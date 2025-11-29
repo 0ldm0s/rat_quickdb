@@ -37,6 +37,10 @@ pub enum FieldType {
     Boolean,
     /// 日期时间类型
     DateTime,
+    /// 带时区的日期时间类型（存储为Unix时间戳）
+    DateTimeWithTz {
+        timezone_offset: String,  // 格式："+00:00", "+08:00", "-05:00"
+    },
     /// 日期类型
     Date,
     /// 时间类型
@@ -274,6 +278,60 @@ impl FieldDefinition {
                     });
                 }
             }
+            FieldType::DateTimeWithTz { timezone_offset } => {
+                match value {
+                    DataValue::DateTime(_) => {
+                        // DateTime类型可以直接接受
+                        debug!("✅ DateTimeWithTz字段验证通过 - DateTime类型 (字段: {}, 时区: {})", field_name, timezone_offset);
+                    },
+                    DataValue::String(s) => {
+                        // 验证字符串格式的日期时间（RFC3339或本地时间格式）
+                        if s.is_empty() {
+                            debug!("✅ DateTimeWithTz字段验证通过 - 空字符串（将自动生成当前时间） (字段: {}, 时区: {})", field_name, timezone_offset);
+                        } else {
+                            // 尝试解析RFC3339格式
+                            if s.contains('T') && (s.contains('+') || s.contains('Z') || s.contains('-')) {
+                                if chrono::DateTime::parse_from_rfc3339(s).is_ok() {
+                                    debug!("✅ DateTimeWithTz字段验证通过 - RFC3339格式: '{}' (字段: {}, 时区: {})", s, field_name, timezone_offset);
+                                } else {
+                                    return Err(QuickDbError::ValidationError {
+                                        field: "datetime_format".to_string(),
+                                        message: format!("无效的RFC3339日期时间格式: '{}' (字段: {})", s, field_name)
+                                    });
+                                }
+                            } else {
+                                // 尝试解析本地时间格式（如 "2024-06-15 12:00:00"）
+                                if chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").is_ok() {
+                                    debug!("✅ DateTimeWithTz字段验证通过 - 本地时间格式: '{}' (字段: {}, 时区: {})", s, field_name, timezone_offset);
+                                } else {
+                                    return Err(QuickDbError::ValidationError {
+                                        field: "datetime_format".to_string(),
+                                        message: format!("无效的日期时间格式，期望RFC3339或YYYY-MM-DD HH:MM:SS格式: '{}' (字段: {})", s, field_name)
+                                    });
+                                }
+                            }
+                        }
+                    },
+                    DataValue::Int(_) => {
+                        // Unix时间戳也可以接受
+                        debug!("✅ DateTimeWithTz字段验证通过 - Unix时间戳 (字段: {}, 时区: {})", field_name, timezone_offset);
+                    },
+                    _ => {
+                        return Err(QuickDbError::ValidationError {
+                            field: "type_mismatch".to_string(),
+                            message: format!("字段类型不匹配，期望日期时间类型或字符串或整数 (字段: {})", field_name)
+                        });
+                    }
+                }
+
+                // 验证时区偏移格式
+                if !is_valid_timezone_offset(timezone_offset) {
+                    return Err(QuickDbError::ValidationError {
+                        field: "timezone_offset".to_string(),
+                        message: format!("无效的时区偏移格式: '{}', 期望格式: +00:00, +08:00, -05:00", timezone_offset)
+                    });
+                }
+            }
             FieldType::Uuid => {
                 match value {
                     DataValue::String(s) => {
@@ -490,4 +548,38 @@ pub struct IndexDefinition {
     pub unique: bool,
     /// 索引名称
     pub name: Option<String>,
+}
+
+/// 验证时区偏移格式是否有效
+///
+/// 有效格式：+00:00, +08:00, -05:00 等
+fn is_valid_timezone_offset(offset: &str) -> bool {
+    // 正则表达式匹配时区偏移格式
+    // 格式：+或-，后跟两位数的小时，冒号，两位数的分钟
+    use regex::Regex;
+
+    if let Ok(re) = Regex::new(r"^[+-]\d{2}:\d{2}$") {
+        if !re.is_match(offset) {
+            return false;
+        }
+
+        // 解析小时和分钟，验证范围
+        let parts: Vec<&str> = offset[1..].split(':').collect();
+        if parts.len() != 2 {
+            return false;
+        }
+
+        if let (Ok(hours), Ok(minutes)) = (parts[0].parse::<i32>(), parts[1].parse::<i32>()) {
+            // 小时范围：0-23，分钟范围：0-59
+            if hours > 23 || minutes > 59 {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        true
+    } else {
+        false
+    }
 }

@@ -4,6 +4,7 @@
 //! 提供字段类型、验证、索引等功能
 
 pub mod conversion;
+pub mod data_conversion;
 pub mod field_types;
 pub mod traits;
 pub mod manager;
@@ -12,6 +13,7 @@ pub mod convenience;
 
 // 重新导出核心类型（保持向后兼容）
 pub use conversion::ToDataValue;
+pub use data_conversion::{create_model_from_data_map, create_model_from_data_map_with_debug};
 pub use field_types::{FieldType, FieldDefinition, ModelMeta, IndexDefinition};
 pub use traits::{Model, ModelOperations};
 pub use manager::ModelManager;

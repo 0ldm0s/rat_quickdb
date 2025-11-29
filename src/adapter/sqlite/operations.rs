@@ -1,5 +1,6 @@
 
-use crate::adapter::{DatabaseAdapter, SqlQueryBuilder};
+use crate::adapter::DatabaseAdapter;
+use super::SqlQueryBuilder;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
 use crate::model::{FieldDefinition, FieldType};
@@ -21,6 +22,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         data: &HashMap<String, DataValue>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<DataValue> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -36,11 +38,11 @@ impl DatabaseAdapter for SqliteAdapter {
                 // 再次检查表是否存在（双重检查锁定模式）
                 if !self.table_exists(connection, table).await? {
                     // 尝试从模型管理器获取预定义的元数据
-                    if let Some(model_meta) = crate::manager::get_model(table) {
+                    if let Some(model_meta) = crate::manager::get_model_with_alias(table, alias) {
                         debug!("表 {} 不存在，使用预定义模型元数据创建", table);
 
                         // 使用模型元数据创建表
-                        self.create_table(connection, table, &model_meta.fields, id_strategy).await?;
+                        self.create_table(connection, table, &model_meta.fields, id_strategy, alias).await?;
                         // 等待100ms确保数据库事务完全提交
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                         debug!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
@@ -58,8 +60,7 @@ impl DatabaseAdapter for SqliteAdapter {
             
             let (sql, params) = SqlQueryBuilder::new()
                 .insert(data.clone())
-                .from(table)
-                .build()?;
+                .build(table, alias)?;
             
             // 构建参数化查询，使用正确的参数顺序
             let mut query = sqlx::query(&sql);
@@ -70,7 +71,7 @@ impl DatabaseAdapter for SqliteAdapter {
                     DataValue::Float(f) => { query = query.bind(f); },
                     DataValue::Bool(b) => { query = query.bind(b); },
                     DataValue::Bytes(bytes) => { query = query.bind(bytes); },
-                    DataValue::DateTime(dt) => { query = query.bind(dt.to_rfc3339()); },
+                    DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); },
                     DataValue::Uuid(uuid) => { query = query.bind(uuid.to_string()); },
                     DataValue::Json(json) => { query = query.bind(json.to_string()); },
                     DataValue::Array(_) => {
@@ -116,6 +117,7 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<Option<DataValue>> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -140,7 +142,15 @@ impl DatabaseAdapter for SqliteAdapter {
             
             match row {
                 Some(r) => {
-                    let data_map = self.row_to_data_map(&r)?;
+                    // 获取字段元数据
+                    let model_meta = crate::manager::get_model_with_alias(table, alias)
+                        .ok_or_else(|| QuickDbError::ValidationError {
+                            field: "model".to_string(),
+                            message: format!("模型 '{}' 不存在", table),
+                        })?;
+
+                    // 使用新的元数据转换函数
+                    let data_map = super::data_conversion::row_to_data_map_with_metadata(&r, &model_meta.fields)?;
                     Ok(Some(DataValue::Object(data_map)))
                 },
                 None => Ok(None),
@@ -154,6 +164,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         conditions: &[QueryCondition],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         // 将简单条件转换为条件组合（AND逻辑）
         let condition_groups = if conditions.is_empty() {
@@ -169,7 +180,7 @@ impl DatabaseAdapter for SqliteAdapter {
         };
         
         // 统一使用 find_with_groups 实现
-        self.find_with_groups(connection, table, &condition_groups, options).await
+        self.find_with_groups(connection, table, &condition_groups, options, alias).await
     }
 
     async fn find_with_groups(
@@ -178,6 +189,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         condition_groups: &[QueryConditionGroup],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -187,13 +199,11 @@ impl DatabaseAdapter for SqliteAdapter {
         };
         {
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(DatabaseType::SQLite)
                 .select(&["*"])
-                .from(table)
                 .where_condition_groups(condition_groups)
                 .limit(options.pagination.as_ref().map(|p| p.limit).unwrap_or(1000))
                 .offset(options.pagination.as_ref().map(|p| p.skip).unwrap_or(0))
-                .build()?;
+                .build(table, alias)?;
 
             debug!("执行SQLite条件组合查询: {}", sql);
 
@@ -204,6 +214,7 @@ impl DatabaseAdapter for SqliteAdapter {
                     DataValue::Int(i) => { query = query.bind(i); },
                     DataValue::Float(f) => { query = query.bind(f); },
                     DataValue::Bool(b) => { query = query.bind(b); },
+                    DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); }, // DateTime转换为时间戳
                     DataValue::Null => { query = query.bind(Option::<String>::None); },
                     _ => { query = query.bind(param.to_string()); },
                 }
@@ -214,9 +225,17 @@ impl DatabaseAdapter for SqliteAdapter {
                     message: format!("执行SQLite条件组合查询失败: {}", e),
                 })?;
 
+            // 获取字段元数据
+            let model_meta = crate::manager::get_model_with_alias(table, alias)
+                .ok_or_else(|| QuickDbError::ValidationError {
+                    field: "model".to_string(),
+                    message: format!("模型 '{}' 不存在", table),
+                })?;
+
             let mut results = Vec::new();
             for row in rows {
-                let data_map = self.row_to_data_map(&row)?;
+                // 使用新的元数据转换函数
+                let data_map = super::data_conversion::row_to_data_map_with_metadata(&row, &model_meta.fields)?;
                 results.push(DataValue::Object(data_map));
             }
 
@@ -230,6 +249,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         conditions: &[QueryCondition],
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<u64> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -240,9 +260,8 @@ impl DatabaseAdapter for SqliteAdapter {
         {
             let (sql, params) = SqlQueryBuilder::new()
                 .update(data.clone())
-                .from(table)
                 .where_conditions(conditions)
-                .build()?;
+                .build(table, alias)?;
             
             let mut query = sqlx::query(&sql);
             for param in &params {
@@ -270,6 +289,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         id: &DataValue,
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<bool> {
         let condition = QueryCondition {
             field: "id".to_string(),
@@ -277,7 +297,7 @@ impl DatabaseAdapter for SqliteAdapter {
             value: id.clone(),
         };
         
-        let affected_rows = self.update(connection, table, &[condition], data).await?;
+        let affected_rows = self.update(connection, table, &[condition], data, alias).await?;
         Ok(affected_rows > 0)
     }
 
@@ -287,6 +307,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         conditions: &[QueryCondition],
         operations: &[crate::types::UpdateOperation],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -343,8 +364,7 @@ impl DatabaseAdapter for SqliteAdapter {
         // 添加WHERE条件
         if !conditions.is_empty() {
             let (where_clause, mut where_params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::SQLite)
-                .build_where_clause_with_offset(conditions, params.len() + 1)?;
+                .build_where_clause_with_offset(conditions, params.len() + 1, table, alias)?;
 
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);
@@ -360,8 +380,9 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
-        sqlite_query::delete(self, connection, table, conditions).await
+        sqlite_query::delete(self, connection, table, conditions, alias).await
     }
 
     async fn delete_by_id(
@@ -369,8 +390,9 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<bool> {
-        sqlite_query::delete_by_id(self, connection, table, id).await
+        sqlite_query::delete_by_id(self, connection, table, id, alias).await
     }
 
     async fn count(
@@ -378,17 +400,9 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
-        sqlite_query::count(self, connection, table, conditions).await
-    }
-
-    async fn exists(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool> {
-        sqlite_query::exists(self, connection, table, conditions).await
+        sqlite_query::count(self, connection, table, conditions, alias).await
     }
 
     async fn create_table(
@@ -397,6 +411,7 @@ impl DatabaseAdapter for SqliteAdapter {
         table: &str,
         fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<()> {
         sqlite_schema::create_table(self, connection, table, fields, id_strategy).await
     }
@@ -467,7 +482,7 @@ impl DatabaseAdapter for SqliteAdapter {
                 let id_strategy = crate::manager::get_id_strategy(&config.database)
                     .unwrap_or(IdStrategy::AutoIncrement);
 
-                self.create_table(connection, table_name, &model_meta.fields, &id_strategy).await?;
+                self.create_table(connection, table_name, &model_meta.fields, &id_strategy, &config.database).await?;
             }
         }
 

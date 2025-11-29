@@ -173,11 +173,39 @@ macro_rules! define_model {
 
                 $crate::debug_log!("🔍 开始 to_data_map_direct 转换...");
 
+                // 获取字段元数据，用于智能转换
+                let meta = Self::meta();
+
                 $(
                     $crate::debug_log!("🔍 转换字段 {}: {:?}", stringify!($field), self.$field);
-                    let data_value = self.$field.to_data_value();
+
+                    // 根据字段类型进行智能转换
+                    let field_name = stringify!($field).to_string();
+                    let field_def = meta.fields.get(&field_name);
+
+                    let data_value = if let Some(field_type) = field_def.map(|f| &f.field_type) {
+                        // 有字段类型定义，进行元数据感知的转换
+                        match field_type {
+                            $crate::model::field_types::FieldType::DateTimeWithTz { timezone_offset } => {
+                                // 获取数据库别名，如果为None则是严重框架错误，立即panic
+                                let alias = Self::database_alias().expect("严重错误：模型没有数据库别名！这表明框架内部存在严重问题！");
+                                let db_type = $crate::manager::get_database_type_by_alias(&alias);
+
+                                // 使用数据库感知的转换函数
+                                $crate::convert_datetime_with_tz_aware(&self.$field, timezone_offset, db_type)?
+                            },
+                            _ => {
+                                // 其他字段类型使用默认转换
+                                self.$field.to_data_value()
+                            }
+                        }
+                    } else {
+                        // 没有字段类型定义，使用默认转换
+                        self.$field.to_data_value()
+                    };
+
                     $crate::debug_log!("🔍 字段 {} 转换为: {:?}", stringify!($field), data_value);
-                    data_map.insert(stringify!($field).to_string(), data_value);
+                    data_map.insert(field_name, data_value);
                 )*
 
                 // 移除为None的id字段，让数据库自动生成ID

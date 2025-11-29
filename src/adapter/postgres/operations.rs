@@ -2,7 +2,7 @@
 
 use crate::adapter::PostgresAdapter;
 use crate::adapter::DatabaseAdapter;
-use crate::adapter::query_builder::SqlQueryBuilder;
+use crate::adapter::postgres::query_builder::SqlQueryBuilder;
 use crate::adapter::postgres::utils::row_to_data_map;
 use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
@@ -25,6 +25,7 @@ impl DatabaseAdapter for PostgresAdapter {
         table: &str,
         data: &HashMap<String, DataValue>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<DataValue> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             // 自动建表逻辑：检查表是否存在，如果不存在则创建
@@ -35,11 +36,11 @@ impl DatabaseAdapter for PostgresAdapter {
                 // 再次检查表是否存在（双重检查锁定模式）
                 if !postgres_schema::table_exists(self, connection, table).await? {
                     // 尝试从模型管理器获取预定义的元数据
-                    if let Some(model_meta) = crate::manager::get_model(table) {
+                    if let Some(model_meta) = crate::manager::get_model_with_alias(table, alias) {
                         debug!("表 {} 不存在，使用预定义模型元数据创建", table);
 
                         // 使用模型元数据创建表
-                        postgres_schema::create_table(self, connection, table, &model_meta.fields, id_strategy).await?;
+                        postgres_schema::create_table(self, connection, table, &model_meta.fields, id_strategy, alias).await?;
 
                         // 等待100ms确保数据库事务完全提交
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -113,11 +114,9 @@ impl DatabaseAdapter for PostgresAdapter {
             }
             
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::PostgreSQL)
-                .insert(insert_data)
-                .from(table)
-                .returning(&["id"])
-                .build()?;
+                                .insert(insert_data)
+                                .returning(&["id"])
+                .build(table, alias)?;
             
             debug!("执行PostgreSQL插入: {}", sql);
             
@@ -143,6 +142,7 @@ impl DatabaseAdapter for PostgresAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<Option<DataValue>> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let condition = QueryCondition {
@@ -152,12 +152,10 @@ impl DatabaseAdapter for PostgresAdapter {
             };
             
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::PostgreSQL)
-                .select(&["*"])
-                .from(table)
-                .where_condition(condition)
+                                .select(&["*"])
+                                .where_condition(condition)
                 .limit(1)
-                .build()?;
+                .build(table, alias)?;
             
             debug!("执行PostgreSQL根据ID查询: {}", sql);
             
@@ -176,6 +174,7 @@ impl DatabaseAdapter for PostgresAdapter {
         table: &str,
         conditions: &[QueryCondition],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         // 将简单条件转换为条件组合（AND逻辑）
         let condition_groups = if conditions.is_empty() {
@@ -191,7 +190,7 @@ impl DatabaseAdapter for PostgresAdapter {
         };
         
         // 统一使用 find_with_groups 实现
-        self.find_with_groups(connection, table, &condition_groups, options).await
+        self.find_with_groups(connection, table, &condition_groups, options, alias).await
     }
 
     async fn find_with_groups(
@@ -200,13 +199,12 @@ impl DatabaseAdapter for PostgresAdapter {
         table: &str,
         condition_groups: &[QueryConditionGroup],
         options: &QueryOptions,
+        alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let mut builder = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::PostgreSQL)
-                .select(&["*"])
-                .from(table)
-                .where_condition_groups(condition_groups);
+                                .select(&["*"])
+                                .where_condition_groups(condition_groups);
             
             // 添加排序
             if !options.sort.is_empty() {
@@ -220,7 +218,7 @@ impl DatabaseAdapter for PostgresAdapter {
                 builder = builder.limit(pagination.limit).offset(pagination.skip);
             }
             
-            let (sql, params) = builder.build()?;
+            let (sql, params) = builder.build(table, alias)?;
             
             debug!("执行PostgreSQL条件组查询: {}", sql);
             
@@ -238,14 +236,13 @@ impl DatabaseAdapter for PostgresAdapter {
         table: &str,
         conditions: &[QueryCondition],
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let (sql, params) = SqlQueryBuilder::new()
-                .database_type(crate::types::DatabaseType::PostgreSQL)
-                .update(data.clone())
-                .from(table)
-                .where_conditions(conditions)
-                .build()?;
+                                .update(data.clone())
+                                .where_conditions(conditions)
+                .build(table, alias)?;
             
             debug!("执行PostgreSQL更新: {}", sql);
             
@@ -263,6 +260,7 @@ impl DatabaseAdapter for PostgresAdapter {
         table: &str,
         id: &DataValue,
         data: &HashMap<String, DataValue>,
+        alias: &str,
     ) -> QuickDbResult<bool> {
         let conditions = vec![QueryCondition {
             field: "id".to_string(),
@@ -270,7 +268,7 @@ impl DatabaseAdapter for PostgresAdapter {
             value: id.clone(),
         }];
         
-        let affected = self.update(connection, table, &conditions, data).await?;
+        let affected = self.update(connection, table, &conditions, data, alias).await?;
         Ok(affected > 0)
     }
 
@@ -280,6 +278,7 @@ impl DatabaseAdapter for PostgresAdapter {
         table: &str,
         conditions: &[QueryCondition],
         operations: &[crate::types::UpdateOperation],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let mut set_clauses = Vec::new();
@@ -330,8 +329,7 @@ impl DatabaseAdapter for PostgresAdapter {
             // 添加WHERE条件
             if !conditions.is_empty() {
                 let (where_clause, mut where_params) = SqlQueryBuilder::new()
-                    .database_type(crate::types::DatabaseType::PostgreSQL)
-                    .build_where_clause_with_offset(conditions, params.len() + 1)?;
+                                        .build_where_clause_with_offset(conditions, params.len() + 1, table, alias)?;
 
                 sql.push_str(&format!(" WHERE {}", where_clause));
                 params.extend(where_params);
@@ -352,8 +350,9 @@ impl DatabaseAdapter for PostgresAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
-        postgres_query::delete(self, connection, table, conditions).await
+        postgres_query::delete(self, connection, table, conditions, alias).await
     }
 
     async fn delete_by_id(
@@ -361,8 +360,9 @@ impl DatabaseAdapter for PostgresAdapter {
         connection: &DatabaseConnection,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<bool> {
-        postgres_query::delete_by_id(self, connection, table, id).await
+        postgres_query::delete_by_id(self, connection, table, id, alias).await
     }
 
     async fn count(
@@ -370,25 +370,19 @@ impl DatabaseAdapter for PostgresAdapter {
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
-        postgres_query::count(self, connection, table, conditions).await
+        postgres_query::count(self, connection, table, conditions, alias).await
     }
 
-    async fn exists(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool> {
-        postgres_query::exists(self, connection, table, conditions).await
-    }
-
+    
     async fn create_table(
         &self,
         connection: &DatabaseConnection,
         table: &str,
         fields: &HashMap<String, FieldDefinition>,
         id_strategy: &IdStrategy,
+        alias: &str,
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let mut field_definitions = Vec::new();
@@ -422,6 +416,10 @@ impl DatabaseAdapter for PostgresAdapter {
                     FieldType::Boolean => "BOOLEAN".to_string(),
                     FieldType::DateTime => {
                         debug!("🔍 字段 {} 类型为 DateTime，required: {}", name, field_definition.required);
+                        "TIMESTAMPTZ".to_string()
+                    },
+                    FieldType::DateTimeWithTz { .. } => {
+                        debug!("🔍 字段 {} 类型为 DateTimeWithTz，required: {}", name, field_definition.required);
                         "TIMESTAMPTZ".to_string()
                     },
                     FieldType::Date => "DATE".to_string(),
@@ -627,7 +625,7 @@ impl DatabaseAdapter for PostgresAdapter {
                 let id_strategy = crate::manager::get_id_strategy(&config.database)
                     .unwrap_or(IdStrategy::AutoIncrement);
 
-                self.create_table(connection, table_name, &model_meta.fields, &id_strategy).await?;
+                self.create_table(connection, table_name, &model_meta.fields, &id_strategy, &config.database).await?;
             }
         }
 

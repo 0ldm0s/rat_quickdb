@@ -88,6 +88,22 @@ rat_quickdb = { version = "0.3.6", features = [
 | `python-bindings` | Python API绑定 | ❌ |
 | `full` | 启用所有数据库支持 | ❌ |
 
+#### 数据库版本要求
+
+**重要**：不同数据库对JSON操作的支持版本要求不同：
+
+| 数据库 | 最低版本要求 | JSON支持 | Contains操作符实现 |
+|--------|-------------|----------|-------------------|
+| **MySQL** | 5.7+ / MariaDB 10.2+ | ✅ 完整支持 | 字符串字段使用LIKE，JSON字段使用JSON_CONTAINS() |
+| **PostgreSQL** | 9.2+ | ✅ 完整支持 | 字符串字段使用LIKE，JSON字段使用@>操作符 |
+| **SQLite** | 3.38.0+ | ✅ 基础支持 | 仅字符串字段支持LIKE操作 |
+| **MongoDB** | 7.0+ | ✅ 原生支持 | 原生$regex操作符 |
+
+⚠️ **版本兼容性注意事项**：
+- MySQL 5.6及以下版本不支持JSON_CONTAINS函数，会导致运行时错误
+- PostgreSQL早期版本可能需要启用JSON扩展
+- SQLite JSON功能是可选的，需要在编译时启用
+
 #### 按需启用特性
 
 **仅使用SQLite**:

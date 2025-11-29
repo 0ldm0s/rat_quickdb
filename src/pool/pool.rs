@@ -244,6 +244,7 @@ impl ConnectionPool {
             table: table.to_string(),
             data: data.clone(),
             id_strategy: id_strategy.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         
@@ -269,6 +270,7 @@ impl ConnectionPool {
         let operation = DatabaseOperation::FindById {
             table: table.to_string(),
             id: id.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         
@@ -296,6 +298,7 @@ impl ConnectionPool {
             table: table.to_string(),
             conditions: conditions.to_vec(),
             options: options.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         
@@ -323,6 +326,7 @@ impl ConnectionPool {
             table: table.to_string(),
             conditions: conditions.to_vec(),
             data: data.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         
@@ -350,6 +354,7 @@ impl ConnectionPool {
             table: table.to_string(),
             id: id.clone(),
             data: data.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         
@@ -369,20 +374,22 @@ impl ConnectionPool {
         &self,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         let (response_sender, response_receiver) = oneshot::channel();
-        
+
         let operation = DatabaseOperation::Delete {
             table: table.to_string(),
             conditions: conditions.to_vec(),
+            alias: alias.to_string(),
             response: response_sender,
         };
-        
+
         self.operation_sender.send(operation)
             .map_err(|_| QuickDbError::QueryError {
                 message: "发送操作失败".to_string(),
             })?;
-        
+
         response_receiver.await
             .map_err(|_| QuickDbError::QueryError {
                 message: "接收响应失败".to_string(),
@@ -394,20 +401,22 @@ impl ConnectionPool {
         &self,
         table: &str,
         id: &DataValue,
+        alias: &str,
     ) -> QuickDbResult<bool> {
         let (response_sender, response_receiver) = oneshot::channel();
-        
+
         let operation = DatabaseOperation::DeleteById {
             table: table.to_string(),
             id: id.clone(),
+            alias: alias.to_string(),
             response: response_sender,
         };
-        
+
         self.operation_sender.send(operation)
             .map_err(|_| QuickDbError::QueryError {
                 message: "发送操作失败".to_string(),
             })?;
-        
+
         response_receiver.await
             .map_err(|_| QuickDbError::QueryError {
                 message: "接收响应失败".to_string(),
@@ -419,51 +428,28 @@ impl ConnectionPool {
         &self,
         table: &str,
         conditions: &[QueryCondition],
+        alias: &str,
     ) -> QuickDbResult<u64> {
         let (response_sender, response_receiver) = oneshot::channel();
-        
+
         let operation = DatabaseOperation::Count {
             table: table.to_string(),
             conditions: conditions.to_vec(),
+            alias: alias.to_string(),
             response: response_sender,
         };
-        
+
         self.operation_sender.send(operation)
             .map_err(|_| QuickDbError::QueryError {
                 message: "发送操作失败".to_string(),
             })?;
-        
+
         response_receiver.await
             .map_err(|_| QuickDbError::QueryError {
                 message: "接收响应失败".to_string(),
             })?
     }
-    
-    /// 检查记录是否存在
-    pub async fn exists(
-        &self,
-        table: &str,
-        conditions: &[QueryCondition],
-    ) -> QuickDbResult<bool> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        
-        let operation = DatabaseOperation::Exists {
-            table: table.to_string(),
-            conditions: conditions.to_vec(),
-            response: response_sender,
-        };
-        
-        self.operation_sender.send(operation)
-            .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
-            })?;
-        
-        response_receiver.await
-            .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
-            })?
-    }
-    
+
     /// 创建表
     pub async fn create_table(
         &self,
@@ -477,6 +463,7 @@ impl ConnectionPool {
             table: table.to_string(),
             fields: fields.clone(),
             id_strategy: id_strategy.clone(),
+            alias: self.db_config.alias.clone(),
             response: response_sender,
         };
         

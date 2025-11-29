@@ -1,5 +1,5 @@
-use crate::adapter::SqliteAdapter;
-use crate::adapter::{DatabaseAdapter, SqlQueryBuilder};
+use crate::adapter::{DatabaseAdapter, SqliteAdapter};
+use super::SqlQueryBuilder;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
 use crate::model::{FieldDefinition, FieldType};
@@ -53,6 +53,7 @@ pub(crate) async fn create_table(
                 FieldType::Text => "TEXT".to_string(),
                 FieldType::Boolean => "INTEGER".to_string(),
                 FieldType::DateTime => "TEXT".to_string(),
+                FieldType::DateTimeWithTz { .. } => "DATETIME".to_string(), // 存储为Unix时间戳，但使用DATETIME类型
                 FieldType::Date => "TEXT".to_string(),
                 FieldType::Time => "TEXT".to_string(),
                 FieldType::Json => "TEXT".to_string(),

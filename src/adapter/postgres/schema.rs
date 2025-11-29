@@ -16,6 +16,7 @@ pub(crate) async fn create_table(
     table: &str,
     fields: &HashMap<String, FieldDefinition>,
     id_strategy: &IdStrategy,
+    alias: &str,
 ) -> QuickDbResult<()> {
     if let DatabaseConnection::PostgreSQL(pool) = connection {
         let mut field_definitions = Vec::new();
@@ -49,6 +50,10 @@ pub(crate) async fn create_table(
                 FieldType::Boolean => "BOOLEAN".to_string(),
                 FieldType::DateTime => {
                     debug!("🔍 字段 {} 类型为 DateTime，required: {}", name, field_definition.required);
+                    "TIMESTAMPTZ".to_string()
+                },
+                FieldType::DateTimeWithTz { .. } => {
+                    debug!("🔍 字段 {} 类型为 DateTimeWithTz，required: {}", name, field_definition.required);
                     "TIMESTAMPTZ".to_string()
                 },
                 FieldType::Date => "DATE".to_string(),

@@ -43,6 +43,7 @@ impl AsyncOdmManager {
             table: collection.to_string(),
             conditions,
             data: updates,
+            alias: actual_alias.clone(),
             response: response_tx,
         };
         
@@ -93,6 +94,7 @@ impl AsyncOdmManager {
             table: collection.to_string(),
             conditions,
             operations,
+            alias: actual_alias.clone(),
             response: response_tx,
         };
 
@@ -143,6 +145,7 @@ impl AsyncOdmManager {
             table: collection.to_string(),
             id: DataValue::String(id.to_string()),
             data: updates,
+            alias: actual_alias.clone(),
             response: response_tx,
         };
         

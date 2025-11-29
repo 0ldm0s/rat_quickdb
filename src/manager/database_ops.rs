@@ -80,10 +80,13 @@ impl PoolManager {
                 debug!("设置默认数据库别名: {}", alias);
             }
         }
-        
+
+        // 注册到全局别名类型映射
+        crate::manager::register_database_alias(alias.clone(), config.db_type.clone())?;
+
         // 启动清理任务（如果还没有启动）
         self.start_cleanup_task().await;
-        
+
         info!("数据库添加成功: 别名={}", alias);
         Ok(())
     }

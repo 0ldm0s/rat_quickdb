@@ -286,7 +286,7 @@ impl CacheManager {
                                 }
                                 // 尝试解析为DateTime
                                 else if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&s) {
-                                    DataValue::DateTime(dt.with_timezone(&chrono::Utc))
+                                    DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0)))
                                 }
                                 // 尝试解析为base64编码的字节数据
                                 else if s.starts_with("data:") || (s.len() % 4 == 0 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=')) {

@@ -72,7 +72,18 @@ pub fn boolean_field() -> FieldDefinition {
 
 /// 便捷函数：创建日期时间字段
 pub fn datetime_field() -> FieldDefinition {
-    FieldDefinition::new(FieldType::DateTime)
+    // 为了向后兼容，内部使用 datetime_with_tz_field，默认UTC时区
+    datetime_with_tz_field("+00:00")
+}
+
+/// 便捷函数：创建带时区的日期时间字段
+///
+/// 时区偏移格式："+00:00", "+08:00", "-05:00"
+/// 存储为Unix时间戳（INTEGER），提供最佳的性能和范围查询支持
+pub fn datetime_with_tz_field(timezone_offset: &str) -> FieldDefinition {
+    FieldDefinition::new(FieldType::DateTimeWithTz {
+        timezone_offset: timezone_offset.to_string(),
+    })
 }
 
 /// 便捷函数：创建UUID字段

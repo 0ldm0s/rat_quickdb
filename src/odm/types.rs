@@ -73,12 +73,6 @@ pub enum OdmRequest {
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
-    Exists {
-        collection: String,
-        conditions: Vec<QueryCondition>,
-        alias: Option<String>,
-        response: oneshot::Sender<QuickDbResult<bool>>,
-    },
     GetServerVersion {
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<String>>,

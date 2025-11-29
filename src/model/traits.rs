@@ -128,6 +128,7 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                         FieldType::Text => "String",
                         FieldType::Boolean => "Bool",
                         FieldType::DateTime => "DateTime",
+                        FieldType::DateTimeWithTz { .. } => "DateTime", // 带时区的DateTime
                         FieldType::Date => "DateTime",
                         FieldType::Time => "DateTime",
                         FieldType::Uuid => "Uuid",
@@ -177,6 +178,7 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                                     FieldType::Text => "String",
                                     FieldType::Boolean => "Bool",
                                     FieldType::DateTime => "DateTime",
+                                    FieldType::DateTimeWithTz { .. } => "DateTime", // 带时区的DateTime
                                     FieldType::Date => "DateTime",
                                     FieldType::Time => "DateTime",
                                     FieldType::Uuid => "Uuid",
@@ -274,153 +276,44 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
 
     /// 从数据映射创建模型实例
     fn from_data_map(data: HashMap<String, DataValue>) -> QuickDbResult<Self> {
-
         // 使用模型元数据后处理数据字段，修复复杂类型字段反序列化问题
         let meta = Self::meta();
         let processed_data = crate::process_data_fields_from_metadata(data, &meta.fields);
 
-        // 将 HashMap<String, DataValue> 转换为 JsonValue，处理类型转换
-        let mut json_map = serde_json::Map::new();
-        for (key, value) in processed_data {
-
-            // 检查字段类型，对于可能为空的DateTime字段进行特殊处理
-            let field_type = meta.fields.get(&key).map(|f| &f.field_type);
-
-            let json_value = match value {
-                // 处理复杂类型的智能转换
-                DataValue::Object(obj_map) => {
-                    // 如果结构体期望字符串，但数据库存储的是对象，将对象序列化为JSON字符串
-                    debug!("字段 {} 的Object类型将转换为JSON字符串", key);
-
-                    // 检查字段类型，如果期望字符串但收到对象，则序列化为JSON字符串
-                    if matches!(field_type, Some(crate::model::field_types::FieldType::String { .. })) {
-                        let json_str = serde_json::to_string(&JsonValue::Object(
-                            obj_map.iter()
-                                .map(|(k, v)| (k.clone(), v.to_json_value()))
-                                .collect()
-                        )).unwrap_or_else(|_| "{}".to_string());
-                        JsonValue::String(json_str)
-                    } else {
-                        // 对于其他类型，保持原有的Object处理
-                        let mut nested_map = serde_json::Map::new();
-                        for (nested_key, nested_value) in obj_map {
-                            nested_map.insert(nested_key, nested_value.to_json_value());
-                        }
-                        JsonValue::Object(nested_map)
-                    }
-                },
-                DataValue::Array(arr) => {
-                    // 数组类型直接转换
-                    debug!("转换数组字段，元素数量: {}", arr.len());
-                    let json_array: Vec<JsonValue> = arr.iter()
-                        .map(|item| {
-                            let json_item = item.to_json_value();
-                            debug!("数组元素: {:?} -> {}", item, json_item);
-                            json_item
-                        })
-                        .collect();
-                    let result = JsonValue::Array(json_array);
-                    debug!("数组转换结果: {}", result);
-                    result
-                },
-                DataValue::String(s) => {
-                    // 对于字符串类型的DataValue，检查是否是JSON格式
-                    if (s.starts_with('[') && s.ends_with(']')) || (s.starts_with('{') && s.ends_with('}')) {
-                        match serde_json::from_str::<serde_json::Value>(&s) {
-                            Ok(parsed) => parsed,
-                            Err(_) => JsonValue::String(s),
-                        }
-                    } else {
-                        JsonValue::String(s)
-                    }
-                },
-                DataValue::Json(j) => {
-                    // JSON值直接使用
-                    j
-                },
-                // 其他基本类型直接转换
-                DataValue::Bool(b) => JsonValue::Bool(b),
-                DataValue::Int(i) => JsonValue::Number(serde_json::Number::from(i)),
-                DataValue::Float(f) => {
-                    serde_json::Number::from_f64(f)
-                        .map(JsonValue::Number)
-                        .unwrap_or(JsonValue::Null)
-                },
-                DataValue::Null => {
-                    // 特殊处理：如果这是DateTime字段且为null，我们直接插入null值到JSON
-                    if matches!(field_type, Some(crate::model::field_types::FieldType::DateTime)) {
-                        JsonValue::Null
-                    } else {
-                        debug!("字段 {} 为null值，保持为JsonValue::Null", key);
-                        JsonValue::Null
-                    }
-                },
-                DataValue::Bytes(b) => {
-                    // 字节数组转换为base64字符串
-                    JsonValue::String(base64::encode(&b))
-                },
-                DataValue::DateTime(dt) => {
-                    debug!("DateTime字段 {} 转换为RFC3339字符串: {}", key, dt.to_rfc3339());
-                    JsonValue::String(dt.to_rfc3339())
-                },
-                DataValue::Uuid(u) => JsonValue::String(u.to_string()),
-            };
-            json_map.insert(key, json_value);
-        }
-        let json_value = JsonValue::Object(json_map);
-
-        let json_str = serde_json::to_string_pretty(&json_value).unwrap_or_else(|_| "无法序列化".to_string());
-        debug!("准备反序列化的JSON数据: {}", json_str);
-
-        // 尝试直接反序列化
-        match serde_json::from_value(json_value.clone()) {
-            Ok(model) => Ok(model),
-            Err(first_error) => {
-                debug!("直接反序列化失败，尝试兼容模式: {}", first_error);
-
-                // 分析具体的错误，看看哪个字段类型不匹配
-                debug!("反序列化错误: {}", first_error);
-
-                // 现在数组字段已经在前面通过模型元数据处理过了，直接返回错误
-                debug!("反序列化失败，数组字段处理后仍然有问题: {}", first_error);
-                Err(QuickDbError::SerializationError {
-                    message: format!("反序列化失败: {}", first_error)
-                })
-            }
-        }
+        
+        // 直接从HashMap<String, DataValue>转换为模型实例，避免JSON中转
+        crate::model::data_conversion::create_model_from_data_map::<Self>(&processed_data)
     }
 }
 
-/// 模型操作特征
+/// 记录操作特征
 ///
-/// 提供模型的CRUD操作
+/// 提供记录的CRUD操作
 #[async_trait]
 pub trait ModelOperations<T: Model> {
-    /// 保存模型
+    /// 保存记录
     async fn save(&self) -> QuickDbResult<String>;
 
-    /// 根据ID查找模型
+    /// 根据ID查找记录
     async fn find_by_id(id: &str) -> QuickDbResult<Option<T>>;
 
-    /// 查找多个模型
+    /// 查找多条记录
     async fn find(conditions: Vec<QueryCondition>, options: Option<QueryOptions>) -> QuickDbResult<Vec<T>>;
 
-    /// 更新模型
+    /// 更新记录
     async fn update(&self, updates: HashMap<String, DataValue>) -> QuickDbResult<bool>;
 
-    /// 删除模型
+    /// 删除记录
     async fn delete(&self) -> QuickDbResult<bool>;
 
-    /// 统计模型数量
+    /// 统计记录数量
     async fn count(conditions: Vec<QueryCondition>) -> QuickDbResult<u64>;
 
-    /// 检查模型是否存在
-    async fn exists(conditions: Vec<QueryCondition>) -> QuickDbResult<bool>;
-
-    /// 使用条件组查找多个模型（支持复杂的AND/OR逻辑组合）
+    
+    /// 使用条件组查找多条记录（支持复杂的AND/OR逻辑组合）
     async fn find_with_groups(condition_groups: Vec<QueryConditionGroup>, options: Option<QueryOptions>) -> QuickDbResult<Vec<T>>;
 
-    /// 批量更新模型
+    /// 批量更新记录
     ///
     /// 根据条件批量更新多条记录，返回受影响的行数
     async fn update_many(conditions: Vec<QueryCondition>, updates: HashMap<String, DataValue>) -> QuickDbResult<u64>;
