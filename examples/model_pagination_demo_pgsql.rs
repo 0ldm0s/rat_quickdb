@@ -198,7 +198,7 @@ async fn main() -> QuickDbResult<()> {
             port: 5432,
             database: "testdb".to_string(),
             username: "testdb".to_string(),
-            password: "testdb123456".to_string(),
+            password: "testdb".to_string(),
             ssl_mode: Some("prefer".to_string()),
             tls_config: None,
         },
