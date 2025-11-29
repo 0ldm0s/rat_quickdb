@@ -118,7 +118,11 @@ pub(crate) fn bson_to_data_value(adapter: &MongoAdapter, bson: &Bson) -> QuickDb
         Bson::Int32(i) => Ok(DataValue::Int(*i as i64)),
         Bson::Double(d) => Ok(DataValue::Float(*d)),
         Bson::Boolean(b) => Ok(DataValue::Bool(*b)),
-        Bson::DateTime(dt) => Ok(DataValue::DateTime(dt.to_system_time().into())),
+        Bson::DateTime(dt) => {
+            let utc_dt = chrono::DateTime::<chrono::Utc>::from(dt.to_system_time());
+            let fixed_dt = utc_dt.with_timezone(&chrono::FixedOffset::east(0));
+            Ok(DataValue::DateTime(fixed_dt))
+        },
         Bson::ObjectId(oid) => Ok(DataValue::String(oid.to_hex())),
         Bson::Null => Ok(DataValue::Null),
         Bson::Array(arr) => {
