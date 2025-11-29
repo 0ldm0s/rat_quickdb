@@ -19,7 +19,7 @@ define_model! {
         id: String,
         name: String,
         created_at_utc: chrono::DateTime<chrono::Utc>,
-        local_time_cst: chrono::DateTime<chrono::Utc>,
+        local_time_cst: chrono::DateTime<chrono::FixedOffset>,
         local_time_est: String,
     }
     collection = "timezone_test",
@@ -159,7 +159,7 @@ async fn main() -> QuickDbResult<()> {
         id: String::new(), // 框架会自动生成UUID
         name: "时区测试".to_string(),
         created_at_utc: now,
-        local_time_cst: now,  // 传入UTC时间，框架根据+08:00时区设置处理
+        local_time_cst: now.into(),  // 转换为FixedOffset
         local_time_est: now.to_rfc3339(),  // 传入RFC3339字符串，框架应该根据-05:00时区设置处理
     };
 

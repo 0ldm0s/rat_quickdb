@@ -45,27 +45,19 @@ pub fn convert_string_to_datetime_with_tz<T: std::fmt::Debug + ToDataValue>(
 ///
 /// 对于DateTimeWithTz字段，将UTC时间转换为指定时区的本地时间
 fn apply_timezone_to_datetime(
-    utc_dt: chrono::DateTime<chrono::Utc>,
+    utc_dt: chrono::DateTime<chrono::FixedOffset>,
     timezone_offset: &str,
 ) -> QuickDbResult<DataValue> {
     // 解析时区偏移
     let tz_offset = parse_timezone_offset(timezone_offset)?;
 
-    // 创建带时区的DateTime
-    if let Some(offset) = chrono::FixedOffset::west_opt(tz_offset) {
-        // UTC时间 + 时区偏移 = 本地时间
-        // 例如：UTC时间 + 8小时 = 北京时间
-        let local_dt = utc_dt + chrono::Duration::seconds(-tz_offset as i64);
+    // 解析目标时区偏移
+    let target_offset_seconds = tz_offset;
+    let target_tz = chrono::FixedOffset::east(target_offset_seconds);
 
-        // 保持UTC格式，但时间已调整为本地时间
-        let adjusted_utc = local_dt.with_timezone(&chrono::Utc);
-        Ok(DataValue::DateTime(adjusted_utc))
-    } else {
-        Err(QuickDbError::ValidationError {
-            field: "DateTimeWithTz字段".to_string(),
-            message: format!("无效的时区偏移: {}", timezone_offset),
-        })
-    }
+    // 转换为目标时区
+    let target_dt = utc_dt.with_timezone(&target_tz);
+    Ok(DataValue::DateTime(target_dt))
 }
 
 /// 解析字符串为DateTime，应用时区偏移
@@ -75,9 +67,8 @@ fn parse_string_to_datetime_with_tz(
 ) -> QuickDbResult<DataValue> {
     // 首先尝试直接解析为RFC3339格式（包含时区信息）
     if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(datetime_str) {
-        // 转换为UTC时间
-        let utc_dt = dt.with_timezone(&chrono::Utc);
-        return Ok(DataValue::DateTime(utc_dt));
+        // 保持FixedOffset格式
+        return Ok(DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0))));
     }
 
     // 如果RFC3339解析失败，尝试解析为本地时间格式并应用指定的时区偏移
@@ -112,9 +103,8 @@ fn parse_string_to_datetime_with_tz(
                         ),
                     })?;
 
-                // 转换为UTC时间
-                let utc_dt = aware_dt.with_timezone(&chrono::Utc);
-                return Ok(DataValue::DateTime(utc_dt));
+                // 保持FixedOffset格式
+                return Ok(DataValue::DateTime(aware_dt.with_timezone(&chrono::FixedOffset::east(0))));
             } else {
                 return Err(QuickDbError::ValidationError {
                     field: "DateTimeWithTz字段".to_string(),

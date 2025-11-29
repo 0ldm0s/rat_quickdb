@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, FixedOffset};
 
 /// 通用数据值类型 - 支持跨数据库的数据表示
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -19,7 +19,7 @@ pub enum DataValue {
     /// 字节数组
     Bytes(Vec<u8>),
     /// 日期时间
-    DateTime(DateTime<Utc>),
+    DateTime(DateTime<FixedOffset>),
     /// UUID
     Uuid(Uuid),
     /// JSON 对象
@@ -261,6 +261,12 @@ impl From<Vec<u8>> for DataValue {
 
 impl From<DateTime<Utc>> for DataValue {
     fn from(value: DateTime<Utc>) -> Self {
+        DataValue::DateTime(value.with_timezone(&FixedOffset::east(0)))
+    }
+}
+
+impl From<DateTime<FixedOffset>> for DataValue {
+    fn from(value: DateTime<FixedOffset>) -> Self {
         DataValue::DateTime(value)
     }
 }
