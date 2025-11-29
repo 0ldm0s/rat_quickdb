@@ -187,8 +187,12 @@ macro_rules! define_model {
                         // 有字段类型定义，进行元数据感知的转换
                         match field_type {
                             $crate::model::field_types::FieldType::DateTimeWithTz { timezone_offset } => {
-                                // 对于带时区的DateTime字段，尝试String到DateTime的转换
-                                $crate::convert_string_to_datetime_with_tz(&self.$field, timezone_offset)?
+                                // 获取数据库别名，如果为None则是严重框架错误，立即panic
+                                let alias = Self::database_alias().expect("严重错误：模型没有数据库别名！这表明框架内部存在严重问题！");
+                                let db_type = $crate::manager::get_database_type_by_alias(&alias);
+
+                                // 使用数据库感知的转换函数
+                                $crate::convert_datetime_with_tz_aware(&self.$field, timezone_offset, db_type)?
                             },
                             _ => {
                                 // 其他字段类型使用默认转换

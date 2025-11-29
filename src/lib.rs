@@ -58,6 +58,7 @@ pub use model::{
 
 // 导出DateTime转换工具
 pub use model::conversion::datetime_conversion::convert_string_to_datetime_with_tz;
+pub use model::conversion::database_aware::convert_datetime_with_tz_aware;
 pub use serializer::{DataSerializer, SerializerConfig, OutputFormat, SerializationResult};
 pub use adapter::{DatabaseAdapter, create_adapter};
 pub use config::{

@@ -2,6 +2,7 @@
 //!
 //! 提供多数据库连接池的管理功能，包括连接池创建、维护、缓存管理等
 
+mod alias_type_map;
 mod manager;
 mod database_ops;
 mod cache_ops;
@@ -10,6 +11,7 @@ mod maintenance;
 
 // 重新导出主要类型
 pub use manager::PoolManager;
+pub use alias_type_map::{register_database_alias, get_database_type_by_alias};
 
 // 全局便捷函数（从原manager.rs的第631行开始）
 use std::sync::Arc;
