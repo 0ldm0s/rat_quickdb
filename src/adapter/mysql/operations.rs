@@ -77,6 +77,7 @@ impl DatabaseAdapter for MysqlAdapter {
                         DataValue::Float(f) => query.bind(f),
                         DataValue::Bool(b) => query.bind(b),
                         DataValue::DateTime(dt) => query.bind(dt.naive_utc().and_utc()),
+                        DataValue::DateTimeUTC(dt) => query.bind(dt.naive_utc()),
                         DataValue::Uuid(uuid) => query.bind(uuid),
                         DataValue::Json(json) => query.bind(json.to_string()),
                         DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),

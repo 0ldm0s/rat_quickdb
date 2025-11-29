@@ -892,6 +892,10 @@ fn process_range_query_value(
                         // DateTime转换为timestamp
                         return Ok(DataValue::Int(dt.timestamp()));
                     },
+                    DataValue::DateTimeUTC(dt) => {
+                        // DateTimeUTC转换为timestamp
+                        return Ok(DataValue::Int(dt.timestamp()));
+                    },
                     _ => Ok(value.clone()),
                 }
             },

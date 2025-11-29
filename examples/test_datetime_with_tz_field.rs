@@ -7,7 +7,8 @@ use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig};
 use rat_quickdb::manager::health_check;
 use rat_quickdb::{ModelManager, ModelOperations, datetime_with_tz_field};
 use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
-use chrono::{Utc, DateTime};
+use chrono::{Utc, DateTime, Timelike};
+use std::collections::HashMap;
 
 // 定义测试模型
 define_model! {
@@ -198,8 +199,72 @@ async fn main() -> QuickDbResult<()> {
     }
     println!();
 
-    // 7. 检查数据库存储（跳过删除，保留数据供调试）
-    println!("7. 💾 检查数据库存储");
+    // 7. 更新测试数据
+    println!("7. 🔄 更新测试数据");
+    println!("==================");
+
+    // 准备更新数据 - 测试三种不同的DateTime类型
+    let update_time = Utc::now() + chrono::Duration::hours(1);
+    let update_cst_time = rat_quickdb::utils::timezone::utc_to_timezone(update_time, "+08:00").unwrap();
+    let update_est_time = rat_quickdb::utils::timezone::utc_to_timezone(update_time, "-05:00").unwrap();
+
+    println!("更新数据准备:");
+    println!("  UTC时间: {}", update_time.to_rfc3339());
+    println!("  CST时间: {}", update_cst_time.to_rfc3339());
+    println!("  EST时间: {}", update_est_time.to_rfc3339());
+
+    // 构造更新数据
+    let mut update_data = HashMap::new();
+    update_data.insert("name".to_string(), DataValue::String("更新后的时区测试".to_string()));
+
+    // 测试三种DateTime类型的更新
+    update_data.insert("created_at_utc".to_string(), DataValue::DateTimeUTC(update_time));
+    update_data.insert("local_time_cst".to_string(), DataValue::DateTime(update_cst_time));
+    update_data.insert("local_time_est".to_string(), DataValue::String(update_est_time.to_rfc3339()));
+
+    println!("\n开始执行更新操作...");
+
+    match ModelManager::<TimeZoneTestModel>::update_many(vec![], update_data).await {
+        Ok(affected_rows) => {
+            println!("✅ 更新成功，影响了 {} 行", affected_rows);
+        },
+        Err(e) => {
+            println!("❌ 更新失败: {}", e);
+            println!("错误详情: {:?}", e);
+        }
+    }
+    println!();
+
+    // 8. 查询更新后的数据
+    println!("8. 🔍 查询更新后的数据");
+    println!("======================");
+
+    match ModelManager::<TimeZoneTestModel>::find(vec![], None).await {
+        Ok(models) => {
+            println!("✅ 查询到 {} 条记录", models.len());
+            for (index, model) in models.iter().enumerate() {
+                println!("📋 更新后第{}条记录:", index + 1);
+                println!("  name: {} (类型: {})", model.name, std::any::type_name_of_val(&model.name));
+                println!("  created_at_utc: {} (类型: {})", model.created_at_utc, std::any::type_name_of_val(&model.created_at_utc));
+                println!("  local_time_cst: {} (类型: {})", model.local_time_cst, std::any::type_name_of_val(&model.local_time_cst));
+                println!("  local_time_est: {} (类型: {})", model.local_time_est, std::any::type_name_of_val(&model.local_time_est));
+
+                // 验证时间是否正确更新
+                if std::any::type_name_of_val(&model.created_at_utc).contains("DateTime") {
+                    println!("  created_at_utc (小时): {}", model.created_at_utc.hour());
+                }
+                if std::any::type_name_of_val(&model.local_time_cst).contains("DateTime") {
+                    println!("  local_time_cst (小时): {}", model.local_time_cst.hour());
+                }
+
+                println!();
+            }
+        },
+        Err(e) => println!("❌ 查询更新后数据失败: {}", e),
+    }
+
+    // 9. 检查数据库存储（跳过删除，保留数据供调试）
+    println!("9. 💾 检查数据库存储");
     println!("==================");
     println!("⏸️  跳过数据删除，保留数据库文件供调试分析");
 

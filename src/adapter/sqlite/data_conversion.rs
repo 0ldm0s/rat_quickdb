@@ -210,7 +210,7 @@ pub fn convert_local_to_timestamp(
     let utc_dt = naive_dt.and_utc();
 
     // 解析时区偏移
-    let offset_seconds = parse_timezone_offset_to_seconds(timezone_offset)?;
+    let offset_seconds = crate::utils::timezone::parse_timezone_offset_to_seconds(timezone_offset)?;
 
     // 本地时间 = UTC时间 + 时区偏移
     // UTC时间 = 本地时间 - 时区偏移
@@ -248,7 +248,7 @@ fn apply_timezone_offset_to_utc(
     utc_dt: chrono::DateTime<chrono::Utc>,
     timezone_offset: &str,
 ) -> QuickDbResult<chrono::DateTime<chrono::FixedOffset>> {
-    let offset_seconds = parse_timezone_offset_to_seconds(timezone_offset)?;
+    let offset_seconds = crate::utils::timezone::parse_timezone_offset_to_seconds(timezone_offset)?;
 
     // 检查时区偏移是否在有效范围内（-23:59 到 +23:59）
     if offset_seconds < -86399 || offset_seconds > 86399 {
@@ -261,34 +261,4 @@ fn apply_timezone_offset_to_utc(
     Ok(utc_dt.with_timezone(&chrono::FixedOffset::east(offset_seconds)))
 }
 
-/// 将时区偏移字符串转换为秒数
-///
-/// # 参数
-/// - `timezone_offset`: 时区偏移，格式 "+08:00", "-05:00"
-///
-/// # 返回
-/// 秒数
-fn parse_timezone_offset_to_seconds(timezone_offset: &str) -> QuickDbResult<i32> {
-    if timezone_offset.len() != 6 {
-        return Err(QuickDbError::ValidationError {
-            field: "timezone_offset".to_string(),
-            message: format!("无效的时区偏移格式: '{}', 期望格式: +HH:MM", timezone_offset),
-        });
-    }
-
-    let sign = if timezone_offset.starts_with('+') { 1 } else { -1 };
-    let hours: i32 = timezone_offset[1..3].parse()
-        .map_err(|_| QuickDbError::ValidationError {
-            field: "timezone_offset".to_string(),
-            message: format!("无效的小时格式: '{}'", &timezone_offset[1..3]),
-        })?;
-    let minutes: i32 = timezone_offset[4..6].parse()
-        .map_err(|_| QuickDbError::ValidationError {
-            field: "timezone_offset".to_string(),
-            message: format!("无效的分钟格式: '{}'", &timezone_offset[4..6]),
-        })?;
-
-    let total_seconds = sign * (hours * 3600 + minutes * 60);
-    Ok(total_seconds)
-}
 
