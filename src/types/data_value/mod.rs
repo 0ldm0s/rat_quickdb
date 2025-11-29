@@ -20,6 +20,8 @@ pub enum DataValue {
     Bytes(Vec<u8>),
     /// 日期时间
     DateTime(DateTime<FixedOffset>),
+    /// UTC日期时间
+    DateTimeUTC(DateTime<Utc>),
     /// UUID
     Uuid(Uuid),
     /// JSON 对象
@@ -40,6 +42,7 @@ impl std::fmt::Display for DataValue {
             DataValue::String(s) => write!(f, "{}", s),
             DataValue::Bytes(bytes) => write!(f, "[{} bytes]", bytes.len()),
             DataValue::DateTime(dt) => write!(f, "{}", dt.to_rfc3339()),
+            DataValue::DateTimeUTC(dt) => write!(f, "{}", dt.to_rfc3339()),
             DataValue::Uuid(uuid) => write!(f, "{}", uuid),
             DataValue::Json(json) => write!(f, "{}", json),
             DataValue::Array(arr) => {
@@ -72,6 +75,7 @@ impl DataValue {
             DataValue::String(_) => "string",
             DataValue::Bytes(_) => "bytes",
             DataValue::DateTime(_) => "datetime",
+            DataValue::DateTimeUTC(_) => "datetime",
             DataValue::Uuid(_) => "uuid",
             DataValue::Json(_) => "json",
             DataValue::Array(_) => "array",
@@ -115,6 +119,7 @@ impl DataValue {
                 serde_json::Value::String(base64::encode(b))
             },
             DataValue::DateTime(dt) => serde_json::Value::String(dt.to_rfc3339()),
+            DataValue::DateTimeUTC(dt) => serde_json::Value::String(dt.to_rfc3339()),
             DataValue::Uuid(u) => serde_json::Value::String(u.to_string()),
             DataValue::Json(j) => {
                 // 对于 JSON 值，需要检查是否包含带类型标签的数组或对象
@@ -161,6 +166,7 @@ impl DataValue {
                             DataValue::Null => serde_json::Value::Null,
                             DataValue::Bytes(b) => serde_json::Value::String(base64::encode(b)),
                             DataValue::DateTime(dt) => serde_json::Value::String(dt.to_rfc3339()),
+                            DataValue::DateTimeUTC(dt) => serde_json::Value::String(dt.to_rfc3339()),
                             DataValue::Uuid(u) => serde_json::Value::String(u.to_string()),
                             DataValue::Json(j) => j.clone(),
                             // 对于复杂类型，仍然递归调用
@@ -509,6 +515,7 @@ pub fn convert_to_postgresql_jsonb_value(value: &DataValue) -> crate::error::Qui
 
         // 日期时间：转换为ISO8601字符串
         DataValue::DateTime(dt) => Ok(DataValue::String(dt.to_rfc3339())),
+        DataValue::DateTimeUTC(dt) => Ok(DataValue::String(dt.to_rfc3339())),
 
         // UUID：直接转换为字符串
         DataValue::Uuid(u) => Ok(DataValue::String(u.to_string())),

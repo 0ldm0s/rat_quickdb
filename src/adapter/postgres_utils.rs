@@ -307,6 +307,7 @@ pub fn convert_to_jsonb_value(value: &DataValue) -> QuickDbResult<DataValue> {
 
         // 日期时间：转换为ISO8601字符串
         DataValue::DateTime(dt) => Ok(DataValue::String(dt.to_rfc3339())),
+        DataValue::DateTimeUTC(dt) => Ok(DataValue::String(dt.to_rfc3339())),
 
         // UUID：直接转换为字符串
         DataValue::Uuid(u) => Ok(DataValue::String(u.to_string())),

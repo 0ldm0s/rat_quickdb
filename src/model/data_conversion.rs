@@ -274,6 +274,7 @@ impl<'a, 'de> serde::de::Deserializer<'de> for DataValueSingleDeserializer<'a> {
                 visitor.visit_str(&base64_str)
             },
             DataValue::DateTime(dt) => visitor.visit_str(&dt.to_rfc3339()),
+            DataValue::DateTimeUTC(dt) => visitor.visit_str(&dt.to_rfc3339()),
             DataValue::Uuid(u) => visitor.visit_str(&u.to_string()),
             DataValue::Json(json) => {
                 // 将JSON对象序列化为字符串，让开发者用户自行解析
