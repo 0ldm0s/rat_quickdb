@@ -273,8 +273,46 @@ impl DatabaseAdapter for MysqlAdapter {
         alias: &str,
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MySQL(pool) = connection {
+            // 获取字段元数据进行验证和转换
+            let model_meta = crate::manager::get_model_with_alias(table, alias)
+                .ok_or_else(|| QuickDbError::ValidationError {
+                    field: "model".to_string(),
+                    message: format!("模型 '{}' 不存在", table),
+                })?;
+
+            // 验证字段存在性，并处理DateTimeWithTz字段转换
+            let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> = model_meta.fields.iter()
+                .map(|(name, f)| (name.clone(), f.clone()))
+                .collect();
+
+            let mut validated_data = HashMap::new();
+            for (field_name, data_value) in data {
+                if let Some(field_def) = field_map.get(field_name) {
+                    if matches!(field_def.field_type, crate::model::FieldType::DateTimeWithTz { .. }) {
+                        // DateTimeWithTz字段：将String转换为DateTime
+                        let converted = match data_value {
+                            DataValue::String(s) => {
+                                chrono::DateTime::parse_from_rfc3339(s)
+                                    .map(|dt| DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0))))
+                                    .unwrap_or(data_value.clone())
+                            },
+                            DataValue::DateTimeUTC(dt) => DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0))),
+                            _ => data_value.clone(),
+                        };
+                        validated_data.insert(field_name.clone(), converted);
+                    } else {
+                        validated_data.insert(field_name.clone(), data_value.clone());
+                    }
+                } else {
+                    return Err(QuickDbError::ValidationError {
+                        field: field_name.clone(),
+                        message: format!("字段 '{}' 在模型中不存在", field_name),
+                    });
+                }
+            }
+
             let (sql, params) = SqlQueryBuilder::new()
-                .update(data.clone())
+                .update(validated_data)
                 .where_conditions(conditions)
                 .build(table, alias)?;
 
