@@ -175,6 +175,66 @@ pub fn generate_object_id() -> String {
 ///
 /// # 返回值
 /// 返回处理后的数据映射，其中复杂字段被正确转换
+/// 对UTC时间应用时区偏移，返回本地时间
+///
+/// # 参数
+/// - `utc_dt`: UTC时间（FixedOffset格式，通常为+00:00）
+/// - `timezone_offset`: 时区偏移，格式 "+08:00", "-05:00"
+///
+/// # 返回
+/// 本地时间（带时区信息）
+fn apply_timezone_offset_to_datetime(
+    utc_dt: chrono::DateTime<chrono::FixedOffset>,
+    timezone_offset: &str,
+) -> QuickDbResult<chrono::DateTime<chrono::FixedOffset>> {
+    let offset_seconds = parse_timezone_offset_to_seconds(timezone_offset)?;
+
+    // 检查时区偏移是否在有效范围内（-23:59 到 +23:59）
+    if offset_seconds < -86399 || offset_seconds > 86399 {
+        return Err(QuickDbError::ValidationError {
+            field: "timezone_offset".to_string(),
+            message: format!("时区偏移超出有效范围: {}, 允许范围: -23:59 到 +23:59", timezone_offset),
+        });
+    }
+
+    // 将UTC时间转换为本地时间
+    let utc_chrono = utc_dt.with_timezone(&chrono::Utc);
+    let local_dt = utc_chrono.with_timezone(&chrono::FixedOffset::east(offset_seconds));
+
+    Ok(local_dt)
+}
+
+/// 将时区偏移字符串转换为秒数
+///
+/// # 参数
+/// - `timezone_offset`: 时区偏移，格式 "+08:00", "-05:00"
+///
+/// # 返回
+/// 秒数
+fn parse_timezone_offset_to_seconds(timezone_offset: &str) -> QuickDbResult<i32> {
+    if timezone_offset.len() != 6 {
+        return Err(QuickDbError::ValidationError {
+            field: "timezone_offset".to_string(),
+            message: format!("无效的时区偏移格式: '{}', 期望格式: +HH:MM", timezone_offset),
+        });
+    }
+
+    let sign = if timezone_offset.starts_with('+') { 1 } else { -1 };
+    let hours: i32 = timezone_offset[1..3].parse()
+        .map_err(|_| QuickDbError::ValidationError {
+            field: "timezone_offset".to_string(),
+            message: format!("无效的小时格式: '{}'", &timezone_offset[1..3]),
+        })?;
+    let minutes: i32 = timezone_offset[4..6].parse()
+        .map_err(|_| QuickDbError::ValidationError {
+            field: "timezone_offset".to_string(),
+            message: format!("无效的分钟格式: '{}'", &timezone_offset[4..6]),
+        })?;
+
+    let total_seconds = sign * (hours * 3600 + minutes * 60);
+    Ok(total_seconds)
+}
+
 pub fn process_data_fields_from_metadata(
     mut data_map: std::collections::HashMap<String, DataValue>,
     fields: &std::collections::HashMap<String, crate::model::FieldDefinition>,
@@ -204,6 +264,25 @@ pub fn process_data_fields_from_metadata(
                         Some(DataValue::Bool(*int_val == 1))
                     } else {
                         debug_log!("字段 {} 整数值超出布尔范围: {}，保持原值", field_name, int_val);
+                        None
+                    }
+                },
+                // 处理DateTimeWithTz字段的时区转换
+                DataValue::DateTime(dt) if matches!(field_def.field_type, crate::model::FieldType::DateTimeWithTz { .. }) => {
+                    if let crate::model::FieldType::DateTimeWithTz { timezone_offset } = &field_def.field_type {
+                        debug_log!("字段 {} DateTimeWithTz时区转换: {} -> 时区 {}", field_name, dt, timezone_offset);
+                        // 应用时区偏移转换
+                        match apply_timezone_offset_to_datetime(*dt, timezone_offset) {
+                            Ok(local_dt) => {
+                                debug_log!("字段 {} 时区转换成功: {} -> {}", field_name, dt, local_dt);
+                                Some(DataValue::DateTime(local_dt))
+                            },
+                            Err(e) => {
+                                debug_log!("字段 {} 时区转换失败: {} (错误: {})", field_name, dt, e);
+                                None // 转换失败，保持原值
+                            }
+                        }
+                    } else {
                         None
                     }
                 },
