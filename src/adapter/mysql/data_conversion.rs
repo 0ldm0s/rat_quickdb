@@ -41,8 +41,7 @@ pub fn row_to_data_map_with_metadata(
                 if let Ok(value) = row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>(column_name) {
                     match value {
                         Some(dt) => {
-                            println!("🔍 MySQL DateTime字段: {} -> {}", column_name, dt);
-                            // MySQL存储的是UTC时间，直接返回UTC时间
+                                                        // MySQL存储的是UTC时间，直接返回UTC时间
                             DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0)))
                         },
                         None => DataValue::Null,
@@ -58,10 +57,8 @@ pub fn row_to_data_map_with_metadata(
                 if let Ok(value) = row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>(column_name) {
                     match value {
                         Some(utc_dt) => {
-                            println!("🔍 MySQL DateTimeWithTz字段: {} = {} 时区: {}", column_name, utc_dt, timezone_offset);
                             // MySQL存储的是UTC时间，需要转换为指定时区的本地时间
                             let local_dt = apply_timezone_offset_to_utc(utc_dt, timezone_offset)?;
-                            println!("🔍 MySQL时区转换结果: {} -> {}", utc_dt, local_dt);
                             DataValue::DateTime(local_dt)
                         },
                         None => DataValue::Null,

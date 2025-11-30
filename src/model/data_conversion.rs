@@ -34,26 +34,10 @@ pub fn create_model_from_data_map_with_debug<T>(
 where
     T: serde::de::DeserializeOwned,
 {
-    #[cfg(debug_assertions)]
-    {
-        println!("=== 开始创建模型实例 ===");
-        println!("输入数据映射: {} 个字段", data_map.len());
-        for (key, value) in data_map {
-            println!("  {}: {:?}", key, value);
-        }
-    }
-
+    
     let result = create_model_from_data_map::<T>(data_map);
 
-    #[cfg(debug_assertions)]
-    {
-        match &result {
-            Ok(_) => println!("✅ 模型实例创建成功"),
-            Err(e) => println!("❌ 模型实例创建失败: {}", e),
-        }
-        println!("=== 模型实例创建完成 ===\n");
-    }
-
+    
     result
 }
 
