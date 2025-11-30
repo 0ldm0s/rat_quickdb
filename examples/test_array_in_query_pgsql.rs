@@ -1,4 +1,4 @@
-//! SQLite Array 字段的 IN 查询功能测试示例
+//! PostgreSQL Array 字段的 IN 查询功能测试示例
 //!
 //! 测试 Array 字段的存储、查询和类型转换功能
 
@@ -52,20 +52,22 @@ async fn main() -> QuickDbResult<()> {
         .init()
         .expect("日志初始化失败");
 
-    println!("🚀 测试 SQLite Array 字段 IN 查询功能");
+    println!("🚀 测试 PostgreSQL Array 字段 IN 查询功能");
     println!("===============================\n");
 
-    // 清理之前的测试文件
-    cleanup_test_files().await;
-
     // 1. 配置数据库
-    println!("1. 配置SQLite数据库...");
+    println!("1. 配置PostgreSQL数据库...");
     let db_config = DatabaseConfig {
         alias: "main".to_string(),
-        db_type: DatabaseType::SQLite,
-        connection: ConnectionConfig::SQLite {
-            path: "./array_test.db".to_string(),
-            create_if_missing: true,
+        db_type: DatabaseType::PostgreSQL,
+        connection: ConnectionConfig::PostgreSQL {
+            host: "172.16.0.23".to_string(),
+            port: 5432,
+            database: "testdb".to_string(),
+            username: "testdb".to_string(),
+            password: "testdb".to_string(),
+            ssl_mode: Some("prefer".to_string()),
+            tls_config: None,
         },
         pool: PoolConfig::builder()
                 .max_connections(10)
@@ -85,7 +87,14 @@ async fn main() -> QuickDbResult<()> {
 
     // 添加数据库配置
     add_database(db_config).await?;
-    println!("✓ SQLite数据库配置完成");
+    println!("✓ PostgreSQL数据库配置完成");
+
+    // 清理之前的测试数据
+    println!("\n清理之前的测试数据...");
+    match drop_table("main", "array_test").await {
+        Ok(_) => println!("✓ 清理完成"),
+        Err(e) => println!("注意: 清理失败或表不存在: {}", e),
+    }
 
     // 2. 创建测试数据
     println!("\n2. 创建测试数据...");
@@ -305,25 +314,7 @@ async fn main() -> QuickDbResult<()> {
     }
 
     println!("\n✅ Array 字段复杂查询测试完成！");
-    println!("📁 数据库文件保留: array_test.db（可用于验证数据正确性）");
+    println!("🗄️ PostgreSQL数据库表: array_test（可用于验证数据正确性）");
 
     Ok(())
-}
-
-/// 清理测试文件
-async fn cleanup_test_files() {
-    let test_files = vec![
-        "./array_test.db",
-        "./array_test.db-wal",
-        "./array_test.db-shm",
-    ];
-
-    for file in test_files {
-        if let Err(e) = tokio::fs::remove_file(file).await {
-            // 忽略文件不存在的错误
-            if !e.to_string().contains("No such file or directory") {
-                rat_logger::warn!("清理文件失败 {}: {}", file, e);
-            }
-        }
-    }
 }

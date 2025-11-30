@@ -1,4 +1,4 @@
-//! SQLite Array 字段的 IN 查询功能测试示例
+//! MongoDB Array 字段的 IN 查询功能测试示例
 //!
 //! 测试 Array 字段的存储、查询和类型转换功能
 
@@ -52,20 +52,43 @@ async fn main() -> QuickDbResult<()> {
         .init()
         .expect("日志初始化失败");
 
-    println!("🚀 测试 SQLite Array 字段 IN 查询功能");
+    println!("🚀 测试 MongoDB Array 字段 IN 查询功能");
     println!("===============================\n");
 
-    // 清理之前的测试文件
-    cleanup_test_files().await;
-
     // 1. 配置数据库
-    println!("1. 配置SQLite数据库...");
+    println!("1. 配置MongoDB数据库...");
     let db_config = DatabaseConfig {
         alias: "main".to_string(),
-        db_type: DatabaseType::SQLite,
-        connection: ConnectionConfig::SQLite {
-            path: "./array_test.db".to_string(),
-            create_if_missing: true,
+        db_type: DatabaseType::MongoDB,
+        connection: ConnectionConfig::MongoDB {
+            host: "db0.0ldm0s.net".to_string(),
+            port: 27017,
+            database: "testdb".to_string(),
+            username: Some("testdb".to_string()),
+            password: Some("testdb123456".to_string()),
+            auth_source: Some("testdb".to_string()),
+            direct_connection: true,
+            tls_config: Some(rat_quickdb::types::TlsConfig {
+                enabled: true,
+                ca_cert_path: None,
+                client_cert_path: None,
+                client_key_path: None,
+                verify_server_cert: false,
+                verify_hostname: false,
+                min_tls_version: None,
+                cipher_suites: None,
+            }),
+            zstd_config: Some(rat_quickdb::types::ZstdConfig {
+                enabled: true,
+                compression_level: Some(3),
+                compression_threshold: Some(1024),
+            }),
+            options: {
+                let mut opts = std::collections::HashMap::new();
+                opts.insert("retryWrites".to_string(), "true".to_string());
+                opts.insert("w".to_string(), "majority".to_string());
+                Some(opts)
+            },
         },
         pool: PoolConfig::builder()
                 .max_connections(10)
@@ -85,7 +108,14 @@ async fn main() -> QuickDbResult<()> {
 
     // 添加数据库配置
     add_database(db_config).await?;
-    println!("✓ SQLite数据库配置完成");
+    println!("✓ MongoDB数据库配置完成");
+
+    // 清理之前的测试数据
+    println!("\n清理之前的测试数据...");
+    match drop_table("main", "array_test").await {
+        Ok(_) => println!("✓ 清理完成"),
+        Err(e) => println!("注意: 清理失败或表不存在: {}", e),
+    }
 
     // 2. 创建测试数据
     println!("\n2. 创建测试数据...");
@@ -220,8 +250,8 @@ async fn main() -> QuickDbResult<()> {
         }
     }
 
-    // 测试5: NOT IN 查询（应该报错）
-    println!("\n3.5 测试 Array 字段的 NOT IN 查询（应该报错）:");
+    // 测试5: NOT IN 查询
+    println!("\n3.5 测试 Array 字段的 NOT IN 查询（查找不包含 'apple' 的标签）:");
     match ModelManager::<ArrayTestModel>::find(
         vec![QueryCondition {
             field: "tags".to_string(),
@@ -230,11 +260,14 @@ async fn main() -> QuickDbResult<()> {
         }],
         None,
     ).await {
-        Ok(_) => {
-            eprintln!("❌ 意外成功，应该报错");
+        Ok(results) => {
+            println!("✓ 找到 {} 个不包含'apple'标签的产品:", results.len());
+            for (i, result) in results.iter().enumerate() {
+                display_array_test_result(i, result);
+            }
         },
         Err(e) => {
-            println!("✓ 正确报错: {}", e);
+            eprintln!("❌ 查询失败: {}", e);
         }
     }
 
@@ -305,25 +338,7 @@ async fn main() -> QuickDbResult<()> {
     }
 
     println!("\n✅ Array 字段复杂查询测试完成！");
-    println!("📁 数据库文件保留: array_test.db（可用于验证数据正确性）");
+    println!("🗄️ MongoDB数据库集合: array_test（可用于验证数据正确性）");
 
     Ok(())
-}
-
-/// 清理测试文件
-async fn cleanup_test_files() {
-    let test_files = vec![
-        "./array_test.db",
-        "./array_test.db-wal",
-        "./array_test.db-shm",
-    ];
-
-    for file in test_files {
-        if let Err(e) = tokio::fs::remove_file(file).await {
-            // 忽略文件不存在的错误
-            if !e.to_string().contains("No such file or directory") {
-                rat_logger::warn!("清理文件失败 {}: {}", file, e);
-            }
-        }
-    }
 }

@@ -549,12 +549,35 @@ impl SqlQueryBuilder {
             }
             QueryOperator::In => {
                 if let DataValue::Array(values) = &condition.value {
-                    let mut placeholders = Vec::new();
-                    for _ in 0..values.len() {
-                        placeholders.push(self.get_placeholder(new_index));
-                        new_index += 1;
+                    // 验证Array字段IN操作的数据类型
+                    for value in values {
+                        match value {
+                            DataValue::String(_) | DataValue::Int(_) | DataValue::Float(_) | DataValue::Uuid(_) => {
+                                // 支持的类型
+                            }
+                            _ => {
+                                return Err(QuickDbError::ValidationError {
+                                    field: condition.field.clone(),
+                                    message: format!("Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}", value),
+                                });
+                            }
+                        }
                     }
-                    (format!("{} IN ({})", safe_field, placeholders.join(", ")), values.clone())
+
+                    // Array字段使用JSONB contains查询：检查数组中是否包含指定值
+                    if values.len() == 1 {
+                        // 单个值：使用 @> 操作符
+                        let json_value = values[0].to_json_value().to_string();
+                        (format!("{} @> '{}'::jsonb", safe_field, json_value), vec![])
+                    } else {
+                        // 多个值：使用 OR 组合多个 @> 查询
+                        let mut clauses = Vec::new();
+                        for value in values {
+                            let json_value = value.to_json_value().to_string();
+                            clauses.push(format!("{} @> '{}'::jsonb", safe_field, json_value));
+                        }
+                        (format!("({})", clauses.join(" OR ")), vec![])
+                    }
                 } else {
                     return Err(QuickDbError::QueryError {
                         message: "IN 操作符需要数组类型的值".to_string(),
@@ -695,13 +718,35 @@ impl SqlQueryBuilder {
                 }
                 QueryOperator::In => {
                     if let DataValue::Array(values) = &condition.value {
-                        let mut placeholders = Vec::new();
-                        for _ in 0..values.len() {
-                            placeholders.push(self.get_placeholder(param_index));
-                            param_index += 1;
+                        // 验证Array字段IN操作的数据类型
+                        for value in values {
+                            match value {
+                                DataValue::String(_) | DataValue::Int(_) | DataValue::Float(_) | DataValue::Uuid(_) => {
+                                    // 支持的类型
+                                }
+                                _ => {
+                                    return Err(QuickDbError::ValidationError {
+                                        field: condition.field.clone(),
+                                        message: format!("Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}", value),
+                                    });
+                                }
+                            }
                         }
-                        clauses.push(format!("{} IN ({})", condition.field, placeholders.join(", ")));
-                        params.extend(values.clone());
+
+                        // Array字段使用JSONB contains查询：检查数组中是否包含指定值
+                        if values.len() == 1 {
+                            // 单个值：使用 @> 操作符
+                            let json_value = values[0].to_json_value().to_string();
+                            clauses.push(format!("{} @> '{}'::jsonb", condition.field, json_value));
+                        } else {
+                            // 多个值：使用 OR 组合多个 @> 查询
+                            let mut sub_clauses = Vec::new();
+                            for value in values {
+                                let json_value = value.to_json_value().to_string();
+                                sub_clauses.push(format!("{} @> '{}'::jsonb", condition.field, json_value));
+                            }
+                            clauses.push(format!("({})", sub_clauses.join(" OR ")));
+                        }
                     } else {
                         return Err(QuickDbError::QueryError {
                             message: "IN 操作符需要数组类型的值".to_string(),

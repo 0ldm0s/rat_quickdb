@@ -168,15 +168,61 @@ impl MongoQueryBuilder {
                 }
             },
             QueryOperator::In => {
-                if let Bson::Array(arr) = bson_value {
-                    doc! { field_name: doc! { "$in": arr } }
+                // 验证Array字段IN操作的数据类型
+                if let Bson::Array(arr) = &bson_value {
+                    // 检查字段类型，如果是Array字段，验证数组中元素的数据类型
+                    if let Some(field_type) = get_field_type(table, alias, field_name) {
+                        if matches!(field_type, crate::model::FieldType::Array { .. }) {
+                            // Array字段：验证数组中元素的数据类型
+                            for bson_elem in arr {
+                                match bson_elem {
+                                    Bson::String(_) | Bson::Int32(_) | Bson::Int64(_) | Bson::Double(_) => {
+                                        // 支持的类型：String, Int, Float
+                                    }
+                                    Bson::ObjectId(_) => {
+                                        // Uuid类型映射到ObjectId，支持
+                                    }
+                                    _ => {
+                                        return Err(QuickDbError::ValidationError {
+                                            field: field_name.to_string(),
+                                            message: format!("Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}", bson_elem),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    doc! { field_name: doc! { "$in": arr.clone() } }
                 } else {
                     doc! { field_name: doc! { "$in": [bson_value] } }
                 }
             },
             QueryOperator::NotIn => {
-                if let Bson::Array(arr) = bson_value {
-                    doc! { field_name: doc! { "$nin": arr } }
+                // 验证Array字段NOT IN操作的数据类型
+                if let Bson::Array(arr) = &bson_value {
+                    // 检查字段类型，如果是Array字段，验证数组中元素的数据类型
+                    if let Some(field_type) = get_field_type(table, alias, field_name) {
+                        if matches!(field_type, crate::model::FieldType::Array { .. }) {
+                            // Array字段：验证数组中元素的数据类型
+                            for bson_elem in arr {
+                                match bson_elem {
+                                    Bson::String(_) | Bson::Int32(_) | Bson::Int64(_) | Bson::Double(_) => {
+                                        // 支持的类型：String, Int, Float
+                                    }
+                                    Bson::ObjectId(_) => {
+                                        // Uuid类型映射到ObjectId，支持
+                                    }
+                                    _ => {
+                                        return Err(QuickDbError::ValidationError {
+                                            field: field_name.to_string(),
+                                            message: format!("Array字段的NOT IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}", bson_elem),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    doc! { field_name: doc! { "$nin": arr.clone() } }
                 } else {
                     doc! { field_name: doc! { "$nin": [bson_value] } }
                 }
