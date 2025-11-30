@@ -522,6 +522,13 @@ impl SqlQueryBuilder {
                     });
                 }
             }
+            QueryOperator::JsonContains => {
+                // SQLite不支持JSON字段的JsonContains操作
+                return Err(QuickDbError::ValidationError {
+                    field: condition.field.clone(),
+                    message: "SQLite不支持JSON字段的JsonContains操作，建议使用PostgreSQL、MySQL或MongoDB".to_string(),
+                });
+            }
             QueryOperator::StartsWith => {
                 new_index += 1;
                 let value = if let DataValue::String(s) = &condition.value {
@@ -717,6 +724,13 @@ impl SqlQueryBuilder {
                         });
                     }
                     param_index += 1;
+                }
+                QueryOperator::JsonContains => {
+                    // SQLite不支持JSON字段的JsonContains操作
+                    return Err(QuickDbError::ValidationError {
+                        field: condition.field.clone(),
+                        message: "SQLite不支持JSON字段的JsonContains操作，建议使用PostgreSQL、MySQL或MongoDB".to_string(),
+                    });
                 }
                 QueryOperator::StartsWith => {
                     clauses.push(format!("{} LIKE {}", condition.field, placeholder));

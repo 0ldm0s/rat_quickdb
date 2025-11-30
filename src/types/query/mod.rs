@@ -52,6 +52,8 @@ pub enum QueryOperator {
     Lte,
     /// 包含（字符串）
     Contains,
+    /// JSON包含（JSON字段内容搜索）
+    JsonContains,
     /// 开始于（字符串）
     StartsWith,
     /// 结束于（字符串）
