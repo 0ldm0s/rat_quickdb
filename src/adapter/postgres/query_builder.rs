@@ -598,6 +598,21 @@ impl SqlQueryBuilder {
                     });
                 }
             }
+            QueryOperator::JsonContains => {
+                new_index += 1;
+                // PostgreSQL JSON字段使用@>操作符进行JSON包含查询
+                let json_value = match &condition.value {
+                    DataValue::String(s) => {
+                        // 如果输入是JSON字符串，解析它
+                        serde_json::from_str(s).map_err(|e| QuickDbError::ValidationError {
+                            field: condition.field.clone(),
+                            message: format!("无效的JSON格式: {}", e),
+                        })?
+                    }
+                    _ => condition.value.to_json_value(),
+                };
+                (format!("{} @> {}::jsonb", safe_field, placeholder), vec![DataValue::Json(json_value)])
+            }
             QueryOperator::Regex => {
                 new_index += 1;
                 (format!("{} REGEXP {}", safe_field, placeholder), vec![condition.value.clone()])
@@ -767,6 +782,22 @@ impl SqlQueryBuilder {
                             message: "NOT IN 操作符需要数组类型的值".to_string(),
                         });
                     }
+                }
+                QueryOperator::JsonContains => {
+                    // PostgreSQL JSON字段使用@>操作符进行JSON包含查询
+                    let json_value = match &condition.value {
+                        DataValue::String(s) => {
+                            // 如果输入是JSON字符串，解析它
+                            serde_json::from_str(s).map_err(|e| QuickDbError::ValidationError {
+                                field: condition.field.clone(),
+                                message: format!("无效的JSON格式: {}", e),
+                            })?
+                        }
+                        _ => condition.value.to_json_value(),
+                    };
+                    clauses.push(format!("{} @> {}::jsonb", condition.field, placeholder));
+                    params.push(DataValue::Json(json_value));
+                    param_index += 1;
                 }
                 QueryOperator::Regex => {
                     // 不同数据库的正则表达式语法不同，这里使用通用的LIKE

@@ -620,6 +620,13 @@ impl SqlQueryBuilder {
             QueryOperator::IsNotNull => {
                 (format!("{} IS NOT NULL", safe_field), vec![])
             }
+            QueryOperator::JsonContains => {
+                // MySQL暂时不支持JSON字段的JsonContains操作
+                return Err(QuickDbError::ValidationError {
+                    field: condition.field.clone(),
+                    message: "MySQL暂时不支持JSON字段的JsonContains操作，建议使用PostgreSQL或MongoDB".to_string(),
+                });
+            }
         };
 
         Ok((clause, params, new_index))
@@ -805,6 +812,13 @@ impl SqlQueryBuilder {
                 QueryOperator::IsNotNull => {
                     clauses.push(format!("{} IS NOT NULL", condition.field));
                     // IsNotNull操作符不需要参数值
+                }
+                QueryOperator::JsonContains => {
+                    // MySQL暂时不支持JSON字段的JsonContains操作
+                    return Err(QuickDbError::ValidationError {
+                        field: condition.field.clone(),
+                        message: "MySQL暂时不支持JSON字段的JsonContains操作，建议使用PostgreSQL或MongoDB".to_string(),
+                    });
                 }
             }
         }

@@ -310,7 +310,7 @@ impl DatabaseAdapter for SqliteAdapter {
                 complete_sql = complete_sql.replacen('?', &param_value, 1);
             }
 
-            println!("🔍 SQLite Complete SQL: {}", complete_sql);
+            debug!("[SQLite] Complete SQL: {}", complete_sql);
 
             let mut query = sqlx::query(&sql);
             for param in &params {

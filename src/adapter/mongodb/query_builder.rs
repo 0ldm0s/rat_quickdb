@@ -147,6 +147,25 @@ impl MongoQueryBuilder {
             QueryOperator::Contains => {
                 self.build_contains_condition(field_name, table, alias, bson_value)?
             },
+            QueryOperator::JsonContains => {
+                // MongoDB JSON字段包含查询 - 简单平铺实现
+                match bson_value {
+                    Bson::String(s) => {
+                        // 如果输入是JSON字符串，解析它并直接平铺为嵌套查询
+                        let json_value: serde_json::Value = serde_json::from_str(&s).map_err(|e| QuickDbError::ValidationError {
+                            field: condition.field.clone(),
+                            message: format!("无效的JSON格式: {}", e),
+                        })?;
+
+                        // 直接平铺JSON对象为MongoDB点标记法
+                        self.flatten_json_to_query(field_name, &json_value)
+                    }
+                    _ => {
+                        // 对于其他BSON类型，直接进行查询
+                        doc! { field_name: bson_value }
+                    }
+                }
+            },
             QueryOperator::StartsWith => {
                 if let Bson::String(s) = bson_value {
                     doc! { field_name: doc! { "$regex": format!("^{}", &s), "$options": "i" } }
@@ -343,6 +362,48 @@ impl MongoQueryBuilder {
             },
             DataValue::Null => Bson::Null,
             DataValue::Bytes(bytes) => Bson::Binary(mongodb::bson::Binary { bytes: bytes.clone(), subtype: mongodb::bson::spec::BinarySubtype::Generic }),
+        }
+    }
+
+    /// 将JSON对象平铺为MongoDB点标记法查询
+    /// 简单实现：只处理键值对，不处理数组等复杂结构
+    fn flatten_json_to_query(&self, field_name: &str, json_value: &serde_json::Value) -> Document {
+        match json_value {
+            serde_json::Value::Object(map) => {
+                if map.is_empty() {
+                    return Document::new();
+                }
+
+                let mut conditions = Vec::new();
+
+                for (key, value) in map {
+                    let dot_path = format!("{}.{}", field_name, key);
+                    if let serde_json::Value::Object(_) = value {
+                        // 嵌套对象，递归平铺
+                        let nested_condition = self.flatten_json_to_query(&dot_path, value);
+                        // 将嵌套条件合并到当前条件
+                        for (k, v) in nested_condition {
+                            conditions.push(doc! { k: v });
+                        }
+                    } else {
+                        // 基本值，直接构建查询条件
+                        if let Ok(bson_value) = mongodb::bson::to_bson(value) {
+                            conditions.push(doc! { dot_path: bson_value });
+                        }
+                    }
+                }
+
+                // 多个条件使用$and组合
+                if conditions.len() == 1 {
+                    conditions.into_iter().next().unwrap()
+                } else {
+                    doc! { "$and": conditions }
+                }
+            }
+            _ => {
+                // 非对象类型，返回空文档
+                Document::new()
+            }
         }
     }
 }
