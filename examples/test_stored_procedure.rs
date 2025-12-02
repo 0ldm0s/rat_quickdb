@@ -12,6 +12,8 @@ define_model! {
         id: i32,
         name: String,
         email: String,
+        created_at: chrono::DateTime<chrono::Utc>,
+        updated_at: chrono::DateTime<chrono::Utc>,
     }
     collection = "users",
     database = "test_db",
@@ -19,9 +21,12 @@ define_model! {
         id: integer_field(None, None).required().unique(),
         name: string_field(None, None, None).required(),
         email: string_field(None, None, None).required().unique(),
+        created_at: datetime_field(),
+        updated_at: datetime_field(),
     }
     indexes = [
         { fields: ["email"], unique: true, name: "idx_email" },
+        { fields: ["created_at"], unique: false, name: "idx_created_at" },
     ],
 }
 
@@ -32,6 +37,8 @@ define_model! {
         id: i32,
         user_id: i32,
         total: f64,
+        order_date: chrono::DateTime<chrono::Utc>,
+        created_at: chrono::DateTime<chrono::Utc>,
     }
     collection = "orders",
     database = "test_db",
@@ -39,9 +46,12 @@ define_model! {
         id: integer_field(None, None).required().unique(),
         user_id: integer_field(None, None).required(),
         total: float_field(None, None).required(),
+        order_date: datetime_field(),
+        created_at: datetime_field(),
     }
     indexes = [
         { fields: ["user_id"], unique: false, name: "idx_user_id" },
+        { fields: ["order_date"], unique: false, name: "idx_order_date" },
     ],
 }
 
@@ -86,13 +96,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_field("user_id", "users.id")
         .with_field("user_name", "users.name")
         .with_field("user_email", "users.email")
+        .with_field("user_created_at", "users.created_at")
+        .with_field("user_updated_at", "users.updated_at")
         .with_field("order_count", "COUNT(orders.id)")
         .with_field("total_spent", "SUM(orders.total)")
+        .with_field("latest_order_date", "MAX(orders.order_date)")
         .with_join::<Order>("users.id", "orders.user_id", JoinType::Left)
         .build();
 
     // 0. 准备测试数据
     println!("0. 准备测试数据...");
+
+      let now = chrono::Utc::now();
+    let yesterday = now - chrono::Duration::days(1);
+    let two_days_ago = now - chrono::Duration::days(2);
 
     // 创建一些测试用户
     let test_users = vec![
@@ -100,16 +117,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             id: 1,
             name: "张三".to_string(),
             email: "zhangsan@example.com".to_string(),
+            created_at: two_days_ago,
+            updated_at: yesterday,
         },
         User {
             id: 2,
             name: "李四".to_string(),
             email: "lisi@example.com".to_string(),
+            created_at: yesterday,
+            updated_at: now,
         },
         User {
             id: 3,
             name: "王五".to_string(),
             email: "wangwu@example.com".to_string(),
+            created_at: now,
+            updated_at: now,
         },
     ];
 
@@ -119,16 +142,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             id: 1,
             user_id: 1,
             total: 100.50,
+            order_date: yesterday,
+            created_at: yesterday,
         },
         Order {
             id: 2,
             user_id: 1,
             total: 200.75,
+            order_date: now,
+            created_at: now,
         },
         Order {
             id: 3,
             user_id: 2,
             total: 150.00,
+            order_date: two_days_ago,
+            created_at: two_days_ago,
         },
     ];
 
@@ -138,9 +167,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             id: user.id,
             name: user.name.clone(),
             email: user.email.clone(),
+            created_at: user.created_at,
+            updated_at: user.updated_at,
         };
         match user_instance.save().await {
-            Ok(_) => println!("✅ 创建用户: {} ({})", user.name, user.email),
+            Ok(_) => println!("✅ 创建用户: {} ({}) - 创建时间: {}", user.name, user.email, user.created_at.format("%Y-%m-%d %H:%M:%S")),
             Err(e) => println!("❌ 创建用户失败: {}", e),
         }
     }
@@ -151,9 +182,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             id: order.id,
             user_id: order.user_id,
             total: order.total,
+            order_date: order.order_date,
+            created_at: order.created_at,
         };
         match order_instance.save().await {
-            Ok(_) => println!("✅ 创建订单: 用户ID={}, 总金额={}", order.user_id, order.total),
+            Ok(_) => println!("✅ 创建订单: 用户ID={}, 总金额={}, 订单日期={}", order.user_id, order.total, order.order_date.format("%Y-%m-%d %H:%M:%S")),
             Err(e) => println!("❌ 创建订单失败: {}", e),
         }
     }
@@ -179,16 +212,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(results) => {
             println!("✅ 查询成功，返回 {} 条记录", results.len());
             for (i, row) in results.iter().enumerate() {
-                if let (Some(user_id), Some(user_name), Some(user_email)) = (
+                if let (Some(user_id), Some(user_name), Some(user_email), Some(user_created_at), Some(user_updated_at)) = (
                     row.get("user_id"),
                     row.get("user_name"),
-                    row.get("user_email")
+                    row.get("user_email"),
+                    row.get("user_created_at"),
+                    row.get("user_updated_at")
                 ) {
+                    // 手动转换时间戳为可读格式（SQLite存储为时间戳，其他数据库存储为DateTime）
+                    let created_at_str = match user_created_at {
+                        DataValue::Int(timestamp) => {
+                            chrono::DateTime::from_timestamp(*timestamp, 0)
+                                .unwrap_or_default()
+                                .format("%Y-%m-%d %H:%M:%S UTC")
+                                .to_string()
+                        },
+                        DataValue::DateTime(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+                        _ => user_created_at.to_string(),
+                    };
+                    let updated_at_str = match user_updated_at {
+                        DataValue::Int(timestamp) => {
+                            chrono::DateTime::from_timestamp(*timestamp, 0)
+                                .unwrap_or_default()
+                                .format("%Y-%m-%d %H:%M:%S UTC")
+                                .to_string()
+                        },
+                        DataValue::DateTime(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+                        _ => user_updated_at.to_string(),
+                    };
+
+                    let order_count = row.get("order_count").map(|v| v.to_string()).unwrap_or("0".to_string());
+                    let total_spent = row.get("total_spent").map(|v| v.to_string()).unwrap_or("0".to_string());
+                    let latest_order_date = row.get("latest_order_date").map(|v| {
+                        match v {
+                            DataValue::Int(timestamp) => {
+                                chrono::DateTime::from_timestamp(*timestamp, 0)
+                                    .unwrap_or_default()
+                                    .format("%Y-%m-%d %H:%M:%S UTC")
+                                    .to_string()
+                            },
+                            DataValue::DateTime(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+                            _ => v.to_string(),
+                        }
+                    }).unwrap_or("无订单".to_string());
+
                     println!("  {}. {} - {} ({})", i+1,
                         user_name.to_string(),
                         user_email.to_string(),
                         user_id.to_string()
                     );
+                    println!("     创建时间: {}, 更新时间: {}", created_at_str, updated_at_str);
+                    println!("     订单数: {}, 总消费: {}, 最新订单: {}", order_count, total_spent, latest_order_date);
+                    println!();
                 }
             }
         },
@@ -204,13 +279,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(results) => {
             println!("✅ 参数查询成功，返回 {} 条记录", results.len());
             for (i, row) in results.iter().enumerate() {
-                if let (Some(user_id), Some(user_name)) = (
+                if let (Some(user_id), Some(user_name), Some(user_created_at)) = (
                     row.get("user_id"),
-                    row.get("user_name")
+                    row.get("user_name"),
+                    row.get("user_created_at")
                 ) {
-                    println!("  {}. {} ({})", i+1,
+                    // 手动转换时间戳为可读格式（SQLite存储为时间戳，其他数据库存储为DateTime）
+                  let created_at_str = match user_created_at {
+                      DataValue::Int(timestamp) => {
+                          chrono::DateTime::from_timestamp(*timestamp, 0)
+                              .unwrap_or_default()
+                              .format("%Y-%m-%d %H:%M:%S UTC")
+                              .to_string()
+                      },
+                      DataValue::DateTime(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+                      _ => user_created_at.to_string(),
+                  };
+
+                    println!("  {}. {} (ID: {}) - 创建时间: {}", i+1,
                         user_name.to_string(),
-                        user_id.to_string()
+                        user_id.to_string(),
+                        created_at_str
                     );
                 }
             }

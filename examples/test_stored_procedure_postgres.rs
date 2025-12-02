@@ -12,16 +12,21 @@ define_model! {
         id: String,
         name: String,
         email: String,
+        created_at: chrono::DateTime<chrono::Utc>,
+        updated_at: chrono::DateTime<chrono::Utc>,
     }
     collection = "users",
     database = "test_db",
     fields = {
-        id: string_field(None, None, None).required().unique(),
+        id: uuid_field(),
         name: string_field(None, None, None).required(),
         email: string_field(None, None, None).required().unique(),
+        created_at: datetime_field(),
+        updated_at: datetime_field(),
     }
     indexes = [
         { fields: ["email"], unique: true, name: "idx_email" },
+        { fields: ["created_at"], unique: false, name: "idx_created_at" },
     ],
 }
 
@@ -32,16 +37,21 @@ define_model! {
         id: String,
         user_id: String,
         total: f64,
+        order_date: chrono::DateTime<chrono::Utc>,
+        created_at: chrono::DateTime<chrono::Utc>,
     }
     collection = "orders",
     database = "test_db",
     fields = {
-        id: string_field(None, None, None).required().unique(),
+        id: uuid_field(),
         user_id: uuid_field().required(),
         total: float_field(None, None).required(),
+        order_date: datetime_field(),
+        created_at: datetime_field(),
     }
     indexes = [
         { fields: ["user_id"], unique: false, name: "idx_user_id" },
+        { fields: ["order_date"], unique: false, name: "idx_order_date" },
     ],
 }
 
@@ -73,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             port: 5432,
             database: "testdb".to_string(),
             username: "testdb".to_string(),
-            password: "testdb123456".to_string(),
+            password: "testdb".to_string(),
             ssl_mode: Some("prefer".to_string()),
             tls_config: None,
         })
@@ -99,22 +109,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. 准备测试数据
     println!("0. 准备测试数据...");
 
+    let now = chrono::Utc::now();
+    let yesterday = now - chrono::Duration::days(1);
+    let two_days_ago = now - chrono::Duration::days(2);
+
     // 创建一些测试用户
     let test_users = vec![
         User {
             id: "550e8400-e29b-41d4-a716-446655440001".to_string(),
             name: "张三".to_string(),
             email: "zhangsan@example.com".to_string(),
+            created_at: two_days_ago,
+            updated_at: yesterday,
         },
         User {
             id: "550e8400-e29b-41d4-a716-446655440002".to_string(),
             name: "李四".to_string(),
             email: "lisi@example.com".to_string(),
+            created_at: yesterday,
+            updated_at: now,
         },
         User {
             id: "550e8400-e29b-41d4-a716-446655440003".to_string(),
             name: "王五".to_string(),
             email: "wangwu@example.com".to_string(),
+            created_at: now,
+            updated_at: now,
         },
     ];
 
@@ -124,16 +144,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             id: "550e8400-e29b-41d4-a716-446655440011".to_string(),
             user_id: "550e8400-e29b-41d4-a716-446655440001".to_string(),
             total: 100.50,
+            order_date: yesterday,
+            created_at: yesterday,
         },
         Order {
             id: "550e8400-e29b-41d4-a716-446655440012".to_string(),
             user_id: "550e8400-e29b-41d4-a716-446655440001".to_string(),
             total: 200.75,
+            order_date: now,
+            created_at: now,
         },
         Order {
             id: "550e8400-e29b-41d4-a716-446655440013".to_string(),
             user_id: "550e8400-e29b-41d4-a716-446655440002".to_string(),
             total: 150.00,
+            order_date: two_days_ago,
+            created_at: two_days_ago,
         },
     ];
 
@@ -143,9 +169,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             id: user.id.clone(),
             name: user.name.clone(),
             email: user.email.clone(),
+            created_at: user.created_at,
+            updated_at: user.updated_at,
         };
         match user_instance.save().await {
-            Ok(_) => println!("✅ 创建用户: {} ({})", user.name, user.email),
+            Ok(_) => println!("✅ 创建用户: {} ({}) - 创建时间: {}", user.name, user.email, user.created_at.format("%Y-%m-%d %H:%M:%S")),
             Err(e) => println!("❌ 创建用户失败: {}", e),
         }
     }
@@ -156,9 +184,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             id: order.id.clone(),
             user_id: order.user_id.clone(),
             total: order.total,
+            order_date: order.order_date,
+            created_at: order.created_at,
         };
         match order_instance.save().await {
-            Ok(_) => println!("✅ 创建订单: 用户ID={}, 总金额={}", order.user_id, order.total),
+            Ok(_) => println!("✅ 创建订单: 用户ID={}, 总金额={}, 订单日期={}", order.user_id, order.total, order.order_date.format("%Y-%m-%d %H:%M:%S")),
             Err(e) => println!("❌ 创建订单失败: {}", e),
         }
     }

@@ -1210,6 +1210,60 @@ define_model! {
 
 遵循这些原则可以确保你的应用具有良好的性能、可维护性和查询能力。
 
+## 🕐 时间字段处理
+
+### UTC时间存储标准
+
+rat_quickdb统一使用UTC时间存储所有datetime字段，确保跨时区的数据一致性。
+
+#### 存储方式
+- **所有数据库**: datetime字段统一存储为UTC时间
+- **SQLite**: 时间戳格式（Unix timestamp）
+- **PostgreSQL/MySQL/MongoDB**: 原生datetime类型（UTC）
+
+#### 存储过程中的时间处理
+
+**重要**: 存储过程返回的时间字段可能需要手动转换格式，特别是SQLite中的时间戳。
+
+```rust
+// 手动转换时间戳为可读格式
+match datetime_value {
+    DataValue::Int(timestamp) => {
+        // SQLite: 时间戳转换为可读格式
+        chrono::DateTime::from_timestamp(*timestamp, 0)
+            .unwrap_or_default()
+            .format("%Y-%m-%d %H:%M:%S UTC")
+            .to_string()
+    },
+    DataValue::DateTime(dt) => {
+        // 其他数据库: 直接格式化datetime
+        dt.format("%Y-%m-%d %H:%M:%S UTC").to_string()
+    },
+    _ => datetime_value.to_string(),
+}
+```
+
+#### 最佳实践
+
+1. **存储时**: 始终使用UTC时间
+```rust
+let now = chrono::Utc::now();  // 获取当前UTC时间
+```
+
+2. **显示时**: 根据用户需求转换时区和格式
+```rust
+// 转换为本地时间显示
+let local_time = utc_time.with_timezone(&chrono::Local);
+```
+
+3. **存储过程中**: 在应用层处理时间格式转换，避免在SQL中增加复杂度
+
+这种设计确保了：
+- ✅ **时区一致性** - 避免时区混乱
+- ✅ **跨数据库兼容** - 统一的UTC标准
+- ✅ **性能优化** - 避免复杂的数据库时间转换
+- ✅ **用户友好** - 灵活的显示格式控制
+
 ## 📝 索引支持
 
 - **唯一索引**: `unique()` 约束
