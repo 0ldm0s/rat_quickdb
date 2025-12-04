@@ -1243,20 +1243,172 @@ match datetime_value {
 }
 ```
 
+#### 时间字段的3种结构方案
+
+rat_quickdb 提供3种不同的时间字段定义方式，满足不同的时区处理需求：
+
+##### 方案1：标准UTC时间字段
+```rust
+// 模型定义
+created_at: chrono::DateTime<chrono::Utc>,
+
+// 字段配置
+created_at: datetime_field(),  // 默认UTC (+00:00)
+
+// 数据创建
+let now = chrono::Utc::now();
+created_at: now,  // 直接传入UTC时间
+```
+
+##### 方案2：带时区的FixedOffset时间字段
+```rust
+// 模型定义
+local_time_cst: chrono::DateTime<chrono::FixedOffset>,
+
+// 字段配置
+local_time_cst: datetime_with_tz_field("+08:00"),  // 北京时间
+
+// 数据创建
+let now = chrono::Utc::now();
+local_time_cst: now.into(),  // 转换为FixedOffset
+```
+
+##### 方案3：时区字符串字段（RFC3339格式）
+```rust
+// 模型定义
+local_time_est: String,
+
+// 字段配置
+local_time_est: datetime_with_tz_field("-05:00"),  // 美东时间
+
+// 数据创建
+let now = chrono::Utc::now();
+local_time_est: now.to_rfc3339(),  // 传入RFC3339字符串
+```
+
+#### 核心原理
+
+**关键特性**：开发者始终传入 `Utc::now()`，框架根据字段定义自动处理时区转换！
+
+- ✅ **统一时间源**：所有字段都使用 `Utc::now()` 作为输入（**入库时必须是UTC now**）
+- ✅ **自动转换**：读取时框架根据时区设置自动转换为对应时区（**输出会自动根据datetime_with_tz_field设置**）
+- ✅ **存储一致性**：数据库中存储的是统一的UTC时间戳
+- ✅ **显示多样性**：同一个UTC时间根据字段配置显示不同时区的本地时间
+
+**重要理解**：
+- **入库**：所有时间字段都是同一个 `Utc::now()` 时间戳
+- **输出**：框架根据 `datetime_with_tz_field("+08:00")` 等设置自动转换显示
+
+**示例说明**：
+```rust
+let now = Utc::now();  // 假设是 2024-06-15 12:00:00 UTC
+
+// 入库：所有字段都是同一个时间戳
+created_at_utc: now,        // 2024-06-15 12:00:00 UTC
+local_time_cst: now.into(), // 2024-06-15 12:00:00 UTC (存储)
+local_time_est: now.to_rfc3339(), // 2024-06-15 12:00:00 UTC (存储)
+
+// 输出：框架自动转换显示
+created_at_utc: 2024-06-15 12:00:00 UTC     // 保持UTC
+local_time_cst: 2024-06-15 20:00:00 +08:00  // 转换为北京时间
+local_time_est: 2024-06-15 07:00:00 -05:00  // 转换为美东时间
+```
+
+#### 时区格式规范
+
+**支持的时区格式**：
+- `+00:00` - UTC
+- `+08:00` - 北京时间
+- `-05:00` - 美东时间
+- `+12:45` - 支持分钟偏移
+- `-09:30` - 支持负分钟偏移
+
+**无效格式示例**：
+- ❌ `CST` - 时区缩写
+- ❌ `UTC` - 时区缩写
+- ❌ `+8:00` - 缺少前导零
+- ❌ `+08:0` - 分钟格式错误
+- ❌ `+25:00` - 超出有效范围
+
+#### 完整示例
+
+```rust
+// 完整的3种时间字段模型
+define_model! {
+    struct TimeZoneTestModel {
+        id: String,
+        name: String,
+        created_at_utc: chrono::DateTime<chrono::Utc>,        // 方案1
+        local_time_cst: chrono::DateTime<chrono::FixedOffset>, // 方案2
+        local_time_est: String,                                // 方案3
+    }
+    collection = "timezone_test",
+    database = "main",
+    fields = {
+        id: string_field(None, None, None).required().unique(),
+        name: string_field(None, None, None).required(),
+        created_at_utc: datetime_field(),              // 默认UTC (+00:00)
+        local_time_cst: datetime_with_tz_field("+08:00"), // 北京时间
+        local_time_est: datetime_with_tz_field("-05:00"), // 美东时间
+    }
+}
+
+// 数据创建 - 3种方案对比
+let now = chrono::Utc::now();
+let test_model = TimeZoneTestModel {
+    id: String::new(),  // 框架自动生成UUID
+    name: "时区测试".to_string(),
+    created_at_utc: now,                    // 方案1：直接UTC时间
+    local_time_cst: now.into(),             // 方案2：转换为FixedOffset
+    local_time_est: now.to_rfc3339(),       // 方案3：RFC3339字符串
+};
+```
+
 #### 最佳实践
 
-1. **存储时**: 始终使用UTC时间
+1. **推荐使用方案1**（`datetime_field()`）作为主要时间字段
+2. **需要本地时间时**使用方案2（`datetime_with_tz_field()`）
+3. **需要字符串格式**时使用方案3（RFC3339）
+4. **始终使用 `Utc::now()`** 作为时间源，让框架处理转换
+
+#### 时区辅助工具
+
+rat_quickdb 提供2个重要的时区处理工具，位于 `rat_quickdb::utils::timezone` 模块：
+
+##### 1. `parse_timezone_offset_to_seconds()`
+将时区偏移字符串转换为秒数
 ```rust
-let now = chrono::Utc::now();  // 获取当前UTC时间
+use rat_quickdb::utils::timezone::parse_timezone_offset_to_seconds;
+
+let seconds = parse_timezone_offset_to_seconds("+08:00")?;  // 返回 28800
+let seconds = parse_timezone_offset_to_seconds("-05:00")?;  // 返回 -18000
 ```
 
-2. **显示时**: 根据用户需求转换时区和格式
+##### 2. `utc_to_timezone()` ⭐ **非常常用**
+将UTC时间转换为指定时区的时间（如果要存储特定时区时间的话）
 ```rust
-// 转换为本地时间显示
-let local_time = utc_time.with_timezone(&chrono::Local);
+use rat_quickdb::utils::timezone::utc_to_timezone;
+
+let utc_now = chrono::Utc::now();
+let beijing_time = utc_to_timezone(utc_now, "+08:00")?;    // 北京时间
+let ny_time = utc_to_timezone(utc_now, "-05:00")?;         // 美东时间
 ```
 
-3. **存储过程中**: 在应用层处理时间格式转换，避免在SQL中增加复杂度
+**工具使用示例**：
+```rust
+use rat_quickdb::utils::timezone::*;
+
+// 手动时区转换（框架通常自动处理，但如果要存储特定时区时间很有用）
+let now = Utc::now();
+let beijing_dt = utc_to_timezone(now, "+08:00")?;  // 存储北京时间
+let est_dt = utc_to_timezone(now, "-05:00")?;      // 存储美东时间
+
+// 验证时区格式
+let offset_seconds = parse_timezone_offset_to_seconds("+09:30")?;  // 34200
+```
+
+**完整示例参考**：
+- `examples/test_datetime_with_tz_field.rs` - 3种时间字段完整演示
 
 这种设计确保了：
 - ✅ **时区一致性** - 避免时区混乱
