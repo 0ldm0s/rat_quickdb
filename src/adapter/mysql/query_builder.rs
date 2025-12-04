@@ -589,7 +589,15 @@ impl SqlQueryBuilder {
 
                         for value in values {
                             json_conditions.push(format!("JSON_CONTAINS({}, ?)", safe_field));
-                            json_params.push(value.clone());
+                            // 将值转换为JSON字符串格式，与单值查询保持一致
+                            let json_param = match value {
+                                DataValue::String(s) => serde_json::to_string(&s).unwrap_or_else(|_| "\"\"".to_string()),
+                                DataValue::Int(i) => serde_json::to_string(&i).unwrap_or_else(|_| "0".to_string()),
+                                DataValue::Float(f) => serde_json::to_string(&f).unwrap_or_else(|_| "0.0".to_string()),
+                                DataValue::Uuid(uuid) => serde_json::to_string(&uuid).unwrap_or_else(|_| "\"\"".to_string()),
+                                _ => continue, // 跳过不支持的类型
+                            };
+                            json_params.push(DataValue::String(json_param));
                             new_index += 1;
                         }
 

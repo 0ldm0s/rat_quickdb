@@ -19,6 +19,7 @@ use rat_quickdb::types::*;
 use rat_quickdb::{ModelManager, ModelOperations,
     string_field, integer_field, float_field, boolean_field, datetime_field, uuid_field};
 use rat_quickdb::types::UpdateOperation;
+use rat_quickdb::types::{QueryConditionGroup, LogicalOperator};
 use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig, debug};
 use std::collections::HashMap;
 use std::time::{Instant, SystemTime};
@@ -73,7 +74,7 @@ define_model! {
         stock: i32,
         is_available: bool,
         rating: Option<f64>,
-        tags: Option<Vec<String>>,
+        tags: Vec<String>,
         created_at: chrono::DateTime<chrono::Utc>,
         updated_at: Option<chrono::DateTime<chrono::Utc>>,
     }
@@ -87,7 +88,7 @@ define_model! {
         stock: integer_field(None, None).required(),
         is_available: boolean_field().required(),
         rating: float_field(None, None),
-        tags: array_field(field_types!(string), None, None),
+        tags: array_field(field_types!(string), Some(50), Some(0)),
         created_at: datetime_field().required(),
         updated_at: datetime_field(),
     }
@@ -218,7 +219,7 @@ async fn create_product_test_data(count: usize) -> Result<(), Box<dyn std::error
             stock: (10 + i * 2) as i32,
             is_available: i % 3 != 0,
             rating: Some((3.0 + (i % 10) as f64 * 0.5).min(5.0)),
-            tags: Some(vec![
+            tags: vec![
                 match i % 5 {
                     0 => "热销".to_string(),
                     1 => "新品".to_string(),
@@ -227,7 +228,7 @@ async fn create_product_test_data(count: usize) -> Result<(), Box<dyn std::error
                     _ => "限量".to_string(),
                 },
                 format!("类别{}", i % 3),
-            ]),
+            ],
             created_at: Utc::now(),
             updated_at: None,
         };
@@ -337,32 +338,40 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
     println!("✅ 电子产品查询: {} 条记录，耗时 {}ms", simple_result.len(), simple_time);
     stats.add_operation(simple_time, true, false);
 
-    // 2. 多条件AND查询
-    println!("\n2. 多条件AND查询...");
+    // 2. 复杂AND/OR混用查询 - (is_available = true AND (category = '电子产品' OR price >= 180.0))
+    println!("\n2. 复杂AND/OR混用查询...");
     let start = Instant::now();
 
-    let and_conditions = vec![
-        QueryCondition {
-            field: "is_available".to_string(),
-            operator: QueryOperator::Eq,
-            value: DataValue::Bool(true),
-        },
-        QueryCondition {
-            field: "price".to_string(),
-            operator: QueryOperator::Gte,
-            value: DataValue::Float(200.0),
-        },
-        QueryCondition {
-            field: "stock".to_string(),
-            operator: QueryOperator::Gt,
-            value: DataValue::Int(20),
-        },
-    ];
+    let complex_condition = QueryConditionGroup::Group {
+        operator: LogicalOperator::And,
+        conditions: vec![
+            QueryConditionGroup::Single(QueryCondition {
+                field: "is_available".to_string(),
+                operator: QueryOperator::Eq,
+                value: DataValue::Bool(true),
+            }),
+            QueryConditionGroup::Group {
+                operator: LogicalOperator::Or,
+                conditions: vec![
+                    QueryConditionGroup::Single(QueryCondition {
+                        field: "category".to_string(),
+                        operator: QueryOperator::Eq,
+                        value: DataValue::String("电子产品".to_string()),
+                    }),
+                    QueryConditionGroup::Single(QueryCondition {
+                        field: "price".to_string(),
+                        operator: QueryOperator::Gte,
+                        value: DataValue::Float(180.0),
+                    }),
+                ],
+            },
+        ],
+    };
 
-    let and_result = ModelManager::<Product>::find(and_conditions, None).await?;
-    let and_time = start.elapsed().as_millis() as u64;
-    println!("✅ AND查询: {} 条记录，耗时 {}ms", and_result.len(), and_time);
-    stats.add_operation(and_time, true, false);
+    let complex_result = ModelManager::<Product>::find_with_groups(vec![complex_condition], None).await?;
+    let complex_time = start.elapsed().as_millis() as u64;
+    println!("✅ AND/OR混用查询: {} 条记录，耗时 {}ms", complex_result.len(), complex_time);
+    stats.add_operation(complex_time, true, false);
 
     // 3. 排序查询
     println!("\n3. 排序查询...");
@@ -436,6 +445,33 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
         println!("   {}. {} - ${:.2} - {}", i + 1, product.name, product.price, product.category);
     }
     stats.add_operation(field_time, true, false);
+
+    // 6. IN查询 - 查询tags数组包含特定值的记录
+    println!("\n6. IN查询 (数组字段)...");
+    let start = Instant::now();
+
+    let in_conditions = vec![
+        QueryCondition {
+            field: "tags".to_string(),
+            operator: QueryOperator::In,
+            value: DataValue::Array(vec![
+                DataValue::String("热销".to_string()),
+                DataValue::String("新品".to_string()),
+                DataValue::String("推荐".to_string()),
+                DataValue::String("特价".to_string()),
+                DataValue::String("限量".to_string()),
+            ]),
+        },
+    ];
+
+    let in_result = ModelManager::<Product>::find(in_conditions, None).await?;
+    let in_time = start.elapsed().as_millis() as u64;
+    println!("✅ IN查询: {} 条记录，耗时 {}ms", in_result.len(), in_time);
+    println!("   包含'热销'或'新品'标签的产品:");
+    for (i, product) in in_result.iter().take(3).enumerate() {
+        println!("   {}. {} - 标签: {:?}", i + 1, product.name, product.tags);
+    }
+    stats.add_operation(in_time, true, false);
 
     Ok(stats)
 }
@@ -525,7 +561,7 @@ async fn create_performance_test_data(count: usize) -> Result<(), Box<dyn std::e
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== RatQuickDB SQLite 查询操作完整演示 ===");
+    println!("=== RatQuickDB MySQL 查询操作完整演示 ===");
 
     // 初始化日志
     LoggerBuilder::new()
@@ -546,15 +582,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tls_config: None,
         })
         .pool(PoolConfig::builder()
-            .max_connections(15)
-            .min_connections(3)
-            .connection_timeout(15)
-            .idle_timeout(120)
-            .max_lifetime(2400)
-            .max_retries(4)
-            .retry_interval_ms(750)
-            .keepalive_interval_sec(45)
-            .health_check_timeout_sec(8)
+            .max_connections(1)
+            .min_connections(1)
+            .connection_timeout(30)
+            .idle_timeout(300)
+            .max_lifetime(3600)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
             .build()?)
         .alias("main")
         .id_strategy(IdStrategy::Uuid)
@@ -587,9 +623,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{}: {}", alias, status);
     }
 
-    // 清理
-    cleanup_test_data().await;
-    println!("\n演示完成");
+    // 清理（注释掉以便检查数据）
+    // cleanup_test_data().await;
+    println!("\n演示完成 - 数据保留在数据库中以便检查");
 
     Ok(())
 }
