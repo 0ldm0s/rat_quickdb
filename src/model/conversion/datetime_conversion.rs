@@ -28,6 +28,10 @@ pub fn convert_string_to_datetime_with_tz<T: std::fmt::Debug + ToDataValue>(
             // 如果是字符串，尝试解析为DateTime
             parse_string_to_datetime_with_tz(&s, timezone_offset)
         },
+        DataValue::Null => {
+            // Null值（对应Option::None），这是合法的
+            Ok(DataValue::Null)
+        },
         _ => {
             // 其他类型，返回错误
             Err(QuickDbError::ValidationError {

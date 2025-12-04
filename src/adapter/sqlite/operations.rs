@@ -367,6 +367,16 @@ impl DatabaseAdapter for SqliteAdapter {
             }),
         };
 
+        // 获取字段元数据进行验证和转换
+        let model_meta = crate::manager::get_model_with_alias(table, alias)
+            .ok_or_else(|| QuickDbError::ValidationError {
+                field: "model".to_string(),
+                message: format!("模型 '{}' 不存在", table),
+            })?;
+        let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> = model_meta.fields.iter()
+            .map(|(name, f)| (name.clone(), f.clone()))
+            .collect();
+
         let mut set_clauses = Vec::new();
         let mut params = Vec::new();
 
@@ -374,7 +384,17 @@ impl DatabaseAdapter for SqliteAdapter {
             match &operation.operation {
                 crate::types::UpdateOperator::Set => {
                     set_clauses.push(format!("{} = ?", operation.field));
-                    params.push(operation.value.clone());
+
+                    // 对字段值进行验证和转换，和普通update方法保持一致
+                    let mut operation_data = std::collections::HashMap::new();
+                    operation_data.insert(operation.field.clone(), operation.value.clone());
+                    let validated_data = crate::utils::timezone::process_data_fields_from_metadata(operation_data, &field_map);
+
+                    if let Some(converted_value) = validated_data.get(&operation.field) {
+                        params.push(converted_value.clone());
+                    } else {
+                        params.push(operation.value.clone());
+                    }
                 }
                 crate::types::UpdateOperator::Increment => {
                     set_clauses.push(format!("{} = {} + ?", operation.field, operation.field));
