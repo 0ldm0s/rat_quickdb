@@ -226,6 +226,16 @@ pub(crate) async fn execute_query(
                 }
             }
             DataValue::Int(i) => query.bind(*i),
+            DataValue::UInt(u) => {
+                // PostgreSQL 支持无符号整数，但 sqlx 可能没有直接支持
+                // 先尝试绑定为 i64，如果数据范围允许的话
+                if *u <= i64::MAX as u64 {
+                    query.bind(*u as i64)
+                } else {
+                    // 如果超过 i64 范围，转换为字符串
+                    query.bind(u.to_string())
+                }
+            }
             DataValue::Float(f) => query.bind(*f),
             DataValue::Bool(b) => query.bind(*b),
             DataValue::DateTime(dt) => query.bind(*dt),
@@ -296,6 +306,16 @@ pub(crate) async fn execute_update(
                 }
             }
             DataValue::Int(i) => query.bind(*i),
+            DataValue::UInt(u) => {
+                // PostgreSQL 支持无符号整数，但 sqlx 可能没有直接支持
+                // 先尝试绑定为 i64，如果数据范围允许的话
+                if *u <= i64::MAX as u64 {
+                    query.bind(*u as i64)
+                } else {
+                    // 如果超过 i64 范围，转换为字符串
+                    query.bind(u.to_string())
+                }
+            }
             DataValue::Float(f) => query.bind(*f),
             DataValue::Bool(b) => query.bind(*b),
             DataValue::DateTime(dt) => query.bind(*dt),

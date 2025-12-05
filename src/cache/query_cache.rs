@@ -58,9 +58,8 @@ impl CacheManager {
                     DataValue::Json(json_val) => json_val.clone(),
                     DataValue::String(s) => serde_json::Value::String(s.clone()),
                     DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
-                    DataValue::Float(f) => serde_json::Value::Number(
-                        serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0)),
-                    ),
+                    DataValue::UInt(u) => serde_json::Value::Number(serde_json::Number::from(*u)),
+                    DataValue::Float(f) => serde_json::Value::Number(serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0))),
                     DataValue::Bool(b) => serde_json::Value::Bool(*b),
                     DataValue::DateTime(dt) => serde_json::Value::String(dt.to_rfc3339()),
                     DataValue::DateTimeUTC(dt) => serde_json::Value::String(dt.to_rfc3339()),
@@ -69,41 +68,23 @@ impl CacheManager {
                     DataValue::Bytes(bytes) => serde_json::Value::String(base64::encode(bytes)),
                     DataValue::Uuid(uuid) => serde_json::Value::String(uuid.to_string()),
                     DataValue::Array(arr) => {
-                        let json_array: Vec<serde_json::Value> = arr
-                            .iter()
-                            .map(|item| {
-                                // 递归处理数组元素
-                                match item {
-                                    DataValue::Json(json_val) => json_val.clone(),
-                                    DataValue::String(s) => serde_json::Value::String(s.clone()),
-                                    DataValue::Int(i) => {
-                                        serde_json::Value::Number(serde_json::Number::from(*i))
-                                    }
-                                    DataValue::Float(f) => serde_json::Value::Number(
-                                        serde_json::Number::from_f64(*f)
-                                            .unwrap_or(serde_json::Number::from(0)),
-                                    ),
-                                    DataValue::Bool(b) => serde_json::Value::Bool(*b),
-                                    DataValue::DateTime(dt) => {
-                                        serde_json::Value::String(dt.to_rfc3339())
-                                    }
-                                    DataValue::DateTimeUTC(dt) => {
-                                        serde_json::Value::String(dt.to_rfc3339())
-                                    }
-                                    DataValue::DateTimeUTC(dt) => {
-                                        serde_json::Value::String(dt.to_rfc3339())
-                                    }
-                                    DataValue::Null => serde_json::Value::Null,
-                                    DataValue::Bytes(bytes) => {
-                                        serde_json::Value::String(base64::encode(bytes))
-                                    }
-                                    DataValue::Uuid(uuid) => {
-                                        serde_json::Value::String(uuid.to_string())
-                                    }
-                                    _ => serde_json::Value::String(format!("{:?}", item)), // 其他复杂类型转为字符串
-                                }
-                            })
-                            .collect();
+                        let json_array: Vec<serde_json::Value> = arr.iter().map(|item| {
+                            // 递归处理数组元素
+                            match item {
+                                DataValue::Json(json_val) => json_val.clone(),
+                                DataValue::String(s) => serde_json::Value::String(s.clone()),
+                                DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
+                                DataValue::UInt(u) => serde_json::Value::Number(serde_json::Number::from(*u)),
+                                DataValue::Float(f) => serde_json::Value::Number(serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0))),
+                                DataValue::Bool(b) => serde_json::Value::Bool(*b),
+                                DataValue::DateTime(dt) => serde_json::Value::String(dt.to_rfc3339()),
+                                DataValue::DateTimeUTC(dt) => serde_json::Value::String(dt.to_rfc3339()),
+                                DataValue::Null => serde_json::Value::Null,
+                                DataValue::Bytes(bytes) => serde_json::Value::String(base64::encode(bytes)),
+                                DataValue::Uuid(uuid) => serde_json::Value::String(uuid.to_string()),
+                                _ => serde_json::Value::String(format!("{:?}", item)), // 其他复杂类型转为字符串
+                            }
+                        }).collect();
                         serde_json::Value::Array(json_array)
                     }
                     DataValue::Object(obj) => {
@@ -112,13 +93,9 @@ impl CacheManager {
                             let json_value = match value {
                                 DataValue::Json(json_val) => json_val.clone(),
                                 DataValue::String(s) => serde_json::Value::String(s.clone()),
-                                DataValue::Int(i) => {
-                                    serde_json::Value::Number(serde_json::Number::from(*i))
-                                }
-                                DataValue::Float(f) => serde_json::Value::Number(
-                                    serde_json::Number::from_f64(*f)
-                                        .unwrap_or(serde_json::Number::from(0)),
-                                ),
+                              DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
+                                DataValue::UInt(u) => serde_json::Value::Number(serde_json::Number::from(*u)),
+                                DataValue::Float(f) => serde_json::Value::Number(serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0))),
                                 DataValue::Bool(b) => serde_json::Value::Bool(*b),
                                 DataValue::DateTime(dt) => {
                                     serde_json::Value::String(dt.to_rfc3339())
@@ -217,9 +194,8 @@ impl CacheManager {
                     DataValue::Json(json_val) => json_val.clone(),
                     DataValue::String(s) => serde_json::Value::String(s.clone()),
                     DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
-                    DataValue::Float(f) => serde_json::Value::Number(
-                        serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0)),
-                    ),
+                    DataValue::UInt(u) => serde_json::Value::Number(serde_json::Number::from(*u)),
+                    DataValue::Float(f) => serde_json::Value::Number(serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0))),
                     DataValue::Bool(b) => serde_json::Value::Bool(*b),
                     DataValue::DateTime(dt) => serde_json::Value::String(dt.to_rfc3339()),
                     DataValue::DateTimeUTC(dt) => serde_json::Value::String(dt.to_rfc3339()),
@@ -228,40 +204,22 @@ impl CacheManager {
                     DataValue::Bytes(bytes) => serde_json::Value::String(base64::encode(bytes)),
                     DataValue::Uuid(uuid) => serde_json::Value::String(uuid.to_string()),
                     DataValue::Array(arr) => {
-                        let json_array: Vec<serde_json::Value> = arr
-                            .iter()
-                            .map(|item| {
-                                match item {
-                                    DataValue::Json(json_val) => json_val.clone(),
-                                    DataValue::String(s) => serde_json::Value::String(s.clone()),
-                                    DataValue::Int(i) => {
-                                        serde_json::Value::Number(serde_json::Number::from(*i))
-                                    }
-                                    DataValue::Float(f) => serde_json::Value::Number(
-                                        serde_json::Number::from_f64(*f)
-                                            .unwrap_or(serde_json::Number::from(0)),
-                                    ),
-                                    DataValue::Bool(b) => serde_json::Value::Bool(*b),
-                                    DataValue::DateTime(dt) => {
-                                        serde_json::Value::String(dt.to_rfc3339())
-                                    }
-                                    DataValue::DateTimeUTC(dt) => {
-                                        serde_json::Value::String(dt.to_rfc3339())
-                                    }
-                                    DataValue::DateTimeUTC(dt) => {
-                                        serde_json::Value::String(dt.to_rfc3339())
-                                    }
-                                    DataValue::Null => serde_json::Value::Null,
-                                    DataValue::Bytes(bytes) => {
-                                        serde_json::Value::String(base64::encode(bytes))
-                                    }
-                                    DataValue::Uuid(uuid) => {
-                                        serde_json::Value::String(uuid.to_string())
-                                    }
-                                    _ => serde_json::Value::String(format!("{:?}", item)), // 其他复杂类型转为字符串
-                                }
-                            })
-                            .collect();
+                        let json_array: Vec<serde_json::Value> = arr.iter().map(|item| {
+                            match item {
+                                DataValue::Json(json_val) => json_val.clone(),
+                                DataValue::String(s) => serde_json::Value::String(s.clone()),
+                                DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
+                                DataValue::UInt(u) => serde_json::Value::Number(serde_json::Number::from(*u)),
+                                DataValue::Float(f) => serde_json::Value::Number(serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0))),
+                                DataValue::Bool(b) => serde_json::Value::Bool(*b),
+                                DataValue::DateTime(dt) => serde_json::Value::String(dt.to_rfc3339()),
+                                DataValue::DateTimeUTC(dt) => serde_json::Value::String(dt.to_rfc3339()),
+                                DataValue::Null => serde_json::Value::Null,
+                                DataValue::Bytes(bytes) => serde_json::Value::String(base64::encode(bytes)),
+                                DataValue::Uuid(uuid) => serde_json::Value::String(uuid.to_string()),
+                                _ => serde_json::Value::String(format!("{:?}", item)), // 其他复杂类型转为字符串
+                            }
+                        }).collect();
                         serde_json::Value::Array(json_array)
                     }
                     DataValue::Object(obj) => {
@@ -270,13 +228,9 @@ impl CacheManager {
                             let json_value = match value {
                                 DataValue::Json(json_val) => json_val.clone(),
                                 DataValue::String(s) => serde_json::Value::String(s.clone()),
-                                DataValue::Int(i) => {
-                                    serde_json::Value::Number(serde_json::Number::from(*i))
-                                }
-                                DataValue::Float(f) => serde_json::Value::Number(
-                                    serde_json::Number::from_f64(*f)
-                                        .unwrap_or(serde_json::Number::from(0)),
-                                ),
+                              DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
+                                DataValue::UInt(u) => serde_json::Value::Number(serde_json::Number::from(*u)),
+                                DataValue::Float(f) => serde_json::Value::Number(serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0))),
                                 DataValue::Bool(b) => serde_json::Value::Bool(*b),
                                 DataValue::DateTime(dt) => {
                                     serde_json::Value::String(dt.to_rfc3339())

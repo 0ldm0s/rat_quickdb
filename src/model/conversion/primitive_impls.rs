@@ -31,6 +31,37 @@ impl ToDataValue for i64 {
     }
 }
 
+// 无符号整数类型实现
+impl ToDataValue for u8 {
+    fn to_data_value(&self) -> DataValue {
+        DataValue::UInt(*self as u64)
+    }
+}
+
+impl ToDataValue for u16 {
+    fn to_data_value(&self) -> DataValue {
+        DataValue::UInt(*self as u64)
+    }
+}
+
+impl ToDataValue for u32 {
+    fn to_data_value(&self) -> DataValue {
+        DataValue::UInt(*self as u64)
+    }
+}
+
+impl ToDataValue for u64 {
+    fn to_data_value(&self) -> DataValue {
+        DataValue::UInt(*self)
+    }
+}
+
+impl ToDataValue for usize {
+    fn to_data_value(&self) -> DataValue {
+        DataValue::UInt(*self as u64)
+    }
+}
+
 // 浮点类型实现
 impl ToDataValue for f32 {
     fn to_data_value(&self) -> DataValue {

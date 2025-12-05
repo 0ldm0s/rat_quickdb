@@ -12,6 +12,8 @@ pub enum DataValue {
     Bool(bool),
     /// 整数
     Int(i64),
+    /// 无符号整数
+    UInt(u64),
     /// 浮点数
     Float(f64),
     /// 字符串
@@ -38,6 +40,7 @@ impl std::fmt::Display for DataValue {
             DataValue::Null => write!(f, "null"),
             DataValue::Bool(b) => write!(f, "{}", b),
             DataValue::Int(i) => write!(f, "{}", i),
+            DataValue::UInt(u) => write!(f, "{}", u),
             DataValue::Float(fl) => write!(f, "{}", fl),
             DataValue::String(s) => write!(f, "{}", s),
             DataValue::Bytes(bytes) => write!(f, "[{} bytes]", bytes.len()),
@@ -71,6 +74,7 @@ impl DataValue {
             DataValue::Null => "null",
             DataValue::Bool(_) => "boolean",
             DataValue::Int(_) => "integer",
+            DataValue::UInt(_) => "unsigned_integer",
             DataValue::Float(_) => "float",
             DataValue::String(_) => "string",
             DataValue::Bytes(_) => "bytes",
@@ -108,9 +112,12 @@ impl DataValue {
             DataValue::Null => serde_json::Value::Null,
             DataValue::Bool(b) => serde_json::Value::Bool(*b),
             DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
-            DataValue::Float(f) => serde_json::Number::from_f64(*f)
-                .map(serde_json::Value::Number)
-                .unwrap_or(serde_json::Value::Null),
+            DataValue::UInt(u) => serde_json::Value::Number(serde_json::Number::from(*u)),
+            DataValue::Float(f) => {
+                serde_json::Number::from_f64(*f)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null)
+            },
             DataValue::String(s) => serde_json::Value::String(s.clone()),
             DataValue::Bytes(b) => {
                 // 将字节数组转换为 base64 字符串
@@ -156,12 +163,13 @@ impl DataValue {
                         // 对于数组元素，直接提取原始值，避免带类型标签的序列化
                         match item {
                             DataValue::String(s) => serde_json::Value::String(s.clone()),
-                            DataValue::Int(i) => {
-                                serde_json::Value::Number(serde_json::Number::from(*i))
-                            }
-                            DataValue::Float(f) => serde_json::Number::from_f64(*f)
-                                .map(serde_json::Value::Number)
-                                .unwrap_or(serde_json::Value::Null),
+                        DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
+                            DataValue::UInt(u) => serde_json::Value::Number(serde_json::Number::from(*u)),
+                            DataValue::Float(f) => {
+                                serde_json::Number::from_f64(*f)
+                                    .map(serde_json::Value::Number)
+                                    .unwrap_or(serde_json::Value::Null)
+                            },
                             DataValue::Bool(b) => serde_json::Value::Bool(*b),
                             DataValue::Null => serde_json::Value::Null,
                             DataValue::Bytes(b) => serde_json::Value::String(base64::encode(b)),
@@ -243,6 +251,7 @@ impl From<i64> for DataValue {
     }
 }
 
+
 impl From<f32> for DataValue {
     fn from(value: f32) -> Self {
         DataValue::Float(value as f64)
@@ -306,6 +315,8 @@ pub fn json_value_to_data_value(value: serde_json::Value) -> DataValue {
         serde_json::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
                 DataValue::Int(i)
+            } else if let Some(u) = n.as_u64() {
+                DataValue::UInt(u)
             } else if let Some(f) = n.as_f64() {
                 DataValue::Float(f)
             } else {
@@ -438,6 +449,7 @@ pub fn convert_to_postgresql_jsonb_value(
 
         // 数字类型：直接转换为JSON数字格式
         DataValue::Int(i) => Ok(DataValue::String(i.to_string())),
+        DataValue::UInt(u) => Ok(DataValue::String(u.to_string())),
         DataValue::Float(f) => Ok(DataValue::String(f.to_string())),
 
         // 布尔值：转换为JSON布尔格式

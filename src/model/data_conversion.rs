@@ -242,6 +242,7 @@ impl<'a, 'de> serde::de::Deserializer<'de> for DataValueSingleDeserializer<'a> {
             DataValue::Null => visitor.visit_unit(),
             DataValue::Bool(b) => visitor.visit_bool(*b),
             DataValue::Int(i) => visitor.visit_i64(*i),
+            DataValue::UInt(u) => visitor.visit_u64(*u),
             DataValue::Float(f) => visitor.visit_f64(*f),
             DataValue::String(s) => visitor.visit_str(s),
             DataValue::Array(arr) => {

@@ -84,6 +84,14 @@ impl DatabaseAdapter for MysqlAdapter {
                     query = match param {
                         DataValue::String(s) => query.bind(s),
                         DataValue::Int(i) => query.bind(i),
+                        DataValue::UInt(u) => {
+                            // MySQL 支持无符号整数，但 sqlx 可能没有直接支持
+                            if *u <= i64::MAX as u64 {
+                                query.bind(*u as i64)
+                            } else {
+                                query.bind(u.to_string())
+                            }
+                        }
                         DataValue::Float(f) => query.bind(f),
                         DataValue::Bool(b) => query.bind(b),
                         DataValue::DateTime(dt) => query.bind(dt.naive_utc().and_utc()),

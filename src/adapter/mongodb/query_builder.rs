@@ -379,6 +379,15 @@ impl MongoQueryBuilder {
         match value {
             DataValue::String(s) => Bson::String(s.clone()),
             DataValue::Int(i) => Bson::Int64(*i),
+            DataValue::UInt(u) => {
+                // MongoDB/BSON 不支持无符号整数，转换为 i64
+                if *u <= i64::MAX as u64 {
+                    Bson::Int64(*u as i64)
+                } else {
+                    // 如果超过 i64 范围，使用字符串存储
+                    Bson::String(u.to_string())
+                }
+            }
             DataValue::Float(f) => Bson::Double(*f),
             DataValue::Bool(b) => Bson::Boolean(*b),
             DataValue::DateTime(dt) => {

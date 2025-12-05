@@ -77,6 +77,14 @@ impl DatabaseAdapter for SqliteAdapter {
                 DataValue::Int(i) => {
                     query = query.bind(i);
                 }
+                DataValue::UInt(u) => {
+                    // SQLite 不支持 u64 编码，转换为 i64 或字符串
+                    if *u <= i64::MAX as u64 {
+                        query = query.bind(*u as i64);
+                    } else {
+                        query = query.bind(u.to_string());
+                    }
+                }
                 DataValue::Float(f) => {
                     query = query.bind(f);
                 }
