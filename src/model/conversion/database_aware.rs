@@ -88,8 +88,20 @@ mod tests {
         let result = convert_datetime_with_tz_aware(&dt, "-05:00", Some(DatabaseType::SQLite));
         assert!(result.is_ok());
 
-        // 测试未知类型
-        let result = convert_datetime_with_tz_aware(&dt, "+00:00", None);
+        // 测试PostgreSQL类型
+        let result = convert_datetime_with_tz_aware(&dt, "+09:00", Some(DatabaseType::PostgreSQL));
         assert!(result.is_ok());
+
+        // 测试MongoDB类型
+        let result = convert_datetime_with_tz_aware(&dt, "-08:00", Some(DatabaseType::MongoDB));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    #[should_panic(expected = "严重错误：无法确定数据库类型")]
+    fn test_database_aware_conversion_panic_on_none() {
+        let dt = Utc::now();
+        // 这个调用应该panic，因为数据库类型未知
+        convert_datetime_with_tz_aware(&dt, "+00:00", None);
     }
 }
