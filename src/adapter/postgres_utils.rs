@@ -80,7 +80,18 @@ pub fn build_json_query_condition(
 
             let json_val = serde_json::Value::Number(serde_json::Number::from(*i));
             Ok((
-                format!("{} @> {}", field_name, placeholder),
+                format!("{} @> ?", field_name),
+                DataValue::Json(json_val)
+            ))
+        }
+
+        DataValue::UInt(u) => {
+            #[cfg(debug_assertions)]
+            rat_logger::debug!("  策略: 无符号数值精确匹配，使用 @> 操作符");
+
+            let json_val = serde_json::Value::Number(serde_json::Number::from(*u));
+            Ok((
+                format!("{} @> ?", field_name),
                 DataValue::Json(json_val)
             ))
         }
@@ -140,6 +151,7 @@ pub fn build_json_query_condition(
                 .map(|item| match item {
                     DataValue::String(s) => serde_json::Value::String(s.clone()),
                     DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
+                    DataValue::UInt(u) => serde_json::Value::Number(serde_json::Number::from(*u)),
                     DataValue::Float(f) => serde_json::Number::from_f64(*f)
                         .map(serde_json::Value::Number)
                         .unwrap_or(serde_json::Value::Null),
@@ -303,6 +315,24 @@ pub fn convert_to_jsonb_value(value: &DataValue) -> QuickDbResult<DataValue> {
                     message: format!("JSON值序列化失败: {}", e),
                 })
             }
+        }
+
+        // 数值类型：转换为JSON数字
+        DataValue::Int(i) => {
+            let json_val = serde_json::Value::Number(serde_json::Number::from(*i));
+            Ok(DataValue::String(json_val.to_string()))
+        }
+
+        DataValue::UInt(u) => {
+            let json_val = serde_json::Value::Number(serde_json::Number::from(*u));
+            Ok(DataValue::String(json_val.to_string()))
+        }
+
+        DataValue::Float(f) => {
+            let json_val = serde_json::Number::from_f64(*f)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null);
+            Ok(DataValue::String(json_val.to_string()))
         }
 
         // 日期时间：转换为ISO8601字符串

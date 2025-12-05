@@ -410,6 +410,7 @@ impl TableSchema {
             DataValue::Null => ColumnType::String { length: Some(255) }, // 默认为字符串
             DataValue::Bool(_) => ColumnType::Boolean,
             DataValue::Int(_) => ColumnType::BigInteger,
+            DataValue::UInt(_) => ColumnType::BigInteger,
             DataValue::Float(_) => ColumnType::Double,
             DataValue::String(s) => {
                 // 根据字符串长度决定类型
