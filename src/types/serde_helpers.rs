@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serializer, Deserializer};
-use std::collections::HashMap;
 use crate::types::data_value::DataValue;
+use serde::{Deserialize, Deserializer, Serializer};
+use std::collections::HashMap;
 
 /// 序列化辅助模块
 pub mod hashmap_datavalue {
@@ -34,20 +34,23 @@ pub mod hashmap_datavalue {
 
         let json_map = match value {
             // 如果是对象，直接使用
-            serde_json::Value::Object(map) => {
-                map.into_iter().collect::<HashMap<String, serde_json::Value>>()
-            },
+            serde_json::Value::Object(map) => map
+                .into_iter()
+                .collect::<HashMap<String, serde_json::Value>>(),
             // 如果是字符串，尝试解析为JSON
             serde_json::Value::String(s) => {
                 serde_json::from_str::<HashMap<String, serde_json::Value>>(&s)
                     .map_err(|e| D::Error::custom(format!("无法解析JSON字符串: {}", e)))?
-            },
+            }
             _ => return Err(D::Error::custom("期望JSON对象或JSON字符串")),
         };
 
         let mut result = HashMap::new();
         for (key, value) in json_map {
-            result.insert(key, crate::types::data_value::json_value_to_data_value(value));
+            result.insert(
+                key,
+                crate::types::data_value::json_value_to_data_value(value),
+            );
         }
         Ok(result)
     }

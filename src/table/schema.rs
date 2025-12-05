@@ -1,11 +1,11 @@
 //! 表模式定义
-//! 
+//!
 //! 定义表结构、列类型、索引和约束
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use crate::types::DataValue;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// 表模式定义
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -228,67 +228,67 @@ impl TableSchema {
             updated_at: Some(chrono::Utc::now()),
         }
     }
-    
+
     /// 添加列
     pub fn add_column(mut self, column: ColumnDefinition) -> Self {
         self.columns.push(column);
         self.updated_at = Some(chrono::Utc::now());
         self
     }
-    
+
     /// 添加索引
     pub fn add_index(mut self, index: IndexDefinition) -> Self {
         self.indexes.push(index);
         self.updated_at = Some(chrono::Utc::now());
         self
     }
-    
+
     /// 添加约束
     pub fn add_constraint(mut self, constraint: ConstraintDefinition) -> Self {
         self.constraints.push(constraint);
         self.updated_at = Some(chrono::Utc::now());
         self
     }
-    
+
     /// 设置表选项
     pub fn with_options(mut self, options: TableOptions) -> Self {
         self.options = options;
         self.updated_at = Some(chrono::Utc::now());
         self
     }
-    
+
     /// 获取主键列
     pub fn get_primary_key_columns(&self) -> Vec<&ColumnDefinition> {
         self.columns.iter().filter(|col| col.primary_key).collect()
     }
-    
+
     /// 检查列是否存在
     pub fn has_column(&self, column_name: &str) -> bool {
         self.columns.iter().any(|col| col.name == column_name)
     }
-    
+
     /// 获取列定义
     pub fn get_column(&self, column_name: &str) -> Option<&ColumnDefinition> {
         self.columns.iter().find(|col| col.name == column_name)
     }
-    
+
     /// 检查索引是否存在
     pub fn has_index(&self, index_name: &str) -> bool {
         self.indexes.iter().any(|idx| idx.name == index_name)
     }
-    
+
     /// 获取索引定义
     pub fn get_index(&self, index_name: &str) -> Option<&IndexDefinition> {
         self.indexes.iter().find(|idx| idx.name == index_name)
     }
-    
+
     /// 验证模式定义
     pub fn validate(&self) -> Result<(), String> {
         // 检查是否有列定义
         if self.columns.is_empty() {
             return Err("表必须至少有一个列".to_string());
         }
-        
+
         // 检查列名是否重复
         let mut column_names = std::collections::HashSet::new();
         for column in &self.columns {
@@ -296,45 +296,51 @@ impl TableSchema {
                 return Err(format!("列名 '{}' 重复", column.name));
             }
         }
-        
+
         // 检查索引名是否重复
         let mut index_names = std::collections::HashSet::new();
         for index in &self.indexes {
             if !index_names.insert(&index.name) {
                 return Err(format!("索引名 '{}' 重复", index.name));
             }
-            
+
             // 检查索引列是否存在
             for column_name in &index.columns {
                 if !self.has_column(column_name) {
-                    return Err(format!("索引 '{}' 引用的列 '{}' 不存在", index.name, column_name));
+                    return Err(format!(
+                        "索引 '{}' 引用的列 '{}' 不存在",
+                        index.name, column_name
+                    ));
                 }
             }
         }
-        
+
         // 检查约束名是否重复
         let mut constraint_names = std::collections::HashSet::new();
         for constraint in &self.constraints {
             if !constraint_names.insert(&constraint.name) {
                 return Err(format!("约束名 '{}' 重复", constraint.name));
             }
-            
+
             // 检查约束列是否存在
             for column_name in &constraint.columns {
                 if !self.has_column(column_name) {
-                    return Err(format!("约束 '{}' 引用的列 '{}' 不存在", constraint.name, column_name));
+                    return Err(format!(
+                        "约束 '{}' 引用的列 '{}' 不存在",
+                        constraint.name, column_name
+                    ));
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// 从数据字段推断表结构
     pub fn infer_from_data(table_name: String, data: &HashMap<String, DataValue>) -> Self {
         let mut columns = Vec::new();
         let mut has_id_field = false;
-        
+
         // 根据数据字段推断列类型
         for (field_name, field_value) in data {
             if field_name == "id" {
@@ -374,24 +380,27 @@ impl TableSchema {
                 });
             }
         }
-        
+
         // 如果数据中没有id字段，添加默认的id主键列
         if !has_id_field {
-            columns.insert(0, ColumnDefinition {
-                name: "id".to_string(),
-                column_type: ColumnType::BigInteger,
-                nullable: false,
-                default_value: None,
-                primary_key: true,
-                auto_increment: true,
-                unique: true,
-                comment: Some("主键ID".to_string()),
-                length: None,
-                precision: None,
-                scale: None,
-            });
+            columns.insert(
+                0,
+                ColumnDefinition {
+                    name: "id".to_string(),
+                    column_type: ColumnType::BigInteger,
+                    nullable: false,
+                    default_value: None,
+                    primary_key: true,
+                    auto_increment: true,
+                    unique: true,
+                    comment: Some("主键ID".to_string()),
+                    length: None,
+                    precision: None,
+                    scale: None,
+                },
+            );
         }
-        
+
         Self {
             name: table_name,
             columns,
@@ -403,7 +412,7 @@ impl TableSchema {
             updated_at: Some(chrono::Utc::now()),
         }
     }
-    
+
     /// 从DataValue推断列类型
     fn infer_column_type(value: &DataValue) -> ColumnType {
         match value {
@@ -420,7 +429,7 @@ impl TableSchema {
                 } else {
                     ColumnType::String { length: Some(255) }
                 }
-            },
+            }
             DataValue::Bytes(_) => ColumnType::Blob,
             DataValue::DateTime(_) => ColumnType::DateTime,
             DataValue::DateTimeUTC(_) => ColumnType::DateTime,
@@ -449,39 +458,39 @@ impl ColumnDefinition {
             scale: None,
         }
     }
-    
+
     /// 设置为主键
     pub fn primary_key(mut self) -> Self {
         self.primary_key = true;
         self.nullable = false;
         self
     }
-    
+
     /// 设置为非空
     pub fn not_null(mut self) -> Self {
         self.nullable = false;
         self
     }
-    
+
     /// 设置为唯一
     pub fn unique(mut self) -> Self {
         self.unique = true;
         self
     }
-    
+
     /// 设置为自增
     pub fn auto_increment(mut self) -> Self {
         self.auto_increment = true;
         self.nullable = false;
         self
     }
-    
+
     /// 设置默认值
     pub fn default_value<T: ToString>(mut self, value: T) -> Self {
         self.default_value = Some(value.to_string());
         self
     }
-    
+
     /// 设置注释
     pub fn comment<T: ToString>(mut self, comment: T) -> Self {
         self.comment = Some(comment.to_string());
@@ -500,19 +509,19 @@ impl IndexDefinition {
             options: HashMap::new(),
         }
     }
-    
+
     /// 设置为唯一索引
     pub fn unique(mut self) -> Self {
         self.unique = true;
         self
     }
-    
+
     /// 设置索引类型
     pub fn index_type(mut self, index_type: IndexType) -> Self {
         self.index_type = index_type;
         self
     }
-    
+
     /// 添加选项
     pub fn option<K: ToString, V: ToString>(mut self, key: K, value: V) -> Self {
         self.options.insert(key.to_string(), value.to_string());
@@ -534,7 +543,7 @@ impl ConstraintDefinition {
             check_condition: None,
         }
     }
-    
+
     /// 创建外键约束
     pub fn foreign_key(
         name: String,
@@ -553,7 +562,7 @@ impl ConstraintDefinition {
             check_condition: None,
         }
     }
-    
+
     /// 创建唯一约束
     pub fn unique(name: String, columns: Vec<String>) -> Self {
         Self {
@@ -567,7 +576,7 @@ impl ConstraintDefinition {
             check_condition: None,
         }
     }
-    
+
     /// 创建检查约束
     pub fn check(name: String, condition: String) -> Self {
         Self {
@@ -581,13 +590,13 @@ impl ConstraintDefinition {
             check_condition: Some(condition),
         }
     }
-    
+
     /// 设置删除时的动作
     pub fn on_delete(mut self, action: ReferentialAction) -> Self {
         self.on_delete = Some(action);
         self
     }
-    
+
     /// 设置更新时的动作
     pub fn on_update(mut self, action: ReferentialAction) -> Self {
         self.on_update = Some(action);

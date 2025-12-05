@@ -1,7 +1,7 @@
+use chrono::{DateTime, FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use chrono::{DateTime, Utc, FixedOffset};
 
 /// 通用数据值类型 - 支持跨数据库的数据表示
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -48,11 +48,11 @@ impl std::fmt::Display for DataValue {
             DataValue::Array(arr) => {
                 let json_str = serde_json::to_string(arr).unwrap_or_default();
                 write!(f, "{}", json_str)
-            },
+            }
             DataValue::Object(obj) => {
                 let json_str = serde_json::to_string(obj).unwrap_or_default();
                 write!(f, "{}", json_str)
-            },
+            }
         }
     }
 }
@@ -108,16 +108,14 @@ impl DataValue {
             DataValue::Null => serde_json::Value::Null,
             DataValue::Bool(b) => serde_json::Value::Bool(*b),
             DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
-            DataValue::Float(f) => {
-                serde_json::Number::from_f64(*f)
-                    .map(serde_json::Value::Number)
-                    .unwrap_or(serde_json::Value::Null)
-            },
+            DataValue::Float(f) => serde_json::Number::from_f64(*f)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null),
             DataValue::String(s) => serde_json::Value::String(s.clone()),
             DataValue::Bytes(b) => {
                 // 将字节数组转换为 base64 字符串
                 serde_json::Value::String(base64::encode(b))
-            },
+            }
             DataValue::DateTime(dt) => serde_json::Value::String(dt.to_rfc3339()),
             DataValue::DateTimeUTC(dt) => serde_json::Value::String(dt.to_rfc3339()),
             DataValue::Uuid(u) => serde_json::Value::String(u.to_string()),
@@ -126,14 +124,15 @@ impl DataValue {
                 match j {
                     serde_json::Value::Array(arr) => {
                         // 检查数组元素是否是带类型标签的对象，如果是则提取原始值
-                        let cleaned_array: Vec<serde_json::Value> = arr.iter()
+                        let cleaned_array: Vec<serde_json::Value> = arr
+                            .iter()
                             .map(|item| {
                                 if let serde_json::Value::Object(obj) = item {
                                     // 检查是否是单键对象（类型标签格式）
                                     if obj.len() == 1 {
                                         let (key, value) = obj.iter().next().unwrap();
                                         match key.as_str() {
-                                            "String" | "Int" | "Float" | "Bool" | "Null" 
+                                            "String" | "Int" | "Float" | "Bool" | "Null"
                                             | "Bytes" | "DateTime" | "Uuid" => value.clone(),
                                             _ => item.clone(),
                                         }
@@ -146,27 +145,30 @@ impl DataValue {
                             })
                             .collect();
                         serde_json::Value::Array(cleaned_array)
-                    },
+                    }
                     _ => j.clone(),
                 }
-            },
+            }
             DataValue::Array(arr) => {
-                let json_array: Vec<serde_json::Value> = arr.iter()
+                let json_array: Vec<serde_json::Value> = arr
+                    .iter()
                     .map(|item| {
                         // 对于数组元素，直接提取原始值，避免带类型标签的序列化
                         match item {
                             DataValue::String(s) => serde_json::Value::String(s.clone()),
-                            DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
-                            DataValue::Float(f) => {
-                                serde_json::Number::from_f64(*f)
-                                    .map(serde_json::Value::Number)
-                                    .unwrap_or(serde_json::Value::Null)
-                            },
+                            DataValue::Int(i) => {
+                                serde_json::Value::Number(serde_json::Number::from(*i))
+                            }
+                            DataValue::Float(f) => serde_json::Number::from_f64(*f)
+                                .map(serde_json::Value::Number)
+                                .unwrap_or(serde_json::Value::Null),
                             DataValue::Bool(b) => serde_json::Value::Bool(*b),
                             DataValue::Null => serde_json::Value::Null,
                             DataValue::Bytes(b) => serde_json::Value::String(base64::encode(b)),
                             DataValue::DateTime(dt) => serde_json::Value::String(dt.to_rfc3339()),
-                            DataValue::DateTimeUTC(dt) => serde_json::Value::String(dt.to_rfc3339()),
+                            DataValue::DateTimeUTC(dt) => {
+                                serde_json::Value::String(dt.to_rfc3339())
+                            }
                             DataValue::Uuid(u) => serde_json::Value::String(u.to_string()),
                             DataValue::Json(j) => j.clone(),
                             // 对于复杂类型，仍然递归调用
@@ -175,9 +177,10 @@ impl DataValue {
                     })
                     .collect();
                 serde_json::Value::Array(json_array)
-            },
+            }
             DataValue::Object(obj) => {
-                let json_object: serde_json::Map<String, serde_json::Value> = obj.iter()
+                let json_object: serde_json::Map<String, serde_json::Value> = obj
+                    .iter()
                     .map(|(k, v)| (k.clone(), v.to_json_value()))
                     .collect();
                 serde_json::Value::Object(json_object)
@@ -205,15 +208,20 @@ impl DataValue {
     where
         T: serde::de::DeserializeOwned,
     {
-        serde_json::from_value(serde_json::to_value(self)?)
-            .map_err(|e| crate::quick_error!(serialization, format!("DataValue 反序列化失败: {}", e)))
+        serde_json::from_value(serde_json::to_value(self)?).map_err(|e| {
+            crate::quick_error!(serialization, format!("DataValue 反序列化失败: {}", e))
+        })
     }
 
     /// 期望Object类型，如果不是则返回错误
     pub fn expect_object(self) -> Result<HashMap<String, DataValue>, crate::error::QuickDbError> {
         match self {
             DataValue::Object(map) => Ok(map),
-            other => Err(crate::quick_error!(validation, "data_type", format!("期望Object类型，但收到: {}", other.type_name()))),
+            other => Err(crate::quick_error!(
+                validation,
+                "data_type",
+                format!("期望Object类型，但收到: {}", other.type_name())
+            )),
         }
     }
 }
@@ -303,18 +311,18 @@ pub fn json_value_to_data_value(value: serde_json::Value) -> DataValue {
             } else {
                 DataValue::Json(serde_json::Value::Number(n))
             }
-        },
+        }
         serde_json::Value::String(s) => DataValue::String(s),
         serde_json::Value::Array(arr) => {
             // 递归转换数组元素为DataValue
-            let data_array: Vec<DataValue> = arr.into_iter()
-                .map(json_value_to_data_value)
-                .collect();
+            let data_array: Vec<DataValue> =
+                arr.into_iter().map(json_value_to_data_value).collect();
             DataValue::Array(data_array)
-        },
+        }
         serde_json::Value::Object(obj) => {
             // 递归转换对象为HashMap<String, DataValue>
-            let data_object: HashMap<String, DataValue> = obj.into_iter()
+            let data_object: HashMap<String, DataValue> = obj
+                .into_iter()
                 .map(|(k, v)| (k, json_value_to_data_value(v)))
                 .collect();
             DataValue::Object(data_object)
@@ -324,10 +332,10 @@ pub fn json_value_to_data_value(value: serde_json::Value) -> DataValue {
 
 /// SQL适配器通用的JSON字符串检测和反序列化方法
 /// 基于SQLite成功的修复方案，用于处理存储为JSON字符串的数组和对象字段
-/// 
+///
 /// # 参数
 /// * `value` - 可能包含JSON字符串的字符串值
-/// 
+///
 /// # 返回值
 /// * 如果字符串以'['或'{'开头且能成功解析为JSON，返回对应的DataValue::Array或DataValue::Object
 /// * 否则返回DataValue::String
@@ -339,7 +347,7 @@ pub fn parse_json_string_to_data_value(value: String) -> DataValue {
             Ok(json_value) => {
                 // 根据JSON类型返回对应的DataValue
                 json_value_to_data_value(json_value)
-            },
+            }
             Err(_) => {
                 // 解析失败，作为普通字符串处理
                 DataValue::String(value)
@@ -381,7 +389,9 @@ pub fn parse_optional_json_string_to_data_value(value: Option<String>) -> DataVa
 /// # 返回值
 /// * `Ok(DataValue)` - 转换后适合JSONB查询的值
 /// * `Err(QuickDbError)` - 值不适合JSONB查询（如二进制数据过大或不支持的类型）
-pub fn convert_to_postgresql_jsonb_value(value: &DataValue) -> crate::error::QuickDbResult<DataValue> {
+pub fn convert_to_postgresql_jsonb_value(
+    value: &DataValue,
+) -> crate::error::QuickDbResult<DataValue> {
     const MAX_JSONB_LENGTH: usize = 1024 * 1024; // 1MB限制
 
     match value {
@@ -398,8 +408,9 @@ pub fn convert_to_postgresql_jsonb_value(value: &DataValue) -> crate::error::Qui
 
             // 检查是否已经是有效的JSON字符串（精确匹配模式）
             let trimmed = s.trim_start();
-            if (trimmed.starts_with('{') && trimmed.ends_with('}')) ||
-               (trimmed.starts_with('[') && trimmed.ends_with(']')) {
+            if (trimmed.starts_with('{') && trimmed.ends_with('}'))
+                || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+            {
                 // 已经是JSON格式，验证是否有效
                 match serde_json::from_str::<serde_json::Value>(s) {
                     Ok(_) => {
@@ -438,7 +449,8 @@ pub fn convert_to_postgresql_jsonb_value(value: &DataValue) -> crate::error::Qui
         // 数组类型：序列化为JSON数组
         DataValue::Array(arr) => {
             // 检查数组大小
-            if arr.len() > 1000 { // 限制数组元素数量
+            if arr.len() > 1000 {
+                // 限制数组元素数量
                 return Err(crate::quick_error!(
                     validation,
                     "jsonb_array_too_large",
@@ -460,14 +472,15 @@ pub fn convert_to_postgresql_jsonb_value(value: &DataValue) -> crate::error::Qui
                 Err(e) => Err(crate::quick_error!(
                     serialization,
                     format!("数组序列化为JSON失败: {}", e)
-                ))
+                )),
             }
         }
 
         // 对象类型：序列化为JSON对象
         DataValue::Object(obj) => {
             // 检查对象大小
-            if obj.len() > 1000 { // 限制对象字段数量
+            if obj.len() > 1000 {
+                // 限制对象字段数量
                 return Err(crate::quick_error!(
                     validation,
                     "jsonb_object_too_large",
@@ -489,29 +502,27 @@ pub fn convert_to_postgresql_jsonb_value(value: &DataValue) -> crate::error::Qui
                 Err(e) => Err(crate::quick_error!(
                     serialization,
                     format!("对象序列化为JSON失败: {}", e)
-                ))
+                )),
             }
         }
 
         // JSON类型：直接序列化
-        DataValue::Json(json_val) => {
-            match serde_json::to_string(json_val) {
-                Ok(json_str) => {
-                    if json_str.len() > MAX_JSONB_LENGTH {
-                        return Err(crate::quick_error!(
-                            validation,
-                            "jsonb_value_too_long",
-                            format!("JSONB查询值过长，最大允许{}字节", MAX_JSONB_LENGTH)
-                        ));
-                    }
-                    Ok(DataValue::String(json_str))
+        DataValue::Json(json_val) => match serde_json::to_string(json_val) {
+            Ok(json_str) => {
+                if json_str.len() > MAX_JSONB_LENGTH {
+                    return Err(crate::quick_error!(
+                        validation,
+                        "jsonb_value_too_long",
+                        format!("JSONB查询值过长，最大允许{}字节", MAX_JSONB_LENGTH)
+                    ));
                 }
-                Err(e) => Err(crate::quick_error!(
-                    serialization,
-                    format!("JSON值序列化失败: {}", e)
-                ))
+                Ok(DataValue::String(json_str))
             }
-        }
+            Err(e) => Err(crate::quick_error!(
+                serialization,
+                format!("JSON值序列化失败: {}", e)
+            )),
+        },
 
         // 日期时间：转换为ISO8601字符串
         DataValue::DateTime(dt) => Ok(DataValue::String(dt.to_rfc3339())),
@@ -522,7 +533,8 @@ pub fn convert_to_postgresql_jsonb_value(value: &DataValue) -> crate::error::Qui
 
         // 二进制数据：拒绝用于JSONB查询
         DataValue::Bytes(bytes) => {
-            if bytes.len() > 1024 { // 1KB限制
+            if bytes.len() > 1024 {
+                // 1KB限制
                 return Err(crate::quick_error!(
                     validation,
                     "jsonb_bytes_too_large",

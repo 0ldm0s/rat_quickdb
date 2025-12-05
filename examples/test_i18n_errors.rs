@@ -15,10 +15,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     rat_quickdb::i18n::set_language("zh-CN");
 
-    let error_msg = rat_quickdb::i18n::tf("error.sqlite_connection", &[("message", "无法连接到数据库文件")]);
+    let error_msg = rat_quickdb::i18n::tf(
+        "error.sqlite_connection",
+        &[("message", "无法连接到数据库文件")],
+    );
     println!("   SQLite连接错误: {}", error_msg);
 
-    let error_msg = rat_quickdb::i18n::tf("error.validation", &[("field", "username"), ("message", "用户名不能为空")]);
+    let error_msg = rat_quickdb::i18n::tf(
+        "error.validation",
+        &[("field", "username"), ("message", "用户名不能为空")],
+    );
     println!("   验证错误: {}", error_msg);
 
     let error_msg = rat_quickdb::i18n::tf("error.connection", &[("message", "网络超时")]);
@@ -30,10 +36,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("2. 英文错误消息测试：");
     rat_quickdb::i18n::set_language("en-US");
 
-    let error_msg = rat_quickdb::i18n::tf("error.sqlite_connection", &[("message", "Cannot connect to database file")]);
+    let error_msg = rat_quickdb::i18n::tf(
+        "error.sqlite_connection",
+        &[("message", "Cannot connect to database file")],
+    );
     println!("   SQLite connection error: {}", error_msg);
 
-    let error_msg = rat_quickdb::i18n::tf("error.validation", &[("field", "username"), ("message", "Username cannot be empty")]);
+    let error_msg = rat_quickdb::i18n::tf(
+        "error.validation",
+        &[
+            ("field", "username"),
+            ("message", "Username cannot be empty"),
+        ],
+    );
     println!("   Validation error: {}", error_msg);
 
     let error_msg = rat_quickdb::i18n::tf("error.connection", &[("message", "Network timeout")]);
@@ -45,13 +60,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("3. 日文错误消息测试：");
     rat_quickdb::i18n::set_language("ja-JP");
 
-    let error_msg = rat_quickdb::i18n::tf("error.sqlite_connection", &[("message", "データベースファイルに接続できません")]);
+    let error_msg = rat_quickdb::i18n::tf(
+        "error.sqlite_connection",
+        &[("message", "データベースファイルに接続できません")],
+    );
     println!("   SQLite接続エラー: {}", error_msg);
 
-    let error_msg = rat_quickdb::i18n::tf("error.validation", &[("field", "username"), ("message", "ユーザー名は空にできません")]);
+    let error_msg = rat_quickdb::i18n::tf(
+        "error.validation",
+        &[
+            ("field", "username"),
+            ("message", "ユーザー名は空にできません"),
+        ],
+    );
     println!("   検証エラー: {}", error_msg);
 
-    let error_msg = rat_quickdb::i18n::tf("error.connection", &[("message", "ネットワークタイムアウト")]);
+    let error_msg = rat_quickdb::i18n::tf(
+        "error.connection",
+        &[("message", "ネットワークタイムアウト")],
+    );
     println!("   接続エラー: {}", error_msg);
 
     println!();
@@ -60,7 +87,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("4. Fallback机制测试（德语 -> 英语）：");
     rat_quickdb::i18n::set_language("de-DE");
 
-    let error_msg = rat_quickdb::i18n::tf("error.sqlite_connection", &[("message", "Cannot connect to database file")]);
+    let error_msg = rat_quickdb::i18n::tf(
+        "error.sqlite_connection",
+        &[("message", "Cannot connect to database file")],
+    );
     println!("   SQLite connection error: {}", error_msg);
 
     println!();
@@ -74,13 +104,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 测试一些简单的错误消息（无参数）
     println!("6. 简单错误消息测试：");
     rat_quickdb::i18n::set_language("zh-CN");
-    println!("   PostgreSQL配置不匹配: {}", rat_quickdb::i18n::t("error.postgres_config_mismatch"));
+    println!(
+        "   PostgreSQL配置不匹配: {}",
+        rat_quickdb::i18n::t("error.postgres_config_mismatch")
+    );
 
     rat_quickdb::i18n::set_language("en-US");
-    println!("   PostgreSQL config mismatch: {}", rat_quickdb::i18n::t("error.postgres_config_mismatch"));
+    println!(
+        "   PostgreSQL config mismatch: {}",
+        rat_quickdb::i18n::t("error.postgres_config_mismatch")
+    );
 
     rat_quickdb::i18n::set_language("ja-JP");
-    println!("   PostgreSQL設定不一致: {}", rat_quickdb::i18n::t("error.postgres_config_mismatch"));
+    println!(
+        "   PostgreSQL設定不一致: {}",
+        rat_quickdb::i18n::t("error.postgres_config_mismatch")
+    );
 
     println!("\n=== 测试完成 ===");
 

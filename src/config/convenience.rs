@@ -2,9 +2,9 @@
 //!
 //! 提供常用数据库配置的便利函数，简化配置过程
 
-use crate::types::*;
 use crate::config::builders::*;
 use crate::error::QuickDbError;
+use crate::types::*;
 
 /// 🚨 废弃：创建SQLite数据库配置
 ///
@@ -17,7 +17,10 @@ use crate::error::QuickDbError;
 /// * `path` - 数据库文件路径
 /// * `pool_config` - 连接池配置
 /// * `id_strategy` - ID生成策略（可选，默认为AutoIncrement）
-#[deprecated(since = "0.3.2", note = "将在v0.4.0版本中移除，请使用DatabaseConfig::builder()模式")]
+#[deprecated(
+    since = "0.3.2",
+    note = "将在v0.4.0版本中移除，请使用DatabaseConfig::builder()模式"
+)]
 pub fn sqlite_config<S: Into<String>, P: Into<String>>(
     alias: S,
     path: P,
@@ -51,7 +54,10 @@ pub fn sqlite_config<S: Into<String>, P: Into<String>>(
 /// * `password` - 密码
 /// * `pool_config` - 连接池配置
 /// * `id_strategy` - ID生成策略（可选，默认为AutoIncrement）
-#[deprecated(since = "0.3.2", note = "将在v0.4.0版本中移除，请使用DatabaseConfig::builder()模式")]
+#[deprecated(
+    since = "0.3.2",
+    note = "将在v0.4.0版本中移除，请使用DatabaseConfig::builder()模式"
+)]
 pub fn postgres_config<S: Into<String>>(
     alias: S,
     host: S,
@@ -94,7 +100,10 @@ pub fn postgres_config<S: Into<String>>(
 /// * `password` - 密码
 /// * `pool_config` - 连接池配置
 /// * `id_strategy` - ID生成策略（可选，默认为AutoIncrement）
-#[deprecated(since = "0.3.2", note = "将在v0.4.0版本中移除，请使用DatabaseConfig::builder()模式")]
+#[deprecated(
+    since = "0.3.2",
+    note = "将在v0.4.0版本中移除，请使用DatabaseConfig::builder()模式"
+)]
 pub fn mysql_config<S: Into<String>>(
     alias: S,
     host: S,
@@ -137,7 +146,10 @@ pub fn mysql_config<S: Into<String>>(
 /// * `password` - 密码（可选）
 /// * `pool_config` - 连接池配置
 /// * `id_strategy` - ID生成策略（可选，默认为AutoIncrement）
-#[deprecated(since = "0.3.2", note = "将在v0.4.0版本中移除，请使用DatabaseConfig::builder()模式")]
+#[deprecated(
+    since = "0.3.2",
+    note = "将在v0.4.0版本中移除，请使用DatabaseConfig::builder()模式"
+)]
 pub fn mongodb_config<S: Into<String>>(
     alias: S,
     host: S,
@@ -151,7 +163,7 @@ pub fn mongodb_config<S: Into<String>>(
     let connection_config = MongoDbConnectionBuilder::new(host, port, database)
         .with_auth(
             username.map(|u| u.into()).unwrap_or_default(),
-            password.map(|p| p.into()).unwrap_or_default()
+            password.map(|p| p.into()).unwrap_or_default(),
         )
         .build();
 
@@ -163,4 +175,3 @@ pub fn mongodb_config<S: Into<String>>(
         .id_strategy(id_strategy.unwrap_or(IdStrategy::AutoIncrement))
         .build()
 }
-

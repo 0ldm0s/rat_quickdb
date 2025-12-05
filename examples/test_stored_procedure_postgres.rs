@@ -1,9 +1,9 @@
 //! 存储过程创建测试
 
 #[cfg(feature = "postgres-support")]
-use rat_quickdb::*;
+use rat_logger::{LevelFilter, LoggerBuilder, debug, handler::term};
 #[cfg(feature = "postgres-support")]
-use rat_logger::{debug, LoggerBuilder, LevelFilter, handler::term};
+use rat_quickdb::*;
 
 // 用户表
 #[cfg(feature = "postgres-support")]
@@ -173,7 +173,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             updated_at: user.updated_at,
         };
         match user_instance.save().await {
-            Ok(_) => println!("✅ 创建用户: {} ({}) - 创建时间: {}", user.name, user.email, user.created_at.format("%Y-%m-%d %H:%M:%S")),
+            Ok(_) => println!(
+                "✅ 创建用户: {} ({}) - 创建时间: {}",
+                user.name,
+                user.email,
+                user.created_at.format("%Y-%m-%d %H:%M:%S")
+            ),
             Err(e) => println!("❌ 创建用户失败: {}", e),
         }
     }
@@ -188,7 +193,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             created_at: order.created_at,
         };
         match order_instance.save().await {
-            Ok(_) => println!("✅ 创建订单: 用户ID={}, 总金额={}, 订单日期={}", order.user_id, order.total, order.order_date.format("%Y-%m-%d %H:%M:%S")),
+            Ok(_) => println!(
+                "✅ 创建订单: 用户ID={}, 总金额={}, 订单日期={}",
+                order.user_id,
+                order.total,
+                order.order_date.format("%Y-%m-%d %H:%M:%S")
+            ),
             Err(e) => println!("❌ 创建订单失败: {}", e),
         }
     }
@@ -209,7 +219,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match ModelManager::<User>::create_stored_procedure(config).await {
         Ok(result) => {
             println!("✅ PostgreSQL存储过程创建成功: {:?}", result);
-        },
+        }
         Err(e) => println!("❌ PostgreSQL存储过程创建失败: {}", e),
     }
 
@@ -222,16 +232,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let (Some(user_id), Some(user_name), Some(user_email)) = (
                     row.get("user_id"),
                     row.get("user_name"),
-                    row.get("user_email")
+                    row.get("user_email"),
                 ) {
-                    println!("  {}. {} - {} ({})", i+1,
+                    println!(
+                        "  {}. {} - {} ({})",
+                        i + 1,
                         user_name.to_string(),
                         user_email.to_string(),
                         user_id.to_string()
                     );
                 }
             }
-        },
+        }
         Err(e) => println!("❌ 查询失败: {}", e),
     }
 

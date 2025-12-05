@@ -1,12 +1,12 @@
-use crate::adapter::{DatabaseAdapter, SqliteAdapter};
 use super::SqlQueryBuilder;
+use crate::adapter::{DatabaseAdapter, SqliteAdapter};
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
 use crate::model::{FieldDefinition, FieldType};
 use crate::pool::DatabaseConnection;
+use crate::types::*;
 use async_trait::async_trait;
 use rat_logger::debug;
-use sqlx::{sqlite::SqliteRow, Row, Column};
+use sqlx::{Column, Row, sqlite::SqliteRow};
 use std::collections::HashMap;
 
 /// SQLite创建表操作
@@ -19,9 +19,11 @@ pub(crate) async fn create_table(
 ) -> QuickDbResult<()> {
     let pool = match connection {
         DatabaseConnection::SQLite(pool) => pool,
-        _ => return Err(QuickDbError::ConnectionError {
-            message: "Invalid connection type for SQLite".to_string(),
-        }),
+        _ => {
+            return Err(QuickDbError::ConnectionError {
+                message: "Invalid connection type for SQLite".to_string(),
+            });
+        }
     };
     {
         let mut sql = format!("CREATE TABLE IF NOT EXISTS {} (", table);
@@ -45,7 +47,7 @@ pub(crate) async fn create_table(
                     } else {
                         "TEXT".to_string()
                     }
-                },
+                }
                 FieldType::Integer { .. } => "INTEGER".to_string(),
                 FieldType::BigInteger => "INTEGER".to_string(), // SQLite只有INTEGER类型
                 FieldType::Float { .. } => "REAL".to_string(),
@@ -59,7 +61,10 @@ pub(crate) async fn create_table(
                 FieldType::Json => "TEXT".to_string(),
                 FieldType::Uuid => "TEXT".to_string(),
                 FieldType::Binary => "BLOB".to_string(),
-                FieldType::Decimal { precision: _, scale: _ } => "REAL".to_string(), // SQLite没有DECIMAL，使用REAL
+                FieldType::Decimal {
+                    precision: _,
+                    scale: _,
+                } => "REAL".to_string(), // SQLite没有DECIMAL，使用REAL
                 FieldType::Array { .. } => "TEXT".to_string(), // 存储为JSON
                 FieldType::Object { .. } => "TEXT".to_string(), // 存储为JSON
                 FieldType::Reference { .. } => "TEXT".to_string(), // 存储引用ID
@@ -83,7 +88,9 @@ pub(crate) async fn create_table(
 
         sql.push(')');
 
-        sqlx::query(&sql).execute(pool).await
+        sqlx::query(&sql)
+            .execute(pool)
+            .await
             .map_err(|e| QuickDbError::QueryError {
                 message: format!("创建SQLite表失败: {}", e),
             })?;
@@ -103,9 +110,11 @@ pub(crate) async fn create_index(
 ) -> QuickDbResult<()> {
     let pool = match connection {
         DatabaseConnection::SQLite(pool) => pool,
-        _ => return Err(QuickDbError::ConnectionError {
-            message: "Invalid connection type for SQLite".to_string(),
-        }),
+        _ => {
+            return Err(QuickDbError::ConnectionError {
+                message: "Invalid connection type for SQLite".to_string(),
+            });
+        }
     };
     {
         let unique_keyword = if unique { "UNIQUE " } else { "" };
@@ -115,7 +124,9 @@ pub(crate) async fn create_index(
             unique_keyword, index_name, table, fields_str
         );
 
-        sqlx::query(&sql).execute(pool).await
+        sqlx::query(&sql)
+            .execute(pool)
+            .await
             .map_err(|e| QuickDbError::QueryError {
                 message: format!("创建SQLite索引失败: {}", e),
             })?;
@@ -132,9 +143,11 @@ pub(crate) async fn table_exists(
 ) -> QuickDbResult<bool> {
     let pool = match connection {
         DatabaseConnection::SQLite(pool) => pool,
-        _ => return Err(QuickDbError::ConnectionError {
-            message: "Invalid connection type for SQLite".to_string(),
-        }),
+        _ => {
+            return Err(QuickDbError::ConnectionError {
+                message: "Invalid connection type for SQLite".to_string(),
+            });
+        }
     };
     {
         let sql = "SELECT name FROM sqlite_master WHERE type='table' AND name=?";
@@ -158,9 +171,11 @@ pub(crate) async fn drop_table(
 ) -> QuickDbResult<()> {
     let pool = match connection {
         DatabaseConnection::SQLite(pool) => pool,
-        _ => return Err(QuickDbError::ConnectionError {
-            message: "Invalid connection type for SQLite".to_string(),
-        }),
+        _ => {
+            return Err(QuickDbError::ConnectionError {
+                message: "Invalid connection type for SQLite".to_string(),
+            });
+        }
     };
 
     let sql = format!("DROP TABLE IF EXISTS {}", table);
@@ -185,9 +200,11 @@ pub(crate) async fn get_server_version(
 ) -> QuickDbResult<String> {
     let pool = match connection {
         DatabaseConnection::SQLite(pool) => pool,
-        _ => return Err(QuickDbError::ConnectionError {
-            message: "Invalid connection type for SQLite".to_string(),
-        }),
+        _ => {
+            return Err(QuickDbError::ConnectionError {
+                message: "Invalid connection type for SQLite".to_string(),
+            });
+        }
     };
 
     let sql = "SELECT sqlite_version()";
@@ -201,10 +218,9 @@ pub(crate) async fn get_server_version(
             message: format!("查询SQLite版本失败: {}", e),
         })?;
 
-    let version: String = row.try_get(0)
-        .map_err(|e| QuickDbError::QueryError {
-            message: format!("解析SQLite版本结果失败: {}", e),
-        })?;
+    let version: String = row.try_get(0).map_err(|e| QuickDbError::QueryError {
+        message: format!("解析SQLite版本结果失败: {}", e),
+    })?;
 
     debug!("成功获取SQLite版本: {}", version);
     Ok(version)

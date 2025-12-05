@@ -1,14 +1,14 @@
 //! PostgreSQL适配器trait实现
 
-use crate::adapter::PostgresAdapter;
 use crate::adapter::DatabaseAdapter;
+use crate::adapter::PostgresAdapter;
 use crate::adapter::postgres::query_builder::SqlQueryBuilder;
 use crate::adapter::postgres::utils::row_to_data_map;
-use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
-use crate::model::{FieldType, FieldDefinition};
 use crate::manager;
+use crate::model::{FieldDefinition, FieldType};
+use crate::pool::DatabaseConnection;
+use crate::types::*;
 use async_trait::async_trait;
 use rat_logger::debug;
 use sqlx::Row;
@@ -40,7 +40,15 @@ impl DatabaseAdapter for PostgresAdapter {
                         debug!("表 {} 不存在，使用预定义模型元数据创建", table);
 
                         // 使用模型元数据创建表
-                        postgres_schema::create_table(self, connection, table, &model_meta.fields, id_strategy, alias).await?;
+                        postgres_schema::create_table(
+                            self,
+                            connection,
+                            table,
+                            &model_meta.fields,
+                            id_strategy,
+                            alias,
+                        )
+                        .await?;
 
                         // 等待100ms确保数据库事务完全提交
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -48,7 +56,10 @@ impl DatabaseAdapter for PostgresAdapter {
                     } else {
                         return Err(QuickDbError::ValidationError {
                             field: "table_creation".to_string(),
-                            message: format!("表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。", table),
+                            message: format!(
+                                "表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。",
+                                table
+                            ),
                         });
                     }
                 } else {
@@ -70,17 +81,18 @@ impl DatabaseAdapter for PostgresAdapter {
                 })?;
 
             if let Some(row) = rows.first() {
-                if let Ok(Some(default_value)) = row.try_get::<Option<String>, _>("column_default") {
+                if let Ok(Some(default_value)) = row.try_get::<Option<String>, _>("column_default")
+                {
                     has_auto_increment_id = default_value.starts_with("nextval");
                 }
             }
-            
+
             // 准备插入数据
             // 如果数据中没有id字段，说明期望使用自增ID，不需要在INSERT中包含id字段
             // 如果数据中有id字段但表使用SERIAL自增，也要移除id字段让PostgreSQL自动生成
             let mut insert_data = data.clone();
             let data_has_id = insert_data.contains_key("id");
-            
+
             if !data_has_id || (data_has_id && has_auto_increment_id) {
                 insert_data.remove("id");
                 debug!("使用PostgreSQL SERIAL自增，不在INSERT中包含id字段");
@@ -97,7 +109,7 @@ impl DatabaseAdapter for PostgresAdapter {
                                 }
                             }
                         }
-                    },
+                    }
                     IdStrategy::Uuid => {
                         // UUID需要转换为UUID类型
                         if let Some(id_value) = insert_data.get("id").cloned() {
@@ -108,20 +120,20 @@ impl DatabaseAdapter for PostgresAdapter {
                                 }
                             }
                         }
-                    },
+                    }
                     _ => {} // 其他策略不需要转换
                 }
             }
-            
+
             let (sql, params) = SqlQueryBuilder::new()
-                                .insert(insert_data)
-                                .returning(&["id"])
+                .insert(insert_data)
+                .returning(&["id"])
                 .build(table, alias)?;
-            
+
             debug!("执行PostgreSQL插入: {}", sql);
-            
+
             let results = super::utils::execute_query(self, pool, &sql, &params).await?;
-            
+
             if let Some(result) = results.first() {
                 Ok(result.clone())
             } else {
@@ -150,15 +162,15 @@ impl DatabaseAdapter for PostgresAdapter {
                 operator: QueryOperator::Eq,
                 value: id.clone(),
             };
-            
+
             let (sql, params) = SqlQueryBuilder::new()
-                                .select(&["*"])
-                                .where_condition(condition)
+                .select(&["*"])
+                .where_condition(condition)
                 .limit(1)
                 .build(table, alias)?;
-            
+
             debug!("执行PostgreSQL根据ID查询: {}", sql);
-            
+
             let results = super::utils::execute_query(self, pool, &sql, &params).await?;
             Ok(results.into_iter().next())
         } else {
@@ -180,7 +192,8 @@ impl DatabaseAdapter for PostgresAdapter {
         let condition_groups = if conditions.is_empty() {
             vec![]
         } else {
-            let group_conditions = conditions.iter()
+            let group_conditions = conditions
+                .iter()
                 .map(|c| QueryConditionGroup::Single(c.clone()))
                 .collect();
             vec![QueryConditionGroup::Group {
@@ -188,9 +201,10 @@ impl DatabaseAdapter for PostgresAdapter {
                 conditions: group_conditions,
             }]
         };
-        
+
         // 统一使用 find_with_groups 实现
-        self.find_with_groups(connection, table, &condition_groups, options, alias).await
+        self.find_with_groups(connection, table, &condition_groups, options, alias)
+            .await
     }
 
     async fn find_with_groups(
@@ -203,25 +217,25 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> QuickDbResult<Vec<DataValue>> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let mut builder = SqlQueryBuilder::new()
-                                .select(&["*"])
-                                .where_condition_groups(condition_groups);
-            
+                .select(&["*"])
+                .where_condition_groups(condition_groups);
+
             // 添加排序
             if !options.sort.is_empty() {
                 for sort_field in &options.sort {
                     builder = builder.order_by(&sort_field.field, sort_field.direction.clone());
                 }
             }
-            
+
             // 添加分页
             if let Some(pagination) = &options.pagination {
                 builder = builder.limit(pagination.limit).offset(pagination.skip);
             }
-            
+
             let (sql, params) = builder.build(table, alias)?;
-            
+
             debug!("执行PostgreSQL条件组查询: {}", sql);
-            
+
             super::utils::execute_query(self, pool, &sql, &params).await
         } else {
             Err(QuickDbError::ConnectionError {
@@ -240,29 +254,41 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             // 获取字段元数据进行验证和转换
-            let model_meta = crate::manager::get_model_with_alias(table, alias)
-                .ok_or_else(|| QuickDbError::ValidationError {
-                    field: "model".to_string(),
-                    message: format!("模型 '{}' 不存在", table),
+            let model_meta =
+                crate::manager::get_model_with_alias(table, alias).ok_or_else(|| {
+                    QuickDbError::ValidationError {
+                        field: "model".to_string(),
+                        message: format!("模型 '{}' 不存在", table),
+                    }
                 })?;
 
             // 验证字段存在性，并处理DateTimeWithTz字段转换
-            let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> = model_meta.fields.iter()
-                .map(|(name, f)| (name.clone(), f.clone()))
-                .collect();
+            let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> =
+                model_meta
+                    .fields
+                    .iter()
+                    .map(|(name, f)| (name.clone(), f.clone()))
+                    .collect();
 
             let mut validated_data = HashMap::new();
             for (field_name, data_value) in data {
                 if let Some(field_def) = field_map.get(field_name) {
-                    if matches!(field_def.field_type, crate::model::FieldType::DateTimeWithTz { .. }) {
+                    if matches!(
+                        field_def.field_type,
+                        crate::model::FieldType::DateTimeWithTz { .. }
+                    ) {
                         // DateTimeWithTz字段：将String转换为DateTime
                         let converted = match data_value {
-                            DataValue::String(s) => {
-                                chrono::DateTime::parse_from_rfc3339(s)
-                                    .map(|dt| DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0))))
-                                    .unwrap_or(data_value.clone())
-                            },
-                            DataValue::DateTimeUTC(dt) => DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0))),
+                            DataValue::String(s) => chrono::DateTime::parse_from_rfc3339(s)
+                                .map(|dt| {
+                                    DataValue::DateTime(
+                                        dt.with_timezone(&chrono::FixedOffset::east(0)),
+                                    )
+                                })
+                                .unwrap_or(data_value.clone()),
+                            DataValue::DateTimeUTC(dt) => {
+                                DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0)))
+                            }
                             _ => data_value.clone(),
                         };
                         validated_data.insert(field_name.clone(), converted);
@@ -278,8 +304,8 @@ impl DatabaseAdapter for PostgresAdapter {
             }
 
             let (sql, params) = SqlQueryBuilder::new()
-                                .update(validated_data)
-                                .where_conditions(conditions)
+                .update(validated_data)
+                .where_conditions(conditions)
                 .build(table, alias)?;
 
             debug!("执行PostgreSQL更新: {}", sql);
@@ -305,8 +331,10 @@ impl DatabaseAdapter for PostgresAdapter {
             operator: QueryOperator::Eq,
             value: id.clone(),
         }];
-        
-        let affected = self.update(connection, table, &conditions, data, alias).await?;
+
+        let affected = self
+            .update(connection, table, &conditions, data, alias)
+            .await?;
         Ok(affected > 0)
     }
 
@@ -329,27 +357,57 @@ impl DatabaseAdapter for PostgresAdapter {
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::Increment => {
-                        set_clauses.push(format!("{} = {} + ${}", operation.field, operation.field, params.len() + 1));
+                        set_clauses.push(format!(
+                            "{} = {} + ${}",
+                            operation.field,
+                            operation.field,
+                            params.len() + 1
+                        ));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::Decrement => {
-                        set_clauses.push(format!("{} = {} - ${}", operation.field, operation.field, params.len() + 1));
+                        set_clauses.push(format!(
+                            "{} = {} - ${}",
+                            operation.field,
+                            operation.field,
+                            params.len() + 1
+                        ));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::Multiply => {
-                        set_clauses.push(format!("{} = {} * ${}", operation.field, operation.field, params.len() + 1));
+                        set_clauses.push(format!(
+                            "{} = {} * ${}",
+                            operation.field,
+                            operation.field,
+                            params.len() + 1
+                        ));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::Divide => {
-                        set_clauses.push(format!("{} = {} / ${}", operation.field, operation.field, params.len() + 1));
+                        set_clauses.push(format!(
+                            "{} = {} / ${}",
+                            operation.field,
+                            operation.field,
+                            params.len() + 1
+                        ));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::PercentIncrease => {
-                        set_clauses.push(format!("{} = {} * (1.0 + ${}/100.0)", operation.field, operation.field, params.len() + 1));
+                        set_clauses.push(format!(
+                            "{} = {} * (1.0 + ${}/100.0)",
+                            operation.field,
+                            operation.field,
+                            params.len() + 1
+                        ));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::PercentDecrease => {
-                        set_clauses.push(format!("{} = {} * (1.0 - ${}/100.0)", operation.field, operation.field, params.len() + 1));
+                        set_clauses.push(format!(
+                            "{} = {} * (1.0 - ${}/100.0)",
+                            operation.field,
+                            operation.field,
+                            params.len() + 1
+                        ));
                         params.push(operation.value.clone());
                     }
                 }
@@ -367,7 +425,7 @@ impl DatabaseAdapter for PostgresAdapter {
             // 添加WHERE条件
             if !conditions.is_empty() {
                 let (where_clause, mut where_params) = SqlQueryBuilder::new()
-                                        .build_where_clause_with_offset(conditions, params.len() + 1, table, alias)?;
+                    .build_where_clause_with_offset(conditions, params.len() + 1, table, alias)?;
 
                 sql.push_str(&format!(" WHERE {}", where_clause));
                 params.extend(where_params);
@@ -413,7 +471,6 @@ impl DatabaseAdapter for PostgresAdapter {
         postgres_query::count(self, connection, table, conditions, alias).await
     }
 
-    
     async fn create_table(
         &self,
         connection: &DatabaseConnection,
@@ -424,7 +481,7 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let mut field_definitions = Vec::new();
-            
+
             // 根据ID策略创建ID字段
             if !fields.contains_key("id") {
                 let id_definition = match id_strategy {
@@ -436,7 +493,7 @@ impl DatabaseAdapter for PostgresAdapter {
                 };
                 field_definitions.push(id_definition);
             }
-            
+
             for (name, field_definition) in fields {
                 let sql_type = match &field_definition.field_type {
                     FieldType::String { max_length, .. } => {
@@ -445,7 +502,7 @@ impl DatabaseAdapter for PostgresAdapter {
                         } else {
                             "TEXT".to_string()
                         }
-                    },
+                    }
                     FieldType::Integer { .. } => "INTEGER".to_string(),
                     FieldType::BigInteger => "BIGINT".to_string(),
                     FieldType::Float { .. } => "REAL".to_string(),
@@ -453,22 +510,36 @@ impl DatabaseAdapter for PostgresAdapter {
                     FieldType::Text => "TEXT".to_string(),
                     FieldType::Boolean => "BOOLEAN".to_string(),
                     FieldType::DateTime => {
-                        debug!("🔍 字段 {} 类型为 DateTime，required: {}", name, field_definition.required);
+                        debug!(
+                            "🔍 字段 {} 类型为 DateTime，required: {}",
+                            name, field_definition.required
+                        );
                         "TIMESTAMPTZ".to_string()
-                    },
+                    }
                     FieldType::DateTimeWithTz { .. } => {
-                        debug!("🔍 字段 {} 类型为 DateTimeWithTz，required: {}", name, field_definition.required);
+                        debug!(
+                            "🔍 字段 {} 类型为 DateTimeWithTz，required: {}",
+                            name, field_definition.required
+                        );
                         "TIMESTAMPTZ".to_string()
-                    },
+                    }
                     FieldType::Date => "DATE".to_string(),
                     FieldType::Time => "TIME".to_string(),
                     FieldType::Uuid => "UUID".to_string(),
                     FieldType::Json => "JSONB".to_string(),
                     FieldType::Binary => "BYTEA".to_string(),
-                    FieldType::Decimal { precision, scale } => format!("DECIMAL({},{})", precision, scale),
-                    FieldType::Array { item_type: _, max_items: _, min_items: _ } => "JSONB".to_string(),
+                    FieldType::Decimal { precision, scale } => {
+                        format!("DECIMAL({},{})", precision, scale)
+                    }
+                    FieldType::Array {
+                        item_type: _,
+                        max_items: _,
+                        min_items: _,
+                    } => "JSONB".to_string(),
                     FieldType::Object { .. } => "JSONB".to_string(),
-                    FieldType::Reference { target_collection: _ } => "TEXT".to_string(),
+                    FieldType::Reference {
+                        target_collection: _,
+                    } => "TEXT".to_string(),
                 };
 
                 // 如果是id字段，根据ID策略创建正确的字段类型
@@ -492,7 +563,7 @@ impl DatabaseAdapter for PostgresAdapter {
                     field_definitions.push(format!("{} {} {}", name, sql_type, null_constraint));
                 }
             }
-            
+
             let sql = format!(
                 "CREATE TABLE IF NOT EXISTS {} ({})",
                 table,
@@ -503,7 +574,7 @@ impl DatabaseAdapter for PostgresAdapter {
             debug!("🔍 字段定义详情: {:?}", field_definitions);
 
             super::utils::execute_update(self, pool, &sql, &[]).await?;
-            
+
             Ok(())
         } else {
             Err(QuickDbError::ConnectionError {
@@ -529,11 +600,11 @@ impl DatabaseAdapter for PostgresAdapter {
                 table,
                 fields.join(", ")
             );
-            
+
             debug!("执行PostgreSQL索引创建: {}", sql);
-            
+
             super::utils::execute_update(self, pool, &sql, &[]).await?;
-            
+
             Ok(())
         } else {
             Err(QuickDbError::ConnectionError {
@@ -549,7 +620,7 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> QuickDbResult<bool> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1";
-            
+
             let rows = sqlx::query(sql)
                 .bind(table)
                 .fetch_all(pool)
@@ -568,11 +639,7 @@ impl DatabaseAdapter for PostgresAdapter {
         }
     }
 
-    async fn drop_table(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-    ) -> QuickDbResult<()> {
+    async fn drop_table(&self, connection: &DatabaseConnection, table: &str) -> QuickDbResult<()> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let sql = format!("DROP TABLE IF EXISTS {} CASCADE", table);
 
@@ -607,26 +674,23 @@ impl DatabaseAdapter for PostgresAdapter {
         }
     }
 
-    async fn get_server_version(
-        &self,
-        connection: &DatabaseConnection,
-    ) -> QuickDbResult<String> {
+    async fn get_server_version(&self, connection: &DatabaseConnection) -> QuickDbResult<String> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let sql = "SELECT version()";
 
             debug!("执行PostgreSQL版本查询SQL: {}", sql);
 
-            let row = sqlx::query(sql)
-                .fetch_one(pool)
-                .await
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("查询PostgreSQL版本失败: {}", e),
-                })?;
+            let row =
+                sqlx::query(sql)
+                    .fetch_one(pool)
+                    .await
+                    .map_err(|e| QuickDbError::QueryError {
+                        message: format!("查询PostgreSQL版本失败: {}", e),
+                    })?;
 
-            let version: String = row.try_get(0)
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("解析PostgreSQL版本结果失败: {}", e),
-                })?;
+            let version: String = row.try_get(0).map_err(|e| QuickDbError::QueryError {
+                message: format!("解析PostgreSQL版本结果失败: {}", e),
+            })?;
 
             debug!("成功获取PostgreSQL版本: {}", version);
             Ok(version)
@@ -648,7 +712,8 @@ impl DatabaseAdapter for PostgresAdapter {
         debug!("开始创建PostgreSQL存储过程: {}", config.procedure_name);
 
         // 验证配置
-        config.validate()
+        config
+            .validate()
             .map_err(|e| crate::error::QuickDbError::ValidationError {
                 field: "config".to_string(),
                 message: format!("存储过程配置验证失败: {}", e),
@@ -663,7 +728,14 @@ impl DatabaseAdapter for PostgresAdapter {
                 let id_strategy = crate::manager::get_id_strategy(&config.database)
                     .unwrap_or(IdStrategy::AutoIncrement);
 
-                self.create_table(connection, table_name, &model_meta.fields, &id_strategy, &config.database).await?;
+                self.create_table(
+                    connection,
+                    table_name,
+                    &model_meta.fields,
+                    &id_strategy,
+                    &config.database,
+                )
+                .await?;
             }
         }
 
@@ -681,7 +753,10 @@ impl DatabaseAdapter for PostgresAdapter {
 
         let mut procedures = self.stored_procedures.lock().await;
         procedures.insert(config.procedure_name.clone(), procedure_info);
-        debug!("✅ PostgreSQL存储过程 {} 模板已存储到适配器映射表", config.procedure_name);
+        debug!(
+            "✅ PostgreSQL存储过程 {} 模板已存储到适配器映射表",
+            config.procedure_name
+        );
 
         Ok(StoredProcedureCreateResult {
             success: true,
@@ -711,26 +786,34 @@ impl DatabaseAdapter for PostgresAdapter {
         let sql_template = procedure_info.template.clone();
         drop(procedures);
 
-        debug!("执行存储过程查询: {}, 模板: {}", procedure_name, sql_template);
+        debug!(
+            "执行存储过程查询: {}, 模板: {}",
+            procedure_name, sql_template
+        );
 
         // 构建最终的SQL查询（复用SQLite的逻辑）
-        let final_sql = self.build_final_query_from_template(&sql_template, params).await?;
+        let final_sql = self
+            .build_final_query_from_template(&sql_template, params)
+            .await?;
 
         // 执行查询
         // 直接执行SQL查询（复用find_with_groups的模式）
         let pool = match connection {
             DatabaseConnection::PostgreSQL(pool) => pool,
-            _ => return Err(QuickDbError::ConnectionError {
-                message: "Invalid connection type for PostgreSQL".to_string(),
-            }),
+            _ => {
+                return Err(QuickDbError::ConnectionError {
+                    message: "Invalid connection type for PostgreSQL".to_string(),
+                });
+            }
         };
 
         debug!("执行存储过程查询SQL: {}", final_sql);
 
-        let rows = sqlx::query(&final_sql).fetch_all(pool).await
-            .map_err(|e| QuickDbError::QueryError {
+        let rows = sqlx::query(&final_sql).fetch_all(pool).await.map_err(|e| {
+            QuickDbError::QueryError {
                 message: format!("执行存储过程查询失败: {}", e),
-            })?;
+            }
+        })?;
 
         let mut query_result = Vec::new();
         for row in rows {
@@ -748,7 +831,11 @@ impl DatabaseAdapter for PostgresAdapter {
             result.push(row_map);
         }
 
-        debug!("存储过程 {} 执行完成，返回 {} 条记录", procedure_name, result.len());
+        debug!(
+            "存储过程 {} 执行完成，返回 {} 条记录",
+            procedure_name,
+            result.len()
+        );
         Ok(result)
     }
 }

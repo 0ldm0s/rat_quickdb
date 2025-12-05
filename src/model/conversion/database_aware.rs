@@ -3,8 +3,8 @@
 //! 根据不同数据库类型实现差异化的字段转换逻辑
 
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::{DataValue, DatabaseType};
 use crate::model::{FieldType, conversion::ToDataValue};
+use crate::types::{DataValue, DatabaseType};
 
 /// 数据库感知的DateTimeWithTz字段转换
 ///
@@ -23,13 +23,12 @@ pub fn convert_datetime_with_tz_aware<T: std::fmt::Debug + ToDataValue>(
     timezone_offset: &str,
     db_type: Option<DatabaseType>,
 ) -> QuickDbResult<DataValue> {
-  
     let db_type = db_type.expect("严重错误：无法确定数据库类型！这表明框架内部存在严重问题！");
 
     match db_type {
         DatabaseType::SQLite => {
             // SQLite特殊处理：转换为Unix时间戳
-  
+
             // 先调用现有函数获取UTC DateTime
             let utc_result = crate::convert_string_to_datetime_with_tz(value, timezone_offset)?;
 
@@ -37,8 +36,8 @@ pub fn convert_datetime_with_tz_aware<T: std::fmt::Debug + ToDataValue>(
             match utc_result {
                 DataValue::DateTime(dt) => {
                     let timestamp = dt.timestamp();
-                        Ok(DataValue::Int(timestamp))
-                },
+                    Ok(DataValue::Int(timestamp))
+                }
                 other => Ok(other), // 对于非DateTime类型，直接返回原结果
             }
         }
@@ -54,20 +53,18 @@ fn convert_datetime_with_tz_general<T: std::fmt::Debug + ToDataValue>(
     value: &T,
     timezone_offset: &str,
 ) -> QuickDbResult<DataValue> {
-   
     // 转换为DataValue看看类型
     let data_value = value.to_data_value();
 
-   
     match data_value {
         DataValue::DateTime(dt) => {
             // DateTime输入：直接存储为UTC，不做时区转换
-                Ok(DataValue::DateTime(dt))
-        },
+            Ok(DataValue::DateTime(dt))
+        }
         DataValue::String(s) => {
             // String输入：使用时区转换逻辑
-                    crate::convert_string_to_datetime_with_tz(value, timezone_offset)
-        },
+            crate::convert_string_to_datetime_with_tz(value, timezone_offset)
+        }
         _ => {
             // 其他类型：直接返回
             Ok(data_value)

@@ -1,9 +1,9 @@
 //! MongoDB存储过程创建测试
 
 #[cfg(feature = "mongodb-support")]
-use rat_quickdb::*;
+use rat_logger::{LevelFilter, LoggerBuilder, debug, handler::term};
 #[cfg(feature = "mongodb-support")]
-use rat_logger::{debug, LoggerBuilder, LevelFilter, handler::term};
+use rat_quickdb::*;
 
 // 用户集合
 #[cfg(feature = "mongodb-support")]
@@ -194,7 +194,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             updated_at: user.updated_at,
         };
         match user_instance.save().await {
-            Ok(_) => println!("✅ 创建用户: {} ({}) - 创建时间: {}", user.username, user.email, user.created_at.format("%Y-%m-%d %H:%M:%S")),
+            Ok(_) => println!(
+                "✅ 创建用户: {} ({}) - 创建时间: {}",
+                user.username,
+                user.email,
+                user.created_at.format("%Y-%m-%d %H:%M:%S")
+            ),
             Err(e) => println!("❌ 创建用户失败: {}", e),
         }
     }
@@ -209,7 +214,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             created_at: order.created_at,
         };
         match order_instance.save().await {
-            Ok(_) => println!("✅ 创建订单: 用户ID={}, 总金额={}, 订单日期={}", order.user_id, order.total, order.order_date.format("%Y-%m-%d %H:%M:%S")),
+            Ok(_) => println!(
+                "✅ 创建订单: 用户ID={}, 总金额={}, 订单日期={}",
+                order.user_id,
+                order.total,
+                order.order_date.format("%Y-%m-%d %H:%M:%S")
+            ),
             Err(e) => println!("❌ 创建订单失败: {}", e),
         }
     }
@@ -218,30 +228,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_dependency::<User>()
         .with_dependency::<Order>()
         .with_mongo_aggregation()
-            // 添加简单的lookup
-            .project(vec![
-                ("user_id", crate::stored_procedure::types::MongoFieldExpression::field("_id")),
-                ("user_name", crate::stored_procedure::types::MongoFieldExpression::field("username")),
-                ("user_email", crate::stored_procedure::types::MongoFieldExpression::field("email")),
-            ])
-            .lookup("orders", "_id", "user_id", "orders_joined")
-            .project(vec![
-                ("user_id", crate::stored_procedure::types::MongoFieldExpression::field("user_id")),
-                ("user_name", crate::stored_procedure::types::MongoFieldExpression::field("user_name")),
-                ("user_email", crate::stored_procedure::types::MongoFieldExpression::field("user_email")),
-                ("orders_count", crate::stored_procedure::types::MongoFieldExpression::Aggregate(
-                    crate::stored_procedure::types::MongoAggregateExpression::Size { field: "orders_joined".to_string() }
-                )),
-            ])
-            .with_common_placeholders()  // 添加常用占位符
-            .build();
+        // 添加简单的lookup
+        .project(vec![
+            (
+                "user_id",
+                crate::stored_procedure::types::MongoFieldExpression::field("_id"),
+            ),
+            (
+                "user_name",
+                crate::stored_procedure::types::MongoFieldExpression::field("username"),
+            ),
+            (
+                "user_email",
+                crate::stored_procedure::types::MongoFieldExpression::field("email"),
+            ),
+        ])
+        .lookup("orders", "_id", "user_id", "orders_joined")
+        .project(vec![
+            (
+                "user_id",
+                crate::stored_procedure::types::MongoFieldExpression::field("user_id"),
+            ),
+            (
+                "user_name",
+                crate::stored_procedure::types::MongoFieldExpression::field("user_name"),
+            ),
+            (
+                "user_email",
+                crate::stored_procedure::types::MongoFieldExpression::field("user_email"),
+            ),
+            (
+                "orders_count",
+                crate::stored_procedure::types::MongoFieldExpression::Aggregate(
+                    crate::stored_procedure::types::MongoAggregateExpression::Size {
+                        field: "orders_joined".to_string(),
+                    },
+                ),
+            ),
+        ])
+        .with_common_placeholders() // 添加常用占位符
+        .build();
 
     // 2. 创建存储过程
     println!("2. 创建存储过程...");
     match ModelManager::<User>::create_stored_procedure(config).await {
         Ok(result) => {
             println!("✅ MongoDB存储过程创建成功: {:?}", result);
-        },
+        }
         Err(e) => {
             println!("❌ MongoDB存储过程创建失败: {}", e);
             return Ok(());
@@ -257,14 +290,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(results) => {
             println!("✅ 查询成功，返回 {} 条记录", results.len());
             for (i, row) in results.iter().enumerate() {
-                println!("  记录 {}: {:?}", i+1, row);
+                println!("  记录 {}: {:?}", i + 1, row);
                 if let (Some(user_id), Some(user_name), Some(user_email), Some(orders_count)) = (
                     row.get("user_id"),
                     row.get("user_name"),
                     row.get("user_email"),
-                    row.get("orders_count")
+                    row.get("orders_count"),
                 ) {
-                    println!("    用户: {} - {} ({}), 订单数: {}",
+                    println!(
+                        "    用户: {} - {} ({}), 订单数: {}",
                         user_name.to_string(),
                         user_email.to_string(),
                         user_id.to_string(),
@@ -272,7 +306,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     );
                 }
             }
-        },
+        }
         Err(e) => println!("❌ 查询失败: {}", e),
     }
 

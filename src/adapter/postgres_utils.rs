@@ -35,9 +35,9 @@ pub fn build_json_query_condition(
             let trimmed = s.trim_start();
 
             // 检查是否是精确JSON匹配
-            if (trimmed.starts_with('{') && trimmed.ends_with('}')) ||
-               (trimmed.starts_with('[') && trimmed.ends_with(']')) {
-
+            if (trimmed.starts_with('{') && trimmed.ends_with('}'))
+                || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+            {
                 // 验证JSON格式
                 match serde_json::from_str::<serde_json::Value>(s) {
                     Ok(json_val) => {
@@ -47,7 +47,7 @@ pub fn build_json_query_condition(
                         // 使用JSONB包含操作符进行精确匹配
                         Ok((
                             format!("{} @> {}", field_name, placeholder),
-                            DataValue::Json(json_val)
+                            DataValue::Json(json_val),
                         ))
                     }
                     Err(e) => {
@@ -57,7 +57,7 @@ pub fn build_json_query_condition(
                         // JSON格式无效，回退到文本搜索
                         Ok((
                             format!("{}::text ILIKE {}", field_name, placeholder),
-                            DataValue::String(format!("%{}%", s))
+                            DataValue::String(format!("%{}%", s)),
                         ))
                     }
                 }
@@ -68,7 +68,7 @@ pub fn build_json_query_condition(
 
                 Ok((
                     format!("{}::text ILIKE {}", field_name, placeholder),
-                    DataValue::String(format!("%{}%", s))
+                    DataValue::String(format!("%{}%", s)),
                 ))
             }
         }
@@ -81,7 +81,7 @@ pub fn build_json_query_condition(
             let json_val = serde_json::Value::Number(serde_json::Number::from(*i));
             Ok((
                 format!("{} @> {}", field_name, placeholder),
-                DataValue::Json(json_val)
+                DataValue::Json(json_val),
             ))
         }
 
@@ -94,7 +94,7 @@ pub fn build_json_query_condition(
                 .unwrap_or(serde_json::Value::Null);
             Ok((
                 format!("{} @> {}", field_name, placeholder),
-                DataValue::Json(json_val)
+                DataValue::Json(json_val),
             ))
         }
 
@@ -105,7 +105,7 @@ pub fn build_json_query_condition(
 
             Ok((
                 format!("{} @> {}", field_name, placeholder),
-                DataValue::Json(serde_json::Value::Bool(*b))
+                DataValue::Json(serde_json::Value::Bool(*b)),
             ))
         }
 
@@ -114,10 +114,7 @@ pub fn build_json_query_condition(
             #[cfg(debug_assertions)]
             rat_logger::debug!("  策略: Null值检查");
 
-            Ok((
-                format!("{} IS NULL", field_name),
-                DataValue::Null
-            ))
+            Ok((format!("{} IS NULL", field_name), DataValue::Null))
         }
 
         // JSON类型：直接使用精确匹配
@@ -127,7 +124,7 @@ pub fn build_json_query_condition(
 
             Ok((
                 format!("{} @> {}", field_name, placeholder),
-                DataValue::Json(json_val.clone())
+                DataValue::Json(json_val.clone()),
             ))
         }
 
@@ -136,7 +133,8 @@ pub fn build_json_query_condition(
             #[cfg(debug_assertions)]
             rat_logger::debug!("  策略: 数组精确匹配，转换为JSON");
 
-            let json_array: Vec<serde_json::Value> = arr.iter()
+            let json_array: Vec<serde_json::Value> = arr
+                .iter()
                 .map(|item| match item {
                     DataValue::String(s) => serde_json::Value::String(s.clone()),
                     DataValue::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
@@ -151,7 +149,7 @@ pub fn build_json_query_condition(
 
             Ok((
                 format!("{} @> {}", field_name, placeholder),
-                DataValue::Json(serde_json::Value::Array(json_array))
+                DataValue::Json(serde_json::Value::Array(json_array)),
             ))
         }
 
@@ -163,7 +161,7 @@ pub fn build_json_query_condition(
             let text_value = value.to_string();
             Ok((
                 format!("{}::text ILIKE {}", field_name, placeholder),
-                DataValue::String(format!("%{}%", text_value))
+                DataValue::String(format!("%{}%", text_value)),
             ))
         }
     }
@@ -198,8 +196,9 @@ pub fn convert_to_jsonb_value(value: &DataValue) -> QuickDbResult<DataValue> {
 
             // 检查是否已经是有效的JSON字符串（精确匹配模式）
             let trimmed = s.trim_start();
-            if (trimmed.starts_with('{') && trimmed.ends_with('}')) ||
-               (trimmed.starts_with('[') && trimmed.ends_with(']')) {
+            if (trimmed.starts_with('{') && trimmed.ends_with('}'))
+                || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+            {
                 // 已经是JSON格式，验证是否有效
                 match serde_json::from_str::<serde_json::Value>(s) {
                     Ok(_) => {
@@ -238,7 +237,8 @@ pub fn convert_to_jsonb_value(value: &DataValue) -> QuickDbResult<DataValue> {
         // 数组类型：序列化为JSON数组
         DataValue::Array(arr) => {
             // 检查数组大小
-            if arr.len() > 1000 { // 限制数组元素数量
+            if arr.len() > 1000 {
+                // 限制数组元素数量
                 return Err(QuickDbError::ValidationError {
                     field: "jsonb_array".to_string(),
                     message: "JSONB查询数组元素过多，最大允许1000个元素".to_string(),
@@ -257,14 +257,15 @@ pub fn convert_to_jsonb_value(value: &DataValue) -> QuickDbResult<DataValue> {
                 }
                 Err(e) => Err(QuickDbError::SerializationError {
                     message: format!("数组序列化为JSON失败: {}", e),
-                })
+                }),
             }
         }
 
         // 对象类型：序列化为JSON对象
         DataValue::Object(obj) => {
             // 检查对象大小
-            if obj.len() > 1000 { // 限制对象字段数量
+            if obj.len() > 1000 {
+                // 限制对象字段数量
                 return Err(QuickDbError::ValidationError {
                     field: "jsonb_object".to_string(),
                     message: "JSONB查询对象字段过多，最大允许1000个字段".to_string(),
@@ -283,27 +284,25 @@ pub fn convert_to_jsonb_value(value: &DataValue) -> QuickDbResult<DataValue> {
                 }
                 Err(e) => Err(QuickDbError::SerializationError {
                     message: format!("对象序列化为JSON失败: {}", e),
-                })
+                }),
             }
         }
 
         // JSON类型：直接序列化
-        DataValue::Json(json_val) => {
-            match serde_json::to_string(json_val) {
-                Ok(json_str) => {
-                    if json_str.len() > MAX_JSONB_LENGTH {
-                        return Err(QuickDbError::ValidationError {
-                            field: "jsonb_value".to_string(),
-                            message: format!("JSONB查询值过长，最大允许{}字节", MAX_JSONB_LENGTH),
-                        });
-                    }
-                    Ok(DataValue::String(json_str))
+        DataValue::Json(json_val) => match serde_json::to_string(json_val) {
+            Ok(json_str) => {
+                if json_str.len() > MAX_JSONB_LENGTH {
+                    return Err(QuickDbError::ValidationError {
+                        field: "jsonb_value".to_string(),
+                        message: format!("JSONB查询值过长，最大允许{}字节", MAX_JSONB_LENGTH),
+                    });
                 }
-                Err(e) => Err(QuickDbError::SerializationError {
-                    message: format!("JSON值序列化失败: {}", e),
-                })
+                Ok(DataValue::String(json_str))
             }
-        }
+            Err(e) => Err(QuickDbError::SerializationError {
+                message: format!("JSON值序列化失败: {}", e),
+            }),
+        },
 
         // 日期时间：转换为ISO8601字符串
         DataValue::DateTime(dt) => Ok(DataValue::String(dt.to_rfc3339())),
@@ -314,7 +313,8 @@ pub fn convert_to_jsonb_value(value: &DataValue) -> QuickDbResult<DataValue> {
 
         // 二进制数据：拒绝用于JSONB查询
         DataValue::Bytes(bytes) => {
-            if bytes.len() > 1024 { // 1KB限制
+            if bytes.len() > 1024 {
+                // 1KB限制
                 return Err(QuickDbError::ValidationError {
                     field: "jsonb_bytes".to_string(),
                     message: "二进制数据过大，不能用于JSONB查询".to_string(),
@@ -333,7 +333,9 @@ mod tests {
 
     #[test]
     fn test_json_query_condition_string_search() {
-        let (sql, param) = build_json_query_condition("profile", &DataValue::String("Rust".to_string()), "$1").unwrap();
+        let (sql, param) =
+            build_json_query_condition("profile", &DataValue::String("Rust".to_string()), "$1")
+                .unwrap();
         assert_eq!(sql, "profile::text ILIKE $1");
         assert_eq!(param, DataValue::String("%Rust%".to_string()));
     }
@@ -341,7 +343,9 @@ mod tests {
     #[test]
     fn test_json_query_condition_exact_match() {
         let json_value = json!({"theme": "dark"});
-        let (sql, param) = build_json_query_condition("settings", &DataValue::Json(json_value.clone()), "$1").unwrap();
+        let (sql, param) =
+            build_json_query_condition("settings", &DataValue::Json(json_value.clone()), "$1")
+                .unwrap();
         assert_eq!(sql, "settings @> $1");
         assert_eq!(param, DataValue::Json(json_value));
     }

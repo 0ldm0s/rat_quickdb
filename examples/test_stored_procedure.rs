@@ -1,9 +1,9 @@
 //! 存储过程创建测试
 
 #[cfg(feature = "sqlite-support")]
-use rat_quickdb::*;
+use rat_logger::{LevelFilter, LoggerBuilder, debug, handler::term};
 #[cfg(feature = "sqlite-support")]
-use rat_logger::{debug, LoggerBuilder, LevelFilter, handler::term};
+use rat_quickdb::*;
 
 // 用户表
 #[cfg(feature = "sqlite-support")]
@@ -107,7 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 0. 准备测试数据
     println!("0. 准备测试数据...");
 
-      let now = chrono::Utc::now();
+    let now = chrono::Utc::now();
     let yesterday = now - chrono::Duration::days(1);
     let two_days_ago = now - chrono::Duration::days(2);
 
@@ -171,7 +171,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             updated_at: user.updated_at,
         };
         match user_instance.save().await {
-            Ok(_) => println!("✅ 创建用户: {} ({}) - 创建时间: {}", user.name, user.email, user.created_at.format("%Y-%m-%d %H:%M:%S")),
+            Ok(_) => println!(
+                "✅ 创建用户: {} ({}) - 创建时间: {}",
+                user.name,
+                user.email,
+                user.created_at.format("%Y-%m-%d %H:%M:%S")
+            ),
             Err(e) => println!("❌ 创建用户失败: {}", e),
         }
     }
@@ -186,7 +191,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             created_at: order.created_at,
         };
         match order_instance.save().await {
-            Ok(_) => println!("✅ 创建订单: 用户ID={}, 总金额={}, 订单日期={}", order.user_id, order.total, order.order_date.format("%Y-%m-%d %H:%M:%S")),
+            Ok(_) => println!(
+                "✅ 创建订单: 用户ID={}, 总金额={}, 订单日期={}",
+                order.user_id,
+                order.total,
+                order.order_date.format("%Y-%m-%d %H:%M:%S")
+            ),
             Err(e) => println!("❌ 创建订单失败: {}", e),
         }
     }
@@ -196,7 +206,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match ModelManager::<User>::create_stored_procedure(config).await {
         Ok(result) => {
             println!("✅ SQLite存储过程创建成功: {:?}", result);
-        },
+        }
         Err(e) => {
             println!("❌ SQLite存储过程创建失败: {}", e);
             return Ok(());
@@ -212,12 +222,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(results) => {
             println!("✅ 查询成功，返回 {} 条记录", results.len());
             for (i, row) in results.iter().enumerate() {
-                if let (Some(user_id), Some(user_name), Some(user_email), Some(user_created_at), Some(user_updated_at)) = (
+                if let (
+                    Some(user_id),
+                    Some(user_name),
+                    Some(user_email),
+                    Some(user_created_at),
+                    Some(user_updated_at),
+                ) = (
                     row.get("user_id"),
                     row.get("user_name"),
                     row.get("user_email"),
                     row.get("user_created_at"),
-                    row.get("user_updated_at")
+                    row.get("user_updated_at"),
                 ) {
                     // 手动转换时间戳为可读格式（SQLite存储为时间戳，其他数据库存储为DateTime）
                     let created_at_str = match user_created_at {
@@ -226,7 +242,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .unwrap_or_default()
                                 .format("%Y-%m-%d %H:%M:%S UTC")
                                 .to_string()
-                        },
+                        }
                         DataValue::DateTime(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
                         _ => user_created_at.to_string(),
                     };
@@ -236,37 +252,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .unwrap_or_default()
                                 .format("%Y-%m-%d %H:%M:%S UTC")
                                 .to_string()
-                        },
+                        }
                         DataValue::DateTime(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
                         _ => user_updated_at.to_string(),
                     };
 
-                    let order_count = row.get("order_count").map(|v| v.to_string()).unwrap_or("0".to_string());
-                    let total_spent = row.get("total_spent").map(|v| v.to_string()).unwrap_or("0".to_string());
-                    let latest_order_date = row.get("latest_order_date").map(|v| {
-                        match v {
+                    let order_count = row
+                        .get("order_count")
+                        .map(|v| v.to_string())
+                        .unwrap_or("0".to_string());
+                    let total_spent = row
+                        .get("total_spent")
+                        .map(|v| v.to_string())
+                        .unwrap_or("0".to_string());
+                    let latest_order_date = row
+                        .get("latest_order_date")
+                        .map(|v| match v {
                             DataValue::Int(timestamp) => {
                                 chrono::DateTime::from_timestamp(*timestamp, 0)
                                     .unwrap_or_default()
                                     .format("%Y-%m-%d %H:%M:%S UTC")
                                     .to_string()
-                            },
-                            DataValue::DateTime(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+                            }
+                            DataValue::DateTime(dt) => {
+                                dt.format("%Y-%m-%d %H:%M:%S UTC").to_string()
+                            }
                             _ => v.to_string(),
-                        }
-                    }).unwrap_or("无订单".to_string());
+                        })
+                        .unwrap_or("无订单".to_string());
 
-                    println!("  {}. {} - {} ({})", i+1,
+                    println!(
+                        "  {}. {} - {} ({})",
+                        i + 1,
                         user_name.to_string(),
                         user_email.to_string(),
                         user_id.to_string()
                     );
-                    println!("     创建时间: {}, 更新时间: {}", created_at_str, updated_at_str);
-                    println!("     订单数: {}, 总消费: {}, 最新订单: {}", order_count, total_spent, latest_order_date);
+                    println!(
+                        "     创建时间: {}, 更新时间: {}",
+                        created_at_str, updated_at_str
+                    );
+                    println!(
+                        "     订单数: {}, 总消费: {}, 最新订单: {}",
+                        order_count, total_spent, latest_order_date
+                    );
                     println!();
                 }
             }
-        },
+        }
         Err(e) => println!("❌ 查询失败: {}", e),
     }
 
@@ -275,35 +308,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut params = std::collections::HashMap::new();
     params.insert("LIMIT".to_string(), DataValue::Int(2));
 
-    match ModelManager::<User>::execute_stored_procedure("get_users_with_orders", Some(params)).await {
+    match ModelManager::<User>::execute_stored_procedure("get_users_with_orders", Some(params))
+        .await
+    {
         Ok(results) => {
             println!("✅ 参数查询成功，返回 {} 条记录", results.len());
             for (i, row) in results.iter().enumerate() {
                 if let (Some(user_id), Some(user_name), Some(user_created_at)) = (
                     row.get("user_id"),
                     row.get("user_name"),
-                    row.get("user_created_at")
+                    row.get("user_created_at"),
                 ) {
                     // 手动转换时间戳为可读格式（SQLite存储为时间戳，其他数据库存储为DateTime）
-                  let created_at_str = match user_created_at {
-                      DataValue::Int(timestamp) => {
-                          chrono::DateTime::from_timestamp(*timestamp, 0)
-                              .unwrap_or_default()
-                              .format("%Y-%m-%d %H:%M:%S UTC")
-                              .to_string()
-                      },
-                      DataValue::DateTime(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
-                      _ => user_created_at.to_string(),
-                  };
+                    let created_at_str = match user_created_at {
+                        DataValue::Int(timestamp) => {
+                            chrono::DateTime::from_timestamp(*timestamp, 0)
+                                .unwrap_or_default()
+                                .format("%Y-%m-%d %H:%M:%S UTC")
+                                .to_string()
+                        }
+                        DataValue::DateTime(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+                        _ => user_created_at.to_string(),
+                    };
 
-                    println!("  {}. {} (ID: {}) - 创建时间: {}", i+1,
+                    println!(
+                        "  {}. {} (ID: {}) - 创建时间: {}",
+                        i + 1,
                         user_name.to_string(),
                         user_id.to_string(),
                         created_at_str
                     );
                 }
             }
-        },
+        }
         Err(e) => println!("❌ 参数查询失败: {}", e),
     }
 

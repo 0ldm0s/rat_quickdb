@@ -11,12 +11,15 @@ fn main() {
     let float_array = vec![1.5, 2.5, 3.5];
     let bool_array = vec![true, false];
     let mixed_array: Vec<serde_json::Value> = vec![
-    serde_json::Value::String("apple".to_string()),
-    serde_json::Value::Number(serde_json::Number::from(42)),
-    serde_json::Value::Bool(true)
-];
+        serde_json::Value::String("apple".to_string()),
+        serde_json::Value::Number(serde_json::Number::from(42)),
+        serde_json::Value::Bool(true),
+    ];
 
-    println!("字符串数组: {}", serde_json::to_string(&string_array).unwrap());
+    println!(
+        "字符串数组: {}",
+        serde_json::to_string(&string_array).unwrap()
+    );
     println!("整数数组: {}", serde_json::to_string(&int_array).unwrap());
     println!("浮点数组: {}", serde_json::to_string(&float_array).unwrap());
     println!("布尔数组: {}", serde_json::to_string(&bool_array).unwrap());

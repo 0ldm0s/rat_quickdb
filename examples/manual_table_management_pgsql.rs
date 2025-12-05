@@ -8,11 +8,11 @@
 //!
 //! 注意：这个示例使用模型宏定义表结构，然后演示手动管理操作
 
+use rat_logger::{LoggerBuilder, debug, handler::term::TermConfig, info, warn};
+use rat_quickdb::manager::{drop_table, shutdown, table_exists};
+use rat_quickdb::types::{DataValue, QueryCondition, QueryOperator};
 use rat_quickdb::*;
-use rat_quickdb::types::{QueryCondition, QueryOperator, DataValue};
-use rat_quickdb::manager::{shutdown, table_exists, drop_table};
-use rat_quickdb::{ModelOperations, string_field, integer_field, boolean_field, datetime_field};
-use rat_logger::{LoggerBuilder, handler::term::TermConfig, info, debug, warn};
+use rat_quickdb::{ModelOperations, boolean_field, datetime_field, integer_field, string_field};
 use std::collections::HashMap;
 
 // 定义测试模型 - 遵循框架的模型宏设计原则
@@ -66,17 +66,17 @@ async fn main() -> QuickDbResult<()> {
             tls_config: None,
         },
         pool: PoolConfig::builder()
-                .max_connections(10)
-                .min_connections(2)
-                .connection_timeout(30)
-                .idle_timeout(300)
-                .max_lifetime(1800)
-                .max_retries(3)
-                .retry_interval_ms(1000)
-                .keepalive_interval_sec(60)
-                .health_check_timeout_sec(10)
-                .build()
-                .unwrap(),
+            .max_connections(10)
+            .min_connections(2)
+            .connection_timeout(30)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()
+            .unwrap(),
         alias: "default".to_string(),
         cache: None,
         id_strategy: IdStrategy::Uuid,
@@ -109,7 +109,7 @@ async fn main() -> QuickDbResult<()> {
             } else {
                 println!("   ⚠️  测试表已存在");
             }
-        },
+        }
         Err(e) => {
             println!("   ❌ 检查表存在性失败: {}", e);
             return Err(e);
@@ -121,7 +121,7 @@ async fn main() -> QuickDbResult<()> {
     match ModelManager::<ManualTableTest>::create_table().await {
         Ok(_) => {
             println!("   ✅ 通过模型管理器创建表成功");
-        },
+        }
         Err(e) => {
             println!("   ❌ 通过模型管理器创建表失败: {}", e);
             return Err(e);
@@ -140,7 +140,7 @@ async fn main() -> QuickDbResult<()> {
                     message: "表创建验证失败".to_string(),
                 });
             }
-        },
+        }
         Err(e) => {
             println!("   ❌ 验证表存在性失败: {}", e);
             return Err(e);
@@ -174,7 +174,7 @@ async fn main() -> QuickDbResult<()> {
         match record.save().await {
             Ok(result) => {
                 println!("   ✅ 测试数据 {} 插入成功: {}", i + 1, result);
-            },
+            }
             Err(e) => {
                 println!("   ❌ 测试数据 {} 插入失败: {}", i + 1, e);
             }
@@ -193,11 +193,13 @@ async fn main() -> QuickDbResult<()> {
             } else {
                 println!("   ✅ 查询成功，共找到 {} 条记录", records.len());
                 for record in &records {
-                    println!("     - ID: {}, 姓名: {}, 邮箱: {:?}, 年龄: {}, 激活: {}",
-                        record.id, record.name, record.email, record.age, record.is_active);
+                    println!(
+                        "     - ID: {}, 姓名: {}, 邮箱: {:?}, 年龄: {}, 激活: {}",
+                        record.id, record.name, record.email, record.age, record.is_active
+                    );
                 }
             }
-        },
+        }
         Err(e) => {
             println!("   ❌ 查询失败: {}", e);
             return Err(e);
@@ -226,7 +228,7 @@ async fn main() -> QuickDbResult<()> {
                     message: "表删除验证失败".to_string(),
                 });
             }
-        },
+        }
         Err(e) => {
             println!("   ❌ 确认表存在性失败: {}", e);
             return Err(e);
@@ -240,9 +242,12 @@ async fn main() -> QuickDbResult<()> {
             if records.is_empty() {
                 println!("   ✅ 确认表已无法操作（返回0条记录，符合预期）");
             } else {
-                println!("   ⚠️  意外：仍然可以查询已删除的表，找到 {} 条记录", records.len());
+                println!(
+                    "   ⚠️  意外：仍然可以查询已删除的表，找到 {} 条记录",
+                    records.len()
+                );
             }
-        },
+        }
         Err(e) => {
             println!("   ✅ 确认表已无法操作（符合预期）: {}", e);
         }

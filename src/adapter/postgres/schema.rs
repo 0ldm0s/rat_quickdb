@@ -1,10 +1,10 @@
 //! PostgreSQL表和索引管理操作
 
 use crate::adapter::postgres::PostgresAdapter;
-use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
+use crate::model::{FieldDefinition, FieldType};
+use crate::pool::DatabaseConnection;
 use crate::types::*;
-use crate::model::{FieldType, FieldDefinition};
 use rat_logger::debug;
 use sqlx::Row;
 use std::collections::HashMap;
@@ -41,7 +41,7 @@ pub(crate) async fn create_table(
                     } else {
                         "TEXT".to_string()
                     }
-                },
+                }
                 FieldType::Integer { .. } => "INTEGER".to_string(),
                 FieldType::BigInteger => "BIGINT".to_string(),
                 FieldType::Float { .. } => "REAL".to_string(),
@@ -49,22 +49,36 @@ pub(crate) async fn create_table(
                 FieldType::Text => "TEXT".to_string(),
                 FieldType::Boolean => "BOOLEAN".to_string(),
                 FieldType::DateTime => {
-                    debug!("🔍 字段 {} 类型为 DateTime，required: {}", name, field_definition.required);
+                    debug!(
+                        "🔍 字段 {} 类型为 DateTime，required: {}",
+                        name, field_definition.required
+                    );
                     "TIMESTAMPTZ".to_string()
-                },
+                }
                 FieldType::DateTimeWithTz { .. } => {
-                    debug!("🔍 字段 {} 类型为 DateTimeWithTz，required: {}", name, field_definition.required);
+                    debug!(
+                        "🔍 字段 {} 类型为 DateTimeWithTz，required: {}",
+                        name, field_definition.required
+                    );
                     "TIMESTAMPTZ".to_string()
-                },
+                }
                 FieldType::Date => "DATE".to_string(),
                 FieldType::Time => "TIME".to_string(),
                 FieldType::Uuid => "UUID".to_string(),
                 FieldType::Json => "JSONB".to_string(),
                 FieldType::Binary => "BYTEA".to_string(),
-                FieldType::Decimal { precision, scale } => format!("DECIMAL({},{})", precision, scale),
-                FieldType::Array { item_type: _, max_items: _, min_items: _ } => "JSONB".to_string(),
+                FieldType::Decimal { precision, scale } => {
+                    format!("DECIMAL({},{})", precision, scale)
+                }
+                FieldType::Array {
+                    item_type: _,
+                    max_items: _,
+                    min_items: _,
+                } => "JSONB".to_string(),
                 FieldType::Object { .. } => "JSONB".to_string(),
-                FieldType::Reference { target_collection: _ } => "TEXT".to_string(),
+                FieldType::Reference {
+                    target_collection: _,
+                } => "TEXT".to_string(),
             };
 
             // 如果是id字段，根据ID策略创建正确的字段类型
@@ -223,10 +237,9 @@ pub(crate) async fn get_server_version(
                 message: format!("查询PostgreSQL版本失败: {}", e),
             })?;
 
-        let version: String = row.try_get(0)
-            .map_err(|e| QuickDbError::QueryError {
-                message: format!("解析PostgreSQL版本结果失败: {}", e),
-            })?;
+        let version: String = row.try_get(0).map_err(|e| QuickDbError::QueryError {
+            message: format!("解析PostgreSQL版本结果失败: {}", e),
+        })?;
 
         debug!("成功获取PostgreSQL版本: {}", version);
         Ok(version)

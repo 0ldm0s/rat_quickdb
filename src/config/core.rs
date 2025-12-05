@@ -5,10 +5,10 @@
 
 use crate::error::QuickDbError;
 use crate::types::*;
+use rat_logger::info;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use rat_logger::{info};
 
 /// 全局配置管理器
 ///
@@ -97,10 +97,12 @@ impl GlobalConfig {
     ///
     /// * `config_path` - 配置文件路径
     pub fn from_file<P: AsRef<std::path::Path>>(config_path: P) -> Result<Self, QuickDbError> {
-        let content = std::fs::read_to_string(config_path.as_ref())
-            .map_err(|e| QuickDbError::IoError(e))?;
+        let content =
+            std::fs::read_to_string(config_path.as_ref()).map_err(|e| QuickDbError::IoError(e))?;
 
-        let config: GlobalConfig = if config_path.as_ref().extension().and_then(|s| s.to_str()) == Some("toml") {
+        let config: GlobalConfig = if config_path.as_ref().extension().and_then(|s| s.to_str())
+            == Some("toml")
+        {
             toml::from_str(&content)
                 .map_err(|e| crate::quick_error!(config, format!("解析TOML配置文件失败: {}", e)))?
         } else {
@@ -117,7 +119,10 @@ impl GlobalConfig {
     /// # 参数
     ///
     /// * `config_path` - 配置文件路径
-    pub fn save_to_file<P: AsRef<std::path::Path>>(&self, config_path: P) -> Result<(), QuickDbError> {
+    pub fn save_to_file<P: AsRef<std::path::Path>>(
+        &self,
+        config_path: P,
+    ) -> Result<(), QuickDbError> {
         let content = if config_path.as_ref().extension().and_then(|s| s.to_str()) == Some("toml") {
             toml::to_string_pretty(self)
                 .map_err(|e| crate::quick_error!(config, format!("序列化TOML配置失败: {}", e)))?
@@ -126,8 +131,7 @@ impl GlobalConfig {
                 .map_err(|e| crate::quick_error!(config, format!("序列化JSON配置失败: {}", e)))?
         };
 
-        std::fs::write(config_path.as_ref(), content)
-            .map_err(|e| QuickDbError::IoError(e))?;
+        std::fs::write(config_path.as_ref(), content).map_err(|e| QuickDbError::IoError(e))?;
 
         info!("保存配置到文件: {:?}", config_path.as_ref());
         Ok(())
@@ -135,10 +139,13 @@ impl GlobalConfig {
 
     /// 获取默认数据库配置
     pub fn get_default_database(&self) -> Result<&DatabaseConfig, QuickDbError> {
-        let alias = self.default_database.as_ref()
+        let alias = self
+            .default_database
+            .as_ref()
             .ok_or_else(|| crate::quick_error!(config, "未设置默认数据库"))?;
 
-        self.databases.get(alias)
+        self.databases
+            .get(alias)
             .ok_or_else(|| crate::quick_error!(config, format!("找不到默认数据库配置: {}", alias)))
     }
 
@@ -148,7 +155,8 @@ impl GlobalConfig {
     ///
     /// * `alias` - 数据库别名
     pub fn get_database(&self, alias: &str) -> Result<&DatabaseConfig, QuickDbError> {
-        self.databases.get(alias)
+        self.databases
+            .get(alias)
             .ok_or_else(|| crate::quick_error!(config, format!("找不到数据库配置: {}", alias)))
     }
 }
@@ -246,7 +254,8 @@ impl<'de> Deserialize<'de> for GlobalConfig {
             }
         }
 
-        const FIELDS: &'static [&'static str] = &["databases", "default_database", "app", "logging"];
+        const FIELDS: &'static [&'static str] =
+            &["databases", "default_database", "app", "logging"];
         deserializer.deserialize_struct("GlobalConfig", FIELDS, GlobalConfigVisitor)
     }
 }

@@ -22,10 +22,13 @@ mod tests {
         "#;
 
         // 解析JSON
-        let json_value: serde_json::Value = serde_json::from_str(python_json)
-            .expect("JSON解析失败");
+        let json_value: serde_json::Value =
+            serde_json::from_str(python_json).expect("JSON解析失败");
 
-        println!("🔍 原始JSON: {}", serde_json::to_string_pretty(&json_value).unwrap());
+        println!(
+            "🔍 原始JSON: {}",
+            serde_json::to_string_pretty(&json_value).unwrap()
+        );
 
         // 检查所有字段
         if let serde_json::Value::Object(obj) = json_value {
@@ -53,10 +56,10 @@ mod tests {
                             } else {
                                 println!("    ❓ 未知格式");
                             }
-                        },
+                        }
                         serde_json::Value::Null => {
                             println!("    (datetime字段): null");
-                        },
+                        }
                         _ => {
                             println!("    (datetime字段): 非字符串类型");
                         }

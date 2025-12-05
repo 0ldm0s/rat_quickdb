@@ -1,10 +1,10 @@
 //! 测试读取数据库中的时间戳数据
 
-use rat_quickdb::*;
-use rat_quickdb::types::QueryCondition;
-use rat_quickdb::manager::shutdown;
-use rat_quickdb::ModelOperations;
 use chrono::{DateTime, Utc};
+use rat_quickdb::ModelOperations;
+use rat_quickdb::manager::shutdown;
+use rat_quickdb::types::QueryCondition;
+use rat_quickdb::*;
 
 #[tokio::main]
 async fn main() -> QuickDbResult<()> {
@@ -17,10 +17,12 @@ async fn main() -> QuickDbResult<()> {
             path: "./timezone_range_demo.db".to_string(),
             create_if_missing: false, // 使用已有的数据库
         })
-        .pool(PoolConfig::builder()
-            .min_connections(1)
-            .max_connections(5)
-            .build()?)
+        .pool(
+            PoolConfig::builder()
+                .min_connections(1)
+                .max_connections(5)
+                .build()?,
+        )
         .alias("default".to_string())
         .id_strategy(IdStrategy::Uuid)
         .build()?;
@@ -43,7 +45,7 @@ async fn main() -> QuickDbResult<()> {
                 println!("  created_at: {}", activity.created_at);
                 println!();
             }
-        },
+        }
         Err(e) => {
             println!("❌ 查询失败: {}", e);
         }

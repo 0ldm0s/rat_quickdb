@@ -2,8 +2,8 @@
 
 use crate::error::QuickDbResult;
 use crate::types::*;
-use tokio::sync::oneshot;
 use std::collections::HashMap;
+use tokio::sync::oneshot;
 
 /// ODM操作请求类型
 #[derive(Debug)]
@@ -79,12 +79,14 @@ pub enum OdmRequest {
     },
     CreateStoredProcedure {
         config: crate::stored_procedure::StoredProcedureConfig,
-        response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>>,
+        response:
+            oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>>,
     },
     ExecuteStoredProcedure {
         procedure_name: String,
         database_alias: Option<String>,
         params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
-        response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult>>,
+        response:
+            oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult>>,
     },
 }

@@ -1,6 +1,6 @@
 //! # ODM操作接口定义
 
-use crate::error::{QuickDbResult};
+use crate::error::QuickDbResult;
 use crate::types::*;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -33,7 +33,7 @@ pub trait OdmOperations {
         options: Option<QueryOptions>,
         alias: Option<&str>,
     ) -> QuickDbResult<Vec<DataValue>>;
-    
+
     /// 使用条件组合查找记录（支持复杂OR/AND逻辑）
     async fn find_with_groups(
         &self,
@@ -42,7 +42,7 @@ pub trait OdmOperations {
         options: Option<QueryOptions>,
         alias: Option<&str>,
     ) -> QuickDbResult<Vec<DataValue>>;
-    
+
     /// 更新记录
     async fn update(
         &self,
@@ -69,7 +69,7 @@ pub trait OdmOperations {
         updates: HashMap<String, DataValue>,
         alias: Option<&str>,
     ) -> QuickDbResult<bool>;
-    
+
     /// 删除记录
     async fn delete(
         &self,
@@ -77,7 +77,7 @@ pub trait OdmOperations {
         conditions: Vec<QueryCondition>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64>;
-    
+
     /// 根据ID删除记录
     async fn delete_by_id(
         &self,
@@ -85,7 +85,7 @@ pub trait OdmOperations {
         id: &str,
         alias: Option<&str>,
     ) -> QuickDbResult<bool>;
-    
+
     /// 统计记录数量
     async fn count(
         &self,
@@ -93,13 +93,9 @@ pub trait OdmOperations {
         conditions: Vec<QueryCondition>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64>;
-    
-    
+
     /// 获取数据库服务器版本信息
-    async fn get_server_version(
-        &self,
-        alias: Option<&str>,
-    ) -> QuickDbResult<String>;
+    async fn get_server_version(&self, alias: Option<&str>) -> QuickDbResult<String>;
 
     /// 创建存储过程
     async fn create_stored_procedure(

@@ -1,11 +1,11 @@
 //! 虚拟表格宏测试示例
 //! 验证define_join_table宏的功能和SQL生成
 
-use rat_quickdb::*;
-use rat_quickdb::types::*;
-use rat_quickdb::join_macro::{JoinDefinition, JoinType};
 use rat_quickdb::adapter::OrderClause;
+use rat_quickdb::join_macro::{JoinDefinition, JoinType};
 use rat_quickdb::types::query::SortDirection;
+use rat_quickdb::types::*;
+use rat_quickdb::*;
 
 // 定义虚拟表格：用户配置信息（用户表 + 配置表）
 define_join_table! {
@@ -91,19 +91,14 @@ fn test_user_profile_info() {
     println!("虚拟表格实例: {:?}", profile);
 
     // 生成查询条件
-    let conditions = vec![
-        QueryCondition {
-            field: "user_age".to_string(),
-            operator: QueryOperator::Gt,
-            value: DataValue::Int(25),
-        }
-    ];
+    let conditions = vec![QueryCondition {
+        field: "user_age".to_string(),
+        operator: QueryOperator::Gt,
+        value: DataValue::Int(25),
+    }];
 
     let options = QueryOptions {
-        pagination: Some(crate::types::query::PaginationConfig {
-            skip: 0,
-            limit: 10,
-        }),
+        pagination: Some(crate::types::query::PaginationConfig { skip: 0, limit: 10 }),
         sort: vec![crate::types::query::SortConfig {
             field: "user_created_at".to_string(),
             direction: SortDirection::Desc,
@@ -146,14 +141,11 @@ fn test_article_stats() {
             field: "article_views".to_string(),
             operator: QueryOperator::Gt,
             value: DataValue::Int(100),
-        }
+        },
     ];
 
     let options = QueryOptions {
-        pagination: Some(crate::types::query::PaginationConfig {
-            skip: 0,
-            limit: 5,
-        }),
+        pagination: Some(crate::types::query::PaginationConfig { skip: 0, limit: 5 }),
         sort: vec![crate::types::query::SortConfig {
             field: "article_views".to_string(),
             direction: SortDirection::Desc,

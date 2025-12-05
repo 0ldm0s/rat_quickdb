@@ -4,11 +4,11 @@
 
 // 导入所有子模块
 pub mod adapter;
-pub mod utils;
 pub mod operations;
 pub mod query;
 pub mod query_builder;
 pub mod schema;
+pub mod utils;
 
 // 重新导出主要的公共类型和结构体
 pub use adapter::PostgresAdapter;

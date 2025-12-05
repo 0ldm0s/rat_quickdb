@@ -2,18 +2,18 @@
 //! 用于简化复杂JOIN查询和缓存管理
 //! 支持SQL和MongoDB双模式
 
-use std::collections::HashMap;
-use crate::types::*;
 use crate::adapter::DatabaseAdapter;
 use crate::pool::DatabaseConnection;
+use crate::types::*;
 use async_trait::async_trait;
 use serde_json::Value as JsonValue;
+use std::collections::HashMap;
 
 /// JOIN子句定义
 #[derive(Debug, Clone)]
 pub struct JoinDefinition {
     pub table: String,
-    pub database: Option<String>,  // 数据库别名，None表示使用默认数据库
+    pub database: Option<String>, // 数据库别名，None表示使用默认数据库
     pub on_condition: String,
     pub join_type: JoinType,
 }
@@ -184,4 +184,3 @@ macro_rules! define_join_table {
         }
     };
 }
-

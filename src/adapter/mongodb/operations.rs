@@ -1,19 +1,19 @@
 //! MongoDB适配器trait实现
 
-use crate::adapter::MongoAdapter;
 use crate::adapter::DatabaseAdapter;
+use crate::adapter::MongoAdapter;
 use crate::adapter::mongodb::query_builder::{MongoQueryBuilder, build_query_document};
 use crate::adapter::mongodb::utils::build_update_document;
-use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
-use crate::model::{FieldType, FieldDefinition};
 use crate::manager;
+use crate::model::{FieldDefinition, FieldType};
+use crate::pool::DatabaseConnection;
+use crate::types::*;
 use async_trait::async_trait;
+use mongodb::bson::{Bson, Document, doc};
 use rat_logger::debug;
-use std::collections::HashMap;
-use mongodb::bson::{doc, Document, Bson};
 use serde_json::json;
+use std::collections::HashMap;
 
 use super::query as mongodb_query;
 use super::schema as mongodb_schema;
@@ -46,7 +46,10 @@ impl DatabaseAdapter for MongoAdapter {
                     } else {
                         return Err(QuickDbError::ValidationError {
                             field: "collection_creation".to_string(),
-                            message: format!("集合 '{}' 不存在，且没有预定义的模型元数据。MongoDB使用无模式设计，但建议先定义模型。", table),
+                            message: format!(
+                                "集合 '{}' 不存在，且没有预定义的模型元数据。MongoDB使用无模式设计，但建议先定义模型。",
+                                table
+                            ),
                         });
                     }
 
@@ -73,7 +76,7 @@ impl DatabaseAdapter for MongoAdapter {
                                 mapped_data.remove("_id");
                             }
                         }
-                    },
+                    }
                     IdStrategy::Snowflake { .. } | IdStrategy::Uuid => {
                         // 对于雪花和UUID策略，移除空的ID字段，让ODM层生成的ID生效
                         if let Some(DataValue::String(s)) = mapped_data.get("_id") {
@@ -81,7 +84,7 @@ impl DatabaseAdapter for MongoAdapter {
                                 mapped_data.remove("_id");
                             }
                         }
-                    },
+                    }
                     IdStrategy::Custom(_) => {
                         // 自定义策略保留ID字段
                     }
@@ -95,11 +98,11 @@ impl DatabaseAdapter for MongoAdapter {
                             field: "_id".to_string(),
                             message: format!("使用{:?}策略时必须提供ID字段", id_strategy),
                         });
-                    },
+                    }
                     IdStrategy::Uuid => {
                         // MongoDB的UUID策略不要求提供ID字段，可以自动生成字符串UUID
                         // 符合我们的设计：MongoDB将UUID作为字符串处理
-                    },
+                    }
                     _ => {} // 其他策略不需要ID字段
                 }
             }
@@ -113,15 +116,18 @@ impl DatabaseAdapter for MongoAdapter {
                             // UUID策略：保持字符串格式，防止被MongoDB转换为ObjectId
                             // 使用Bson::String包装，MongoDB应该保持字符串格式
                             Bson::String(s.clone())
-                        },
-                        (crate::types::DataValue::String(s), crate::types::IdStrategy::ObjectId) => {
+                        }
+                        (
+                            crate::types::DataValue::String(s),
+                            crate::types::IdStrategy::ObjectId,
+                        ) => {
                             // ObjectId策略：尝试转换为ObjectId
                             if let Ok(object_id) = mongodb::bson::oid::ObjectId::parse_str(s) {
                                 Bson::ObjectId(object_id)
                             } else {
                                 Bson::String(s.clone()) // 如果解析失败，保持字符串
                             }
-                        },
+                        }
                         _ => {
                             // 其他情况，使用默认转换
                             mongodb_utils::data_value_to_bson(self, value)
@@ -135,11 +141,13 @@ impl DatabaseAdapter for MongoAdapter {
 
             debug!("执行MongoDB插入到集合 {}: {:?}", table, doc);
 
-            let result = collection.insert_one(doc, None)
-                .await
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("MongoDB插入失败: {}", e),
-                })?;
+            let result =
+                collection
+                    .insert_one(doc, None)
+                    .await
+                    .map_err(|e| QuickDbError::QueryError {
+                        message: format!("MongoDB插入失败: {}", e),
+                    })?;
 
             let mut result_map = HashMap::new();
 
@@ -213,7 +221,8 @@ impl DatabaseAdapter for MongoAdapter {
         options: &QueryOptions,
         alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
-        mongodb_query::find_with_groups(self, connection, table, condition_groups, options, alias).await
+        mongodb_query::find_with_groups(self, connection, table, condition_groups, options, alias)
+            .await
     }
 
     async fn update(
@@ -232,7 +241,8 @@ impl DatabaseAdapter for MongoAdapter {
 
             debug!("执行MongoDB更新: 查询={:?}, 更新={:?}", query, update);
 
-            let result = collection.update_many(query, update, None)
+            let result = collection
+                .update_many(query, update, None)
                 .await
                 .map_err(|e| QuickDbError::QueryError {
                     message: format!("MongoDB更新失败: {}", e),
@@ -260,7 +270,9 @@ impl DatabaseAdapter for MongoAdapter {
             value: id.clone(),
         }];
 
-        let affected = self.update(connection, table, &conditions, data, alias).await?;
+        let affected = self
+            .update(connection, table, &conditions, data, alias)
+            .await?;
         Ok(affected > 0)
     }
 
@@ -296,10 +308,12 @@ impl DatabaseAdapter for MongoAdapter {
                         let neg_value = match &operation.value {
                             crate::types::DataValue::Int(i) => crate::types::DataValue::Int(-i),
                             crate::types::DataValue::Float(f) => crate::types::DataValue::Float(-f),
-                            _ => return Err(QuickDbError::ValidationError {
-                                field: operation.field.clone(),
-                                message: "Decrement操作只支持数值类型".to_string(),
-                            }),
+                            _ => {
+                                return Err(QuickDbError::ValidationError {
+                                    field: operation.field.clone(),
+                                    message: "Decrement操作只支持数值类型".to_string(),
+                                });
+                            }
                         };
                         let bson_value = mongodb_utils::data_value_to_bson(self, &neg_value);
                         inc_doc.insert(&operation.field, bson_value);
@@ -318,12 +332,17 @@ impl DatabaseAdapter for MongoAdapter {
                         let divisor = match &operation.value {
                             crate::types::DataValue::Int(i) => 1.0 / *i as f64,
                             crate::types::DataValue::Float(f) => 1.0 / f,
-                            _ => return Err(QuickDbError::ValidationError {
-                                field: operation.field.clone(),
-                                message: "Divide操作只支持数值类型".to_string(),
-                            }),
+                            _ => {
+                                return Err(QuickDbError::ValidationError {
+                                    field: operation.field.clone(),
+                                    message: "Divide操作只支持数值类型".to_string(),
+                                });
+                            }
                         };
-                        let bson_value = mongodb_utils::data_value_to_bson(self, &crate::types::DataValue::Float(divisor));
+                        let bson_value = mongodb_utils::data_value_to_bson(
+                            self,
+                            &crate::types::DataValue::Float(divisor),
+                        );
                         if !set_doc.contains_key("$mul") {
                             set_doc.insert("$mul", Document::new());
                         }
@@ -335,13 +354,18 @@ impl DatabaseAdapter for MongoAdapter {
                         let percentage = match &operation.value {
                             crate::types::DataValue::Float(f) => *f,
                             crate::types::DataValue::Int(i) => *i as f64,
-                            _ => return Err(QuickDbError::ValidationError {
-                                field: operation.field.clone(),
-                                message: "PercentIncrease操作只支持数值类型".to_string(),
-                            }),
+                            _ => {
+                                return Err(QuickDbError::ValidationError {
+                                    field: operation.field.clone(),
+                                    message: "PercentIncrease操作只支持数值类型".to_string(),
+                                });
+                            }
                         };
                         let multiplier = 1.0 + percentage / 100.0;
-                        let bson_value = mongodb_utils::data_value_to_bson(self, &crate::types::DataValue::Float(multiplier));
+                        let bson_value = mongodb_utils::data_value_to_bson(
+                            self,
+                            &crate::types::DataValue::Float(multiplier),
+                        );
                         if !set_doc.contains_key("$mul") {
                             set_doc.insert("$mul", Document::new());
                         }
@@ -353,13 +377,18 @@ impl DatabaseAdapter for MongoAdapter {
                         let percentage = match &operation.value {
                             crate::types::DataValue::Float(f) => *f,
                             crate::types::DataValue::Int(i) => *i as f64,
-                            _ => return Err(QuickDbError::ValidationError {
-                                field: operation.field.clone(),
-                                message: "PercentDecrease操作只支持数值类型".to_string(),
-                            }),
+                            _ => {
+                                return Err(QuickDbError::ValidationError {
+                                    field: operation.field.clone(),
+                                    message: "PercentDecrease操作只支持数值类型".to_string(),
+                                });
+                            }
                         };
                         let multiplier = 1.0 - percentage / 100.0;
-                        let bson_value = mongodb_utils::data_value_to_bson(self, &crate::types::DataValue::Float(multiplier));
+                        let bson_value = mongodb_utils::data_value_to_bson(
+                            self,
+                            &crate::types::DataValue::Float(multiplier),
+                        );
                         if !set_doc.contains_key("$mul") {
                             set_doc.insert("$mul", Document::new());
                         }
@@ -389,9 +418,13 @@ impl DatabaseAdapter for MongoAdapter {
                 });
             }
 
-            debug!("执行MongoDB操作更新: query={:?}, update={:?}", query, update_doc);
+            debug!(
+                "执行MongoDB操作更新: query={:?}, update={:?}",
+                query, update_doc
+            );
 
-            let result = collection.update_many(query, update_doc, None)
+            let result = collection
+                .update_many(query, update_doc, None)
                 .await
                 .map_err(|e| QuickDbError::QueryError {
                     message: format!("MongoDB更新失败: {}", e),
@@ -419,11 +452,11 @@ impl DatabaseAdapter for MongoAdapter {
 
             debug!("执行MongoDB删除: {:?}", query);
 
-            let result = collection.delete_many(query, None)
-                .await
-                .map_err(|e| QuickDbError::QueryError {
+            let result = collection.delete_many(query, None).await.map_err(|e| {
+                QuickDbError::QueryError {
                     message: format!("MongoDB删除失败: {}", e),
-                })?;
+                }
+            })?;
 
             Ok(result.deleted_count)
         } else {
@@ -460,7 +493,6 @@ impl DatabaseAdapter for MongoAdapter {
         mongodb_query::count(self, connection, table, conditions, alias).await
     }
 
-    
     async fn create_table(
         &self,
         connection: &DatabaseConnection,
@@ -491,18 +523,11 @@ impl DatabaseAdapter for MongoAdapter {
         mongodb_schema::table_exists(self, connection, table).await
     }
 
-    async fn drop_table(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-    ) -> QuickDbResult<()> {
+    async fn drop_table(&self, connection: &DatabaseConnection, table: &str) -> QuickDbResult<()> {
         mongodb_schema::drop_table(self, connection, table).await
     }
 
-    async fn get_server_version(
-        &self,
-        connection: &DatabaseConnection,
-    ) -> QuickDbResult<String> {
+    async fn get_server_version(&self, connection: &DatabaseConnection) -> QuickDbResult<String> {
         mongodb_schema::get_server_version(self, connection).await
     }
 
@@ -517,7 +542,8 @@ impl DatabaseAdapter for MongoAdapter {
         debug!("开始创建MongoDB存储过程: {}", config.procedure_name);
 
         // 验证配置
-        config.validate()
+        config
+            .validate()
             .map_err(|e| crate::error::QuickDbError::ValidationError {
                 field: "config".to_string(),
                 message: format!("存储过程配置验证失败: {}", e),
@@ -532,7 +558,14 @@ impl DatabaseAdapter for MongoAdapter {
                 let id_strategy = crate::manager::get_id_strategy(&config.database)
                     .unwrap_or(IdStrategy::AutoIncrement);
 
-                self.create_table(connection, collection_name, &model_meta.fields, &id_strategy, &config.database).await?;
+                self.create_table(
+                    connection,
+                    collection_name,
+                    &model_meta.fields,
+                    &id_strategy,
+                    &config.database,
+                )
+                .await?;
             }
         }
 
@@ -580,40 +613,51 @@ impl DatabaseAdapter for MongoAdapter {
         let pipeline_template = procedure_info.template.clone();
         drop(procedures);
 
-        debug!("执行MongoDB存储过程查询: {}, 模板: {}", procedure_name, pipeline_template);
+        debug!(
+            "执行MongoDB存储过程查询: {}, 模板: {}",
+            procedure_name, pipeline_template
+        );
 
         // 解析聚合管道模板
-        let pipeline_value: serde_json::Value = serde_json::from_str(&pipeline_template)
-            .map_err(|e| crate::error::QuickDbError::SerializationError {
-                message: format!("解析聚合管道模板失败: {}", e),
+        let pipeline_value: serde_json::Value =
+            serde_json::from_str(&pipeline_template).map_err(|e| {
+                crate::error::QuickDbError::SerializationError {
+                    message: format!("解析聚合管道模板失败: {}", e),
+                }
             })?;
 
         // 根据参数动态构建最终的聚合管道
-        let final_pipeline = self.build_final_pipeline_from_template(&pipeline_value, params).await?;
+        let final_pipeline = self
+            .build_final_pipeline_from_template(&pipeline_value, params)
+            .await?;
 
         // 提取集合名
-        let collection_name = final_pipeline.get("collection")
+        let collection_name = final_pipeline
+            .get("collection")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                crate::error::QuickDbError::ValidationError {
-                    field: "pipeline".to_string(),
-                    message: "聚合管道模板缺少collection字段".to_string(),
-                }
+            .ok_or_else(|| crate::error::QuickDbError::ValidationError {
+                field: "pipeline".to_string(),
+                message: "聚合管道模板缺少collection字段".to_string(),
             })?;
 
-        let pipeline_stages = final_pipeline.get("pipeline")
+        let pipeline_stages = final_pipeline
+            .get("pipeline")
             .and_then(|v| v.as_array())
-            .ok_or_else(|| {
-                crate::error::QuickDbError::ValidationError {
-                    field: "pipeline".to_string(),
-                    message: "聚合管道模板缺少pipeline字段".to_string(),
-                }
+            .ok_or_else(|| crate::error::QuickDbError::ValidationError {
+                field: "pipeline".to_string(),
+                message: "聚合管道模板缺少pipeline字段".to_string(),
             })?;
 
-        debug!("执行MongoDB聚合管道: 集合={}, 阶段数={}", collection_name, pipeline_stages.len());
+        debug!(
+            "执行MongoDB聚合管道: 集合={}, 阶段数={}",
+            collection_name,
+            pipeline_stages.len()
+        );
 
         // 执行聚合管道查询
-        let query_result = self.aggregate_query(connection, collection_name, pipeline_stages.to_vec()).await?;
+        let query_result = self
+            .aggregate_query(connection, collection_name, pipeline_stages.to_vec())
+            .await?;
 
         // 转换结果格式
         let mut result = Vec::new();
@@ -625,7 +669,11 @@ impl DatabaseAdapter for MongoAdapter {
             result.push(row_map);
         }
 
-        debug!("MongoDB存储过程 {} 执行完成，返回 {} 条记录", procedure_name, result.len());
+        debug!(
+            "MongoDB存储过程 {} 执行完成，返回 {} 条记录",
+            procedure_name,
+            result.len()
+        );
         Ok(result)
     }
 }
@@ -640,14 +688,19 @@ impl MongoAdapter {
         let mut final_pipeline = pipeline_template.clone();
 
         // 简单过滤占位符阶段
-        if let Some(pipeline_array) = final_pipeline.get_mut("pipeline").and_then(|v| v.as_array_mut()) {
-            let filtered_stages: Vec<serde_json::Value> = pipeline_array.iter()
+        if let Some(pipeline_array) = final_pipeline
+            .get_mut("pipeline")
+            .and_then(|v| v.as_array_mut())
+        {
+            let filtered_stages: Vec<serde_json::Value> = pipeline_array
+                .iter()
                 .filter(|stage| {
                     // 过滤掉纯占位符的$addFields阶段
                     if let Some(add_fields) = stage.get("$addFields") {
                         if let Some(obj) = add_fields.as_object() {
                             // 检查是否所有字段都是占位符
-                            !obj.keys().all(|key| key.starts_with("_") && key.ends_with("_PLACEHOLDER"))
+                            !obj.keys()
+                                .all(|key| key.starts_with("_") && key.ends_with("_PLACEHOLDER"))
                         } else {
                             true
                         }
@@ -661,7 +714,10 @@ impl MongoAdapter {
             final_pipeline["pipeline"] = serde_json::Value::Array(filtered_stages);
         }
 
-        debug!("构建的最终聚合管道: {}", serde_json::to_string_pretty(&final_pipeline).unwrap_or_default());
+        debug!(
+            "构建的最终聚合管道: {}",
+            serde_json::to_string_pretty(&final_pipeline).unwrap_or_default()
+        );
         Ok(final_pipeline)
     }
 }

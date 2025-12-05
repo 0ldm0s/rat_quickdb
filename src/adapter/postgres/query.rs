@@ -1,11 +1,11 @@
 //! PostgreSQL查询相关操作
 
-use crate::adapter::postgres::PostgresAdapter;
 use crate::adapter::DatabaseAdapter;
-use crate::pool::DatabaseConnection;
-use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
+use crate::adapter::postgres::PostgresAdapter;
 use crate::adapter::postgres::query_builder::SqlQueryBuilder;
+use crate::error::{QuickDbError, QuickDbResult};
+use crate::pool::DatabaseConnection;
+use crate::types::*;
 use rat_logger::debug;
 
 /// PostgreSQL删除操作
@@ -18,8 +18,8 @@ pub(crate) async fn delete(
 ) -> QuickDbResult<u64> {
     if let DatabaseConnection::PostgreSQL(pool) = connection {
         let (sql, params) = SqlQueryBuilder::new()
-                        .delete()
-                        .where_conditions(conditions)
+            .delete()
+            .where_conditions(conditions)
             .build(table, alias)?;
 
         debug!("执行PostgreSQL删除: {}", sql);
@@ -60,8 +60,8 @@ pub(crate) async fn count(
 ) -> QuickDbResult<u64> {
     if let DatabaseConnection::PostgreSQL(pool) = connection {
         let (sql, params) = SqlQueryBuilder::new()
-                        .select(&["COUNT(*) as count"])
-                        .where_conditions(conditions)
+            .select(&["COUNT(*) as count"])
+            .where_conditions(conditions)
             .build(table, alias)?;
 
         debug!("执行PostgreSQL计数: {}", sql);
@@ -82,4 +82,3 @@ pub(crate) async fn count(
         })
     }
 }
-

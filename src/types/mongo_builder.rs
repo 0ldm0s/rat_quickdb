@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::types::database_config::{ConnectionConfig, TlsConfig, ZstdConfig};
+use std::collections::HashMap;
 
 /// MongoDB 连接构建器
 pub struct MongoDbConnectionBuilder {
@@ -81,7 +81,11 @@ impl MongoDbConnectionBuilder {
             direct_connection: self.direct_connection,
             tls_config: self.tls_config,
             zstd_config: self.zstd_config,
-            options: if self.options.is_empty() { None } else { Some(self.options) },
+            options: if self.options.is_empty() {
+                None
+            } else {
+                Some(self.options)
+            },
         }
     }
 
@@ -89,7 +93,7 @@ impl MongoDbConnectionBuilder {
     #[doc(hidden)]
     pub fn build_uri(&self) -> String {
         let mut uri = String::from("mongodb://");
-        
+
         // 添加认证信息
         if let (Some(username), Some(password)) = (&self.username, &self.password) {
             uri.push_str(&urlencoding::encode(username));
@@ -97,52 +101,53 @@ impl MongoDbConnectionBuilder {
             uri.push_str(&urlencoding::encode(password));
             uri.push('@');
         }
-        
+
         // 添加主机和端口
         uri.push_str(&self.host);
         uri.push(':');
         uri.push_str(&self.port.to_string());
-        
+
         // 添加数据库
         uri.push('/');
         uri.push_str(&self.database);
-        
+
         // 构建查询参数
         let mut params = Vec::new();
-        
+
         if let Some(auth_source) = &self.auth_source {
             params.push(format!("authSource={}", urlencoding::encode(auth_source)));
         }
-        
+
         if self.direct_connection {
             params.push("directConnection=true".to_string());
         }
-        
+
         if let Some(tls_config) = &self.tls_config {
             if tls_config.enabled {
                 params.push("tls=true".to_string());
             }
         }
-        
+
         if let Some(zstd_config) = &self.zstd_config {
             if zstd_config.enabled {
                 params.push("compressors=zstd".to_string());
             }
         }
-        
+
         // 添加自定义选项
-         for (key, value) in &self.options {
-             params.push(format!("{}={}", 
-                 urlencoding::encode(key), 
-                 urlencoding::encode(value)
-             ));
-         }
-        
+        for (key, value) in &self.options {
+            params.push(format!(
+                "{}={}",
+                urlencoding::encode(key),
+                urlencoding::encode(value)
+            ));
+        }
+
         if !params.is_empty() {
             uri.push('?');
             uri.push_str(&params.join("&"));
         }
-        
+
         uri
     }
 }

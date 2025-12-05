@@ -4,13 +4,13 @@
 //! 以及可选的手动清理接口。
 
 // 导出所有子模块
-pub mod stats;
-pub mod key_generator;
-pub mod record_cache;
-pub mod query_cache;
-pub mod operations;
 pub mod cache_manager;
+pub mod key_generator;
+pub mod operations;
+pub mod query_cache;
+pub mod record_cache;
+pub mod stats;
 
 // 重新导出主要的公共类型和结构体
-pub use stats::{CachePerformanceStats, CacheStats};
 pub use cache_manager::CacheManager;
+pub use stats::{CachePerformanceStats, CacheStats};

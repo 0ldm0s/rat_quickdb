@@ -100,10 +100,7 @@ impl ErrorBuilder {
     }
 
     /// 创建验证错误
-    pub fn validation_error(
-        field: impl Into<String>,
-        message: impl Into<String>,
-    ) -> QuickDbError {
+    pub fn validation_error(field: impl Into<String>, message: impl Into<String>) -> QuickDbError {
         QuickDbError::ValidationError {
             field: field.into(),
             message: message.into(),

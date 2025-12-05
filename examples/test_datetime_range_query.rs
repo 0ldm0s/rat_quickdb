@@ -2,13 +2,13 @@
 //!
 //! 验证带时区的DateTime字段范围查询是否正常工作
 
-use rat_quickdb::*;
-use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig};
+use chrono::{DateTime, Duration, Utc};
+use rat_logger::{LevelFilter, LoggerBuilder, handler::term::TermConfig};
 use rat_quickdb::manager::health_check;
-use rat_quickdb::{ModelManager, ModelOperations, datetime_with_tz_field};
-use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
-use chrono::{Utc, DateTime, Duration};
+use rat_quickdb::types::{ConnectionConfig, DatabaseType, PoolConfig};
 use rat_quickdb::types::{QueryCondition, QueryOperator};
+use rat_quickdb::*;
+use rat_quickdb::{ModelManager, ModelOperations, datetime_with_tz_field};
 
 // 定义测试模型
 define_model! {
@@ -50,17 +50,17 @@ async fn main() -> QuickDbResult<()> {
             create_if_missing: true,
         },
         pool: PoolConfig::builder()
-                .max_connections(10)
-                .min_connections(1)
-                .connection_timeout(10)
-                .idle_timeout(300)
-                .max_lifetime(1800)
-                .max_retries(3)
-                .retry_interval_ms(1000)
-                .keepalive_interval_sec(60)
-                .health_check_timeout_sec(10)
-                .build()
-                .unwrap(),
+            .max_connections(10)
+            .min_connections(1)
+            .connection_timeout(10)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()
+            .unwrap(),
         cache: None,
         id_strategy: Default::default(),
     };
@@ -80,7 +80,7 @@ async fn main() -> QuickDbResult<()> {
 
     // 创建5个不同时间点的记录
     for i in 0..5 {
-        let event_time = base_time + Duration::hours(i * 2);  // 每2小时一个事件
+        let event_time = base_time + Duration::hours(i * 2); // 每2小时一个事件
         let model = TimeRangeTestModel {
             id: String::new(),
             name: format!("事件_{}", i + 1),
@@ -88,7 +88,11 @@ async fn main() -> QuickDbResult<()> {
         };
 
         match model.save().await {
-            Ok(_) => println!("✅ 创建事件_{}: {}", i + 1, event_time.format("%Y-%m-%d %H:%M:%S UTC")),
+            Ok(_) => println!(
+                "✅ 创建事件_{}: {}",
+                i + 1,
+                event_time.format("%Y-%m-%d %H:%M:%S UTC")
+            ),
             Err(e) => println!("❌ 创建事件_{}失败: {}", i + 1, e),
         }
     }
@@ -118,9 +122,13 @@ async fn main() -> QuickDbResult<()> {
         Ok(results) => {
             println!("✅ 范围查询成功，找到 {} 条记录", results.len());
             for model in results {
-                println!("  📋 {}: {}", model.name, model.event_time.format("%Y-%m-%d %H:%M:%S UTC"));
+                println!(
+                    "  📋 {}: {}",
+                    model.name,
+                    model.event_time.format("%Y-%m-%d %H:%M:%S UTC")
+                );
             }
-        },
+        }
         Err(e) => {
             println!("❌ 范围查询失败: {}", e);
         }
@@ -130,21 +138,23 @@ async fn main() -> QuickDbResult<()> {
     // 4. 测试大于查询
     println!("4. 测试大于查询（6小时后）...");
     let after_time = base_time + Duration::hours(6);
-    let gt_condition = vec![
-        QueryCondition {
-            field: "event_time".to_string(),
-            operator: QueryOperator::Gt,
-            value: rat_quickdb::types::DataValue::DateTime(after_time),
-        },
-    ];
+    let gt_condition = vec![QueryCondition {
+        field: "event_time".to_string(),
+        operator: QueryOperator::Gt,
+        value: rat_quickdb::types::DataValue::DateTime(after_time),
+    }];
 
     match ModelManager::<TimeRangeTestModel>::find(gt_condition, None).await {
         Ok(results) => {
             println!("✅ 大于查询成功，找到 {} 条记录", results.len());
             for model in results {
-                println!("  📋 {}: {}", model.name, model.event_time.format("%Y-%m-%d %H:%M:%S UTC"));
+                println!(
+                    "  📋 {}: {}",
+                    model.name,
+                    model.event_time.format("%Y-%m-%d %H:%M:%S UTC")
+                );
             }
-        },
+        }
         Err(e) => {
             println!("❌ 大于查询失败: {}", e);
         }
@@ -154,21 +164,23 @@ async fn main() -> QuickDbResult<()> {
     // 5. 测试小于查询
     println!("5. 测试小于查询（4小时前）...");
     let before_time = base_time + Duration::hours(4);
-    let lt_condition = vec![
-        QueryCondition {
-            field: "event_time".to_string(),
-            operator: QueryOperator::Lt,
-            value: rat_quickdb::types::DataValue::String(before_time.to_rfc3339()),
-        },
-    ];
+    let lt_condition = vec![QueryCondition {
+        field: "event_time".to_string(),
+        operator: QueryOperator::Lt,
+        value: rat_quickdb::types::DataValue::String(before_time.to_rfc3339()),
+    }];
 
     match ModelManager::<TimeRangeTestModel>::find(lt_condition, None).await {
         Ok(results) => {
             println!("✅ 小于查询成功，找到 {} 条记录", results.len());
             for model in results {
-                println!("  📋 {}: {}", model.name, model.event_time.format("%Y-%m-%d %H:%M:%S UTC"));
+                println!(
+                    "  📋 {}: {}",
+                    model.name,
+                    model.event_time.format("%Y-%m-%d %H:%M:%S UTC")
+                );
             }
-        },
+        }
         Err(e) => {
             println!("❌ 小于查询失败: {}", e);
         }

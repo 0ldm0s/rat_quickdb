@@ -6,13 +6,13 @@
 //! - Snowflake (雪花算法)
 //! - ObjectId (MongoDB风格)
 
+use chrono::{DateTime, Utc};
+use rat_logger::{LoggerBuilder, debug, handler::term::TermConfig};
+use rat_quickdb::types::{ConnectionConfig, DatabaseType, IdStrategy, PoolConfig};
 use rat_quickdb::*;
-use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig, IdStrategy};
-use rat_quickdb::{ModelManager, ModelOperations, string_field, integer_field, datetime_field};
-use rat_logger::{LoggerBuilder, handler::term::TermConfig, debug};
-use serde::{Serialize, Deserialize};
+use rat_quickdb::{ModelManager, ModelOperations, datetime_field, integer_field, string_field};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::{Utc, DateTime};
 
 // 定义测试模型
 define_model! {
@@ -82,17 +82,17 @@ async fn test_auto_increment() -> QuickDbResult<()> {
             tls_config: None,
         },
         pool: PoolConfig::builder()
-                .max_connections(5)
-                .min_connections(1)
-                .connection_timeout(30)
-                .idle_timeout(300)
-                .max_lifetime(1800)
-                .max_retries(3)
-                .retry_interval_ms(1000)
-                .keepalive_interval_sec(60)
-                .health_check_timeout_sec(10)
-                .build()
-                .unwrap(),
+            .max_connections(5)
+            .min_connections(1)
+            .connection_timeout(30)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()
+            .unwrap(),
         alias: "auto_increment_db".to_string(),
         cache: None,
         id_strategy: IdStrategy::AutoIncrement,
@@ -121,7 +121,7 @@ async fn test_auto_increment() -> QuickDbResult<()> {
             Ok(id) => {
                 println!("✅ 用户 {} 创建成功，生成的ID: {}", i + 1, id);
                 created_ids.push(id);
-            },
+            }
             Err(e) => {
                 println!("❌ 用户 {} 创建失败: {}", i + 1, e);
                 return Err(e);
@@ -166,17 +166,17 @@ async fn test_uuid() -> QuickDbResult<()> {
             tls_config: None,
         },
         pool: PoolConfig::builder()
-                .max_connections(5)
-                .min_connections(1)
-                .connection_timeout(30)
-                .idle_timeout(300)
-                .max_lifetime(1800)
-                .max_retries(3)
-                .retry_interval_ms(1000)
-                .keepalive_interval_sec(60)
-                .health_check_timeout_sec(10)
-                .build()
-                .unwrap(),
+            .max_connections(5)
+            .min_connections(1)
+            .connection_timeout(30)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()
+            .unwrap(),
         id_strategy: IdStrategy::Uuid,
         cache: None,
     };
@@ -204,7 +204,7 @@ async fn test_uuid() -> QuickDbResult<()> {
             Ok(id) => {
                 println!("✅ 用户 {} 创建成功，生成的ID: {}", i + 1, id);
                 created_ids.push(id);
-            },
+            }
             Err(e) => {
                 println!("❌ 用户 {} 创建失败: {}", i + 1, e);
                 return Err(e);
@@ -254,18 +254,21 @@ async fn test_snowflake() -> QuickDbResult<()> {
             tls_config: None,
         },
         pool: PoolConfig::builder()
-                .max_connections(5)
-                .min_connections(1)
-                .connection_timeout(30)
-                .idle_timeout(300)
-                .max_lifetime(1800)
-                .max_retries(3)
-                .retry_interval_ms(1000)
-                .keepalive_interval_sec(60)
-                .health_check_timeout_sec(10)
-                .build()
-                .unwrap(),
-        id_strategy: IdStrategy::Snowflake { machine_id: 1, datacenter_id: 1 },
+            .max_connections(5)
+            .min_connections(1)
+            .connection_timeout(30)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()
+            .unwrap(),
+        id_strategy: IdStrategy::Snowflake {
+            machine_id: 1,
+            datacenter_id: 1,
+        },
         cache: None,
     };
 
@@ -292,7 +295,7 @@ async fn test_snowflake() -> QuickDbResult<()> {
             Ok(id) => {
                 println!("✅ 用户 {} 创建成功，生成的ID: {}", i + 1, id);
                 created_ids.push(id);
-            },
+            }
             Err(e) => {
                 println!("❌ 用户 {} 创建失败: {}", i + 1, e);
                 return Err(e);
@@ -326,12 +329,13 @@ async fn test_snowflake() -> QuickDbResult<()> {
                 let snowflake_epoch = 1288834974657; // Snowflake算法起始时间
                 let id_time = timestamp + snowflake_epoch;
 
-                if id_time <= current_time && (current_time - id_time) < 86400000 { // 不超过一天前
+                if id_time <= current_time && (current_time - id_time) < 86400000 {
+                    // 不超过一天前
                     println!("  ✅ ID时间戳有效: {}", id_time);
                 } else {
                     println!("  ⚠️  ID时间戳可能异常: {}", id_time);
                 }
-            },
+            }
             Err(_) => {
                 println!("  ❌ ID不是有效的数字: {}", id);
             }
@@ -366,7 +370,8 @@ async fn main() -> QuickDbResult<()> {
         let random_index = (std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos() % 3) as usize;
+            .as_nanos()
+            % 3) as usize;
         strategies[random_index]
     } else if args.len() == 2 {
         match args[1].as_str() {
@@ -399,13 +404,13 @@ async fn main() -> QuickDbResult<()> {
     match test_choice {
         "auto-increment" => {
             test_auto_increment().await?;
-        },
+        }
         "uuid" => {
             test_uuid().await?;
-        },
+        }
         "snowflake" => {
             test_snowflake().await?;
-        },
+        }
         _ => unreachable!(),
     }
 

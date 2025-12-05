@@ -1,10 +1,12 @@
 //! PostgreSQL UUID自动转换功能测试
 
-use rat_quickdb::*;
-use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig, DataValue, QueryCondition, QueryOperator};
+use rat_logger::{LevelFilter, LoggerBuilder, debug, handler::term::TermConfig};
 use rat_quickdb::manager::add_database;
+use rat_quickdb::types::{
+    ConnectionConfig, DataValue, DatabaseType, PoolConfig, QueryCondition, QueryOperator,
+};
+use rat_quickdb::*;
 use rat_quickdb::{ModelManager, ModelOperations};
-use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig, debug};
 use std::collections::HashMap;
 
 // 定义测试模型
@@ -91,13 +93,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n=== 测试2: 使用字符串UUID查询用户 ===");
-    let conditions = vec![
-        QueryCondition {
-            field: "id".to_string(),
-            operator: QueryOperator::Eq,
-            value: DataValue::String(user_id_string.to_string()),
-        }
-    ];
+    let conditions = vec![QueryCondition {
+        field: "id".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String(user_id_string.to_string()),
+    }];
 
     match ModelManager::<User>::find(conditions, None).await {
         Ok(users) => {
@@ -117,13 +117,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== 测试3: 使用无效UUID格式（应该失败） ===");
     let invalid_uuid = "invalid-uuid-format";
-    let invalid_conditions = vec![
-        QueryCondition {
-            field: "id".to_string(),
-            operator: QueryOperator::Eq,
-            value: DataValue::String(invalid_uuid.to_string()),
-        }
-    ];
+    let invalid_conditions = vec![QueryCondition {
+        field: "id".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String(invalid_uuid.to_string()),
+    }];
 
     match ModelManager::<User>::find(invalid_conditions, None).await {
         Ok(_) => {

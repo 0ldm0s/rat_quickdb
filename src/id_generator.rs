@@ -1,14 +1,14 @@
 //! ID 生成器模块
-//! 
+//!
 //! 提供多种 ID 生成策略，包括 UUID、雪花算法、MongoDB ObjectId 等。
 
 use crate::types::{IdStrategy, IdType};
-use anyhow::{anyhow, Result};
-use std::sync::atomic::{AtomicU64, Ordering};
+use anyhow::{Result, anyhow};
+use rat_logger::{error, info, warn};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
-use rat_logger::{info, warn, error};
 
 /// ID 生成器
 #[derive(Clone, Debug)]
@@ -25,9 +25,13 @@ impl IdGenerator {
     /// 创建新的 ID 生成器
     pub fn new(strategy: IdStrategy) -> Result<Self> {
         let snowflake_generator = match &strategy {
-            IdStrategy::Snowflake { machine_id, datacenter_id } => {
-                Some(Arc::new(SnowflakeGenerator::new(*machine_id, *datacenter_id)?))
-            }
+            IdStrategy::Snowflake {
+                machine_id,
+                datacenter_id,
+            } => Some(Arc::new(SnowflakeGenerator::new(
+                *machine_id,
+                *datacenter_id,
+            )?)),
             _ => None,
         };
 
@@ -63,14 +67,11 @@ impl IdGenerator {
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_secs() as u32;
-                
+
                 let random_bytes: [u8; 8] = rand::random();
-                let object_id = format!(
-                    "{:08x}{:016x}",
-                    timestamp,
-                    u64::from_be_bytes(random_bytes)
-                );
-                
+                let object_id =
+                    format!("{:08x}{:016x}", timestamp, u64::from_be_bytes(random_bytes));
+
                 Ok(IdType::String(object_id))
             }
             IdStrategy::Custom(generator_name) => {
@@ -80,7 +81,7 @@ impl IdGenerator {
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_nanos();
-                
+
                 let custom_id = format!("{}_{}", generator_name, timestamp);
                 Ok(IdType::String(custom_id))
             }
@@ -92,9 +93,7 @@ impl IdGenerator {
         match (&self.strategy, id) {
             (IdStrategy::AutoIncrement, IdType::Number(n)) => *n > 0,
             (IdStrategy::Uuid, IdType::String(s)) => Uuid::parse_str(s).is_ok(),
-            (IdStrategy::Snowflake { .. }, IdType::String(s)) => {
-                s.parse::<u64>().is_ok()
-            }
+            (IdStrategy::Snowflake { .. }, IdType::String(s)) => s.parse::<u64>().is_ok(),
             (IdStrategy::ObjectId, IdType::String(s)) => {
                 s.len() == 24 && s.chars().all(|c| c.is_ascii_hexdigit())
             }
@@ -197,7 +196,7 @@ impl SnowflakeGenerator {
 }
 
 /// MongoDB 自增 ID 生成器
-/// 
+///
 /// 用于在 MongoDB 中实现类似 MySQL 的自增 ID 功能
 #[derive(Debug)]
 pub struct MongoAutoIncrementGenerator {
@@ -245,10 +244,10 @@ mod tests {
     #[tokio::test]
     async fn test_uuid_generator() {
         let generator = IdGenerator::new(IdStrategy::Uuid).unwrap();
-        
+
         let id1 = generator.generate().await.unwrap();
         let id2 = generator.generate().await.unwrap();
-        
+
         // UUID 应该是字符串类型且不相等
         match (&id1, &id2) {
             (IdType::String(s1), IdType::String(s2)) => {
@@ -263,10 +262,10 @@ mod tests {
     #[tokio::test]
     async fn test_auto_increment_generator() {
         let generator = IdGenerator::new(IdStrategy::AutoIncrement).unwrap();
-        
+
         let id1 = generator.generate().await.unwrap();
         let id2 = generator.generate().await.unwrap();
-        
+
         // 自增 ID 应该是数字类型且递增
         match (&id1, &id2) {
             (IdType::Number(n1), IdType::Number(n2)) => {
@@ -284,11 +283,12 @@ mod tests {
         let generator = IdGenerator::new(IdStrategy::Snowflake {
             machine_id: 1,
             datacenter_id: 1,
-        }).unwrap();
-        
+        })
+        .unwrap();
+
         let id1 = generator.generate().await.unwrap();
         let id2 = generator.generate().await.unwrap();
-        
+
         // 雪花算法 ID 应该是字符串类型且不相等
         match (&id1, &id2) {
             (IdType::String(s1), IdType::String(s2)) => {
@@ -303,10 +303,10 @@ mod tests {
     #[tokio::test]
     async fn test_object_id_generator() {
         let generator = IdGenerator::new(IdStrategy::ObjectId).unwrap();
-        
+
         let id1 = generator.generate().await.unwrap();
         let id2 = generator.generate().await.unwrap();
-        
+
         // ObjectId 应该是字符串类型且不相等
         match (&id1, &id2) {
             (IdType::String(s1), IdType::String(s2)) => {
@@ -323,13 +323,13 @@ mod tests {
     #[tokio::test]
     async fn test_mongo_auto_increment_generator() {
         let generator = MongoAutoIncrementGenerator::new("test_collection".to_string());
-        
+
         let id1 = generator.next_id().await.unwrap();
         let id2 = generator.next_id().await.unwrap();
-        
+
         assert_eq!(id1, 1);
         assert_eq!(id2, 2);
-        
+
         // 测试设置起始值
         generator.set_start_value(100);
         let id3 = generator.next_id().await.unwrap();

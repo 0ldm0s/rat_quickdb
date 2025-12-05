@@ -2,7 +2,7 @@
 //!
 //! 提供创建各种字段类型的便捷函数
 
-use crate::model::field_types::{FieldType, FieldDefinition};
+use crate::model::field_types::{FieldDefinition, FieldType};
 use std::collections::HashMap;
 
 /// 便捷函数：创建数组字段
@@ -44,10 +44,7 @@ pub fn string_field(
 }
 
 /// 便捷函数：创建整数字段
-pub fn integer_field(
-    min_value: Option<i64>,
-    max_value: Option<i64>,
-) -> FieldDefinition {
+pub fn integer_field(min_value: Option<i64>, max_value: Option<i64>) -> FieldDefinition {
     FieldDefinition::new(FieldType::Integer {
         min_value,
         max_value,
@@ -55,10 +52,7 @@ pub fn integer_field(
 }
 
 /// 便捷函数：创建浮点数字段
-pub fn float_field(
-    min_value: Option<f64>,
-    max_value: Option<f64>,
-) -> FieldDefinition {
+pub fn float_field(min_value: Option<f64>, max_value: Option<f64>) -> FieldDefinition {
     FieldDefinition::new(FieldType::Float {
         min_value,
         max_value,
@@ -103,7 +97,5 @@ pub fn dict_field(fields: HashMap<String, FieldDefinition>) -> FieldDefinition {
 
 /// 便捷函数：创建引用字段
 pub fn reference_field(target_collection: String) -> FieldDefinition {
-    FieldDefinition::new(FieldType::Reference {
-        target_collection,
-    })
+    FieldDefinition::new(FieldType::Reference { target_collection })
 }

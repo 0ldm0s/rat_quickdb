@@ -9,25 +9,25 @@ use std::sync::atomic::{AtomicBool, Ordering};
 static GLOBAL_OPERATION_LOCK: AtomicBool = AtomicBool::new(false);
 
 // 导出所有公共模块
-pub mod error;
-pub mod types;
-pub mod pool;
-pub mod manager;
-pub mod odm;
-pub mod model;
-pub mod serializer;
 pub mod adapter;
 pub mod config;
+pub mod error;
+pub mod manager;
+pub mod model;
+pub mod odm;
+pub mod pool;
+pub mod serializer;
+pub mod types;
 pub mod utils;
 // pub mod task_queue;
-pub mod table;
-pub mod security;
 pub mod i18n;
+pub mod security;
+pub mod table;
 
 // 条件编译的模块
 pub mod cache;
-pub mod join_macro;
 pub mod id_generator;
+pub mod join_macro;
 pub mod stored_procedure;
 
 // 任务队列模块（仅在启用 python-bindings 特性时编译）
@@ -40,41 +40,38 @@ pub mod stored_procedure;
 
 // 重新导出常用类型和函数
 pub use error::{QuickDbError, QuickDbResult};
-pub use types::*;
+pub use manager::{
+    add_database, drop_table, get_aliases, health_check, register_model, set_default_alias,
+    table_exists,
+};
 pub use pool::DatabaseConnection;
-pub use manager::{
-    add_database, get_aliases, set_default_alias, health_check,
-    table_exists, drop_table, register_model
-};
+pub use types::*;
 
-pub use manager::{
-    get_cache_manager, get_cache_stats, clear_cache, clear_all_caches
-};
-pub use odm::{AsyncOdmManager, get_odm_manager, get_odm_manager_mut, OdmOperations};
+pub use manager::{clear_all_caches, clear_cache, get_cache_manager, get_cache_stats};
 pub use model::{
-    Model, ModelOperations, ModelManager, FieldType, FieldDefinition, ModelMeta, IndexDefinition,
-    array_field, list_field, string_field, integer_field, float_field, boolean_field,
-    datetime_field, datetime_with_tz_field, uuid_field, json_field, dict_field, reference_field
+    FieldDefinition, FieldType, IndexDefinition, Model, ModelManager, ModelMeta, ModelOperations,
+    array_field, boolean_field, datetime_field, datetime_with_tz_field, dict_field, float_field,
+    integer_field, json_field, list_field, reference_field, string_field, uuid_field,
 };
+pub use odm::{AsyncOdmManager, OdmOperations, get_odm_manager, get_odm_manager_mut};
 
 // 导出DateTime转换工具
-pub use model::conversion::datetime_conversion::convert_string_to_datetime_with_tz;
-pub use model::conversion::database_aware::convert_datetime_with_tz_aware;
-pub use serializer::{DataSerializer, SerializerConfig, OutputFormat, SerializationResult};
 pub use adapter::{DatabaseAdapter, create_adapter};
 pub use config::{
-    GlobalConfig, GlobalConfigBuilder, DatabaseConfigBuilder, PoolConfigBuilder,
-    AppConfig, AppConfigBuilder, LoggingConfig, LoggingConfigBuilder,
-    Environment, LogLevel, sqlite_config, postgres_config, mysql_config,
-    mongodb_config
+    AppConfig, AppConfigBuilder, DatabaseConfigBuilder, Environment, GlobalConfig,
+    GlobalConfigBuilder, LogLevel, LoggingConfig, LoggingConfigBuilder, PoolConfigBuilder,
+    mongodb_config, mysql_config, postgres_config, sqlite_config,
 };
+pub use model::conversion::database_aware::convert_datetime_with_tz_aware;
+pub use model::conversion::datetime_conversion::convert_string_to_datetime_with_tz;
+pub use serializer::{DataSerializer, OutputFormat, SerializationResult, SerializerConfig};
 // 任务队列导出（仅在启用 python-bindings 特性时编译）
 // #[cfg(feature = "python-bindings")]
 // pub use task_queue::{
 //     TaskQueueManager, get_global_task_queue, initialize_global_task_queue,
 //     shutdown_global_task_queue
 // };
-pub use table::{TableManager, TableSchema, ColumnDefinition, ColumnType, IndexType};
+pub use table::{ColumnDefinition, ColumnType, IndexType, TableManager, TableSchema};
 
 // 条件导出缓存相关类型
 pub use cache::{CacheManager, CacheStats};
@@ -86,7 +83,9 @@ pub use id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 pub use stored_procedure::*;
 
 // ODM 操作函数改为内部公开，仅用于框架内部使用
-pub(crate) use odm::{create, find_by_id, find, find_with_groups, update, update_by_id, delete, delete_by_id, count};
+pub(crate) use odm::{
+    count, create, delete, delete_by_id, find, find_by_id, find_with_groups, update, update_by_id,
+};
 pub(crate) use odm::{create_stored_procedure, execute_stored_procedure};
 
 // 保留有用的工具函数公开导出
@@ -114,8 +113,6 @@ macro_rules! debug_log {
         // 在 release 模式下不输出调试信息
     };
 }
-
-
 
 /// 初始化rat_quickdb库
 ///
@@ -194,7 +191,10 @@ fn apply_timezone_offset_to_datetime(
     if offset_seconds < -86399 || offset_seconds > 86399 {
         return Err(QuickDbError::ValidationError {
             field: "timezone_offset".to_string(),
-            message: format!("时区偏移超出有效范围: {}, 允许范围: -23:59 到 +23:59", timezone_offset),
+            message: format!(
+                "时区偏移超出有效范围: {}, 允许范围: -23:59 到 +23:59",
+                timezone_offset
+            ),
         });
     }
 
@@ -213,49 +213,95 @@ pub fn process_data_fields_from_metadata(
         if let Some(current_value) = data_map.get::<str>(field_name) {
             let converted_value = match current_value {
                 // 处理字符串类型的JSON数据
-                DataValue::String(json_str) if json_str.starts_with('[') || json_str.starts_with('{') => {
+                DataValue::String(json_str)
+                    if json_str.starts_with('[') || json_str.starts_with('{') =>
+                {
                     // 尝试解析JSON
                     match serde_json::from_str::<serde_json::Value>(json_str.as_str()) {
                         Ok(json_value) => {
-                            let converted = crate::types::data_value::json_value_to_data_value(json_value);
-                            debug_log!("字段 {} JSON转换成功: {:?} -> {:?}", field_name, json_str, converted);
+                            let converted =
+                                crate::types::data_value::json_value_to_data_value(json_value);
+                            debug_log!(
+                                "字段 {} JSON转换成功: {:?} -> {:?}",
+                                field_name,
+                                json_str,
+                                converted
+                            );
                             Some(converted)
                         }
                         Err(e) => {
-                            debug_log!("字段 {} JSON解析失败，保持原字符串: {} (错误: {})", field_name, json_str, e);
+                            debug_log!(
+                                "字段 {} JSON解析失败，保持原字符串: {} (错误: {})",
+                                field_name,
+                                json_str,
+                                e
+                            );
                             None // 解析失败，保持原字符串值
                         }
                     }
-                },
+                }
                 // 处理布尔字段的整数转换（SQLite等数据库的兼容性）
-                DataValue::Int(int_val) if matches!(field_def.field_type, crate::model::FieldType::Boolean) => {
+                DataValue::Int(int_val)
+                    if matches!(field_def.field_type, crate::model::FieldType::Boolean) =>
+                {
                     if *int_val == 0 || *int_val == 1 {
-                        debug_log!("字段 {} 整数转布尔: {} -> {}", field_name, int_val, *int_val == 1);
+                        debug_log!(
+                            "字段 {} 整数转布尔: {} -> {}",
+                            field_name,
+                            int_val,
+                            *int_val == 1
+                        );
                         Some(DataValue::Bool(*int_val == 1))
                     } else {
-                        debug_log!("字段 {} 整数值超出布尔范围: {}，保持原值", field_name, int_val);
+                        debug_log!(
+                            "字段 {} 整数值超出布尔范围: {}，保持原值",
+                            field_name,
+                            int_val
+                        );
                         None
                     }
-                },
+                }
                 // 处理DateTimeWithTz字段的时区转换
-                DataValue::DateTime(dt) if matches!(field_def.field_type, crate::model::FieldType::DateTimeWithTz { .. }) => {
-                    if let crate::model::FieldType::DateTimeWithTz { timezone_offset } = &field_def.field_type {
-                        debug_log!("字段 {} DateTimeWithTz时区转换: {} -> 时区 {}", field_name, dt, timezone_offset);
+                DataValue::DateTime(dt)
+                    if matches!(
+                        field_def.field_type,
+                        crate::model::FieldType::DateTimeWithTz { .. }
+                    ) =>
+                {
+                    if let crate::model::FieldType::DateTimeWithTz { timezone_offset } =
+                        &field_def.field_type
+                    {
+                        debug_log!(
+                            "字段 {} DateTimeWithTz时区转换: {} -> 时区 {}",
+                            field_name,
+                            dt,
+                            timezone_offset
+                        );
                         // 应用时区偏移转换
                         match apply_timezone_offset_to_datetime(*dt, timezone_offset) {
                             Ok(local_dt) => {
-                                debug_log!("字段 {} 时区转换成功: {} -> {}", field_name, dt, local_dt);
+                                debug_log!(
+                                    "字段 {} 时区转换成功: {} -> {}",
+                                    field_name,
+                                    dt,
+                                    local_dt
+                                );
                                 Some(DataValue::DateTime(local_dt))
-                            },
+                            }
                             Err(e) => {
-                                debug_log!("字段 {} 时区转换失败: {} (错误: {})", field_name, dt, e);
+                                debug_log!(
+                                    "字段 {} 时区转换失败: {} (错误: {})",
+                                    field_name,
+                                    dt,
+                                    e
+                                );
                                 None // 转换失败，保持原值
                             }
                         }
                     } else {
                         None
                     }
-                },
+                }
                 _ => None, // 其他类型保持不变
             };
 

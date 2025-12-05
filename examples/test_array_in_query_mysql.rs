@@ -2,18 +2,25 @@
 //!
 //! 测试 Array 字段的存储、查询和类型转换功能
 
-use rat_quickdb::*;
-use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig, QueryConditionGroup, LogicalOperator, QueryOptions, SortConfig, SortDirection};
-use rat_quickdb::model::FieldType;
+use rat_logger::{LevelFilter, LoggerBuilder, handler::term::TermConfig};
 use rat_quickdb::manager::health_check;
-use rat_quickdb::{ModelManager, ModelOperations, QueryCondition, QueryOperator, DataValue, array_field, field_types};
-use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
+use rat_quickdb::model::FieldType;
+use rat_quickdb::types::{
+    ConnectionConfig, DatabaseType, LogicalOperator, PoolConfig, QueryConditionGroup, QueryOptions,
+    SortConfig, SortDirection,
+};
+use rat_quickdb::*;
+use rat_quickdb::{
+    DataValue, ModelManager, ModelOperations, QueryCondition, QueryOperator, array_field,
+    field_types,
+};
 
 /// 显示结果的详细信息，包括Array字段的JSON格式
 fn display_array_test_result(index: usize, result: &ArrayTestModel) {
     // 将Array字段转换为JSON字符串显示
     let tags_json = serde_json::to_string(&result.tags).unwrap_or_else(|_| "[]".to_string());
-    let category_ids_json = serde_json::to_string(&result.category_ids).unwrap_or_else(|_| "[]".to_string());
+    let category_ids_json =
+        serde_json::to_string(&result.category_ids).unwrap_or_else(|_| "[]".to_string());
     let ratings_json = serde_json::to_string(&result.ratings).unwrap_or_else(|_| "[]".to_string());
 
     println!("  {}. {}", index + 1, result.name);
@@ -74,17 +81,17 @@ async fn main() -> QuickDbResult<()> {
             tls_config: None,
         },
         pool: PoolConfig::builder()
-                .max_connections(10)
-                .min_connections(1)
-                .connection_timeout(10)
-                .idle_timeout(300)
-                .max_lifetime(1800)
-                .max_retries(3)
-                .retry_interval_ms(1000)
-                .keepalive_interval_sec(60)
-                .health_check_timeout_sec(10)
-                .build()
-                .unwrap(),
+            .max_connections(10)
+            .min_connections(1)
+            .connection_timeout(10)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()
+            .unwrap(),
         id_strategy: IdStrategy::ObjectId,
         cache: None,
     };
@@ -106,28 +113,44 @@ async fn main() -> QuickDbResult<()> {
         ArrayTestModel {
             id: generate_object_id(),
             name: "iPhone 15".to_string(),
-            tags: vec!["apple".to_string(), "smartphone".to_string(), "premium".to_string()],
+            tags: vec![
+                "apple".to_string(),
+                "smartphone".to_string(),
+                "premium".to_string(),
+            ],
             category_ids: vec![1, 5, 10],
             ratings: vec![4.5, 4.8, 4.2],
         },
         ArrayTestModel {
             id: generate_object_id(),
             name: "Samsung Galaxy S24".to_string(),
-            tags: vec!["samsung".to_string(), "smartphone".to_string(), "android".to_string()],
+            tags: vec![
+                "samsung".to_string(),
+                "smartphone".to_string(),
+                "android".to_string(),
+            ],
             category_ids: vec![1, 5, 11],
             ratings: vec![4.3, 4.6, 4.1],
         },
         ArrayTestModel {
             id: generate_object_id(),
             name: "MacBook Pro".to_string(),
-            tags: vec!["apple".to_string(), "laptop".to_string(), "premium".to_string()],
+            tags: vec![
+                "apple".to_string(),
+                "laptop".to_string(),
+                "premium".to_string(),
+            ],
             category_ids: vec![2, 5, 12],
             ratings: vec![4.7, 4.9, 4.8],
         },
         ArrayTestModel {
             id: generate_object_id(),
             name: "Dell XPS 13".to_string(),
-            tags: vec!["dell".to_string(), "laptop".to_string(), "business".to_string()],
+            tags: vec![
+                "dell".to_string(),
+                "laptop".to_string(),
+                "business".to_string(),
+            ],
             category_ids: vec![2, 5, 13],
             ratings: vec![4.2, 4.4, 4.3],
         },
@@ -155,13 +178,15 @@ async fn main() -> QuickDbResult<()> {
             value: DataValue::Array(vec![DataValue::String("apple".to_string())]),
         }],
         None,
-    ).await {
+    )
+    .await
+    {
         Ok(results) => {
             println!("✓ 找到 {} 个产品:", results.len());
             for (i, result) in results.iter().enumerate() {
                 display_array_test_result(i, result);
             }
-        },
+        }
         Err(e) => {
             eprintln!("❌ 查询失败: {}", e);
         }
@@ -175,17 +200,19 @@ async fn main() -> QuickDbResult<()> {
             operator: QueryOperator::In,
             value: DataValue::Array(vec![
                 DataValue::String("laptop".to_string()),
-                DataValue::String("smartphone".to_string())
+                DataValue::String("smartphone".to_string()),
             ]),
         }],
         None,
-    ).await {
+    )
+    .await
+    {
         Ok(results) => {
             println!("✓ 找到 {} 个产品:", results.len());
             for (i, result) in results.iter().enumerate() {
                 display_array_test_result(i, result);
             }
-        },
+        }
         Err(e) => {
             eprintln!("❌ 查询失败: {}", e);
         }
@@ -200,13 +227,15 @@ async fn main() -> QuickDbResult<()> {
             value: DataValue::Array(vec![DataValue::Int(1)]),
         }],
         None,
-    ).await {
+    )
+    .await
+    {
         Ok(results) => {
             println!("✓ 找到 {} 个产品:", results.len());
             for (i, result) in results.iter().enumerate() {
                 display_array_test_result(i, result);
             }
-        },
+        }
         Err(e) => {
             eprintln!("❌ 查询失败: {}", e);
         }
@@ -221,13 +250,15 @@ async fn main() -> QuickDbResult<()> {
             value: DataValue::Array(vec![DataValue::Float(4.8)]),
         }],
         None,
-    ).await {
+    )
+    .await
+    {
         Ok(results) => {
             println!("✓ 找到 {} 个产品:", results.len());
             for (i, result) in results.iter().enumerate() {
                 display_array_test_result(i, result);
             }
-        },
+        }
         Err(e) => {
             eprintln!("❌ 查询失败: {}", e);
         }
@@ -242,10 +273,12 @@ async fn main() -> QuickDbResult<()> {
             value: DataValue::Array(vec![DataValue::String("apple".to_string())]),
         }],
         None,
-    ).await {
+    )
+    .await
+    {
         Ok(_) => {
             eprintln!("❌ 意外成功，应该报错");
-        },
+        }
         Err(e) => {
             println!("✓ 正确报错: {}", e);
         }
@@ -260,10 +293,12 @@ async fn main() -> QuickDbResult<()> {
             value: DataValue::Array(vec![DataValue::Bool(true)]),
         }],
         None,
-    ).await {
+    )
+    .await
+    {
         Ok(_) => {
             eprintln!("❌ 意外成功，应该报错");
-        },
+        }
         Err(e) => {
             println!("✓ 正确报错: {}", e);
         }
@@ -302,16 +337,13 @@ async fn main() -> QuickDbResult<()> {
         ],
     };
 
-    match ModelManager::<ArrayTestModel>::find_with_groups(
-        vec![complex_condition],
-        None,
-    ).await {
+    match ModelManager::<ArrayTestModel>::find_with_groups(vec![complex_condition], None).await {
         Ok(results) => {
             println!("✓ 找到 {} 个产品:", results.len());
             for (i, result) in results.iter().enumerate() {
                 display_array_test_result(i, result);
             }
-        },
+        }
         Err(e) => {
             eprintln!("❌ 复杂查询失败: {}", e);
         }

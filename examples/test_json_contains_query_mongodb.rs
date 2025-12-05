@@ -2,19 +2,27 @@
 //!
 //! 测试 JSON 字段的存储和 JsonContains 查询功能
 
-use rat_quickdb::*;
-use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig, QueryConditionGroup, LogicalOperator, QueryOptions, SortConfig, SortDirection};
-use rat_quickdb::model::FieldType;
+use rat_logger::{LevelFilter, LoggerBuilder, handler::term::TermConfig};
 use rat_quickdb::manager::health_check;
-use rat_quickdb::{ModelManager, ModelOperations, QueryCondition, QueryOperator, DataValue, json_field, field_types};
-use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
+use rat_quickdb::model::FieldType;
+use rat_quickdb::types::{
+    ConnectionConfig, DatabaseType, LogicalOperator, PoolConfig, QueryConditionGroup, QueryOptions,
+    SortConfig, SortDirection,
+};
+use rat_quickdb::*;
+use rat_quickdb::{
+    DataValue, ModelManager, ModelOperations, QueryCondition, QueryOperator, field_types,
+    json_field,
+};
 use serde_json::json;
 
 /// 显示结果的详细信息，包括JSON字段的JSON格式
 fn display_json_test_result(index: usize, result: &JsonTestModel) {
     // 将JSON字段转换为JSON字符串显示
-    let profile_json = serde_json::to_string_pretty(&result.profile).unwrap_or_else(|_| "null".to_string());
-    let settings_json = serde_json::to_string_pretty(&result.settings).unwrap_or_else(|_| "null".to_string());
+    let profile_json =
+        serde_json::to_string_pretty(&result.profile).unwrap_or_else(|_| "null".to_string());
+    let settings_json =
+        serde_json::to_string_pretty(&result.settings).unwrap_or_else(|_| "null".to_string());
 
     println!("  {}. {}", index + 1, result.name);
     println!("     profile: {}", profile_json);
@@ -88,17 +96,17 @@ async fn main() -> QuickDbResult<()> {
             },
         },
         pool: PoolConfig::builder()
-                .max_connections(10)
-                .min_connections(1)
-                .connection_timeout(10)
-                .idle_timeout(300)
-                .max_lifetime(1800)
-                .max_retries(3)
-                .retry_interval_ms(1000)
-                .keepalive_interval_sec(60)
-                .health_check_timeout_sec(10)
-                .build()
-                .unwrap(),
+            .max_connections(10)
+            .min_connections(1)
+            .connection_timeout(10)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()
+            .unwrap(),
         id_strategy: IdStrategy::ObjectId,
         cache: None,
     };
@@ -248,13 +256,15 @@ async fn main() -> QuickDbResult<()> {
             value: DataValue::String(r#"{"city": "北京"}"#.to_string()),
         }],
         None,
-    ).await {
+    )
+    .await
+    {
         Ok(results) => {
             println!("✓ 找到 {} 个用户:", results.len());
             for (i, result) in results.iter().enumerate() {
                 display_json_test_result(i, result);
             }
-        },
+        }
         Err(e) => {
             eprintln!("❌ 查询失败: {}", e);
         }
@@ -269,19 +279,20 @@ async fn main() -> QuickDbResult<()> {
             value: DataValue::String(r#"{"features": {"auto_save": true}}"#.to_string()),
         }],
         None,
-    ).await {
+    )
+    .await
+    {
         Ok(results) => {
             println!("✓ 找到 {} 个用户:", results.len());
             for (i, result) in results.iter().enumerate() {
                 display_json_test_result(i, result);
             }
-        },
+        }
         Err(e) => {
             eprintln!("❌ 查询失败: {}", e);
         }
     }
 
-  
     // 4. 复杂 JSON 查询测试
 
     // 测试4: 复杂组合查询 - (profile城市为'北京' OR profile城市为'上海') AND (settings主题为'dark')
@@ -314,16 +325,13 @@ async fn main() -> QuickDbResult<()> {
         ],
     };
 
-    match ModelManager::<JsonTestModel>::find_with_groups(
-        vec![complex_condition],
-        None,
-    ).await {
+    match ModelManager::<JsonTestModel>::find_with_groups(vec![complex_condition], None).await {
         Ok(results) => {
             println!("✓ 找到 {} 个用户:", results.len());
             for (i, result) in results.iter().enumerate() {
                 display_json_test_result(i, result);
             }
-        },
+        }
         Err(e) => {
             eprintln!("❌ 复杂查询失败: {}", e);
         }

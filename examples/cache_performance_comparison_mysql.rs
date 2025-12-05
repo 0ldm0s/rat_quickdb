@@ -3,15 +3,15 @@
 //! 本示例对比启用缓存和未启用缓存的MySQL数据库操作性能差异
 //! 使用 MySQL 数据库进行测试，支持SSL连接
 
-use rat_quickdb::*;
-use rat_quickdb::types::*;
+use rat_logger::{LoggerBuilder, debug, handler::term::TermConfig};
 use rat_quickdb::manager::shutdown;
-use rat_quickdb::{ModelOperations, string_field, integer_field, float_field, datetime_field};
+use rat_quickdb::types::*;
+use rat_quickdb::*;
+use rat_quickdb::{ModelOperations, datetime_field, float_field, integer_field, string_field};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
-use std::path::PathBuf;
-use rat_logger::{LoggerBuilder, handler::term::TermConfig, debug};
 
 // 定义缓存数据库用户模型
 define_model! {
@@ -156,23 +156,24 @@ impl CachePerformanceTest {
 
         // L1缓存配置（内存缓存）
         let l1_config = L1CacheConfig {
-            max_capacity: 1000,     // 最大1000个条目
-            max_memory_mb: 64,      // 64MB内存限制
-            enable_stats: true,     // 启用统计
+            max_capacity: 1000, // 最大1000个条目
+            max_memory_mb: 64,  // 64MB内存限制
+            enable_stats: true, // 启用统计
         };
 
         // L2缓存配置（磁盘缓存）
-        let l2_config = Some(L2CacheConfig::new("./cache/mysql_cache_test".to_string())
-            .with_max_disk_mb(512)     // 512MB磁盘缓存
-            .with_compression_level(3)  // ZSTD压缩级别
-            .enable_wal(true)          // 启用WAL模式
-            .clear_on_startup(true)    // 启动时清理缓存
+        let l2_config = Some(
+            L2CacheConfig::new("./cache/mysql_cache_test".to_string())
+                .with_max_disk_mb(512) // 512MB磁盘缓存
+                .with_compression_level(3) // ZSTD压缩级别
+                .enable_wal(true) // 启用WAL模式
+                .clear_on_startup(true), // 启动时清理缓存
         );
 
         // TTL配置
         let ttl_config = TtlConfig {
-            default_ttl_secs: 1800, // 默认30分钟
-            max_ttl_secs: 7200,     // 最大2小时
+            default_ttl_secs: 1800,   // 默认30分钟
+            max_ttl_secs: 7200,       // 最大2小时
             check_interval_secs: 120, // 检查间隔2分钟
         };
 
@@ -208,9 +209,9 @@ impl CachePerformanceTest {
             pool: PoolConfig {
                 min_connections: 1,
                 max_connections: 1,
-                connection_timeout: 10000,  // 10秒
-                idle_timeout: 600,          // 10分钟
-                max_lifetime: 1800,         // 30分钟
+                connection_timeout: 10000, // 10秒
+                idle_timeout: 600,         // 10分钟
+                max_lifetime: 1800,        // 30分钟
                 max_retries: 3,
                 retry_interval_ms: 1000,
                 keepalive_interval_sec: 60,
@@ -245,9 +246,9 @@ impl CachePerformanceTest {
             pool: PoolConfig {
                 min_connections: 1,
                 max_connections: 1,
-                connection_timeout: 10000,  // 10秒
-                idle_timeout: 600,          // 10分钟
-                max_lifetime: 1800,         // 30分钟
+                connection_timeout: 10000, // 10秒
+                idle_timeout: 600,         // 10分钟
+                max_lifetime: 1800,        // 30分钟
                 max_retries: 3,
                 retry_interval_ms: 1000,
                 keepalive_interval_sec: 60,
@@ -296,12 +297,14 @@ impl CachePerformanceTest {
 
         // 批量用户数据
         let batch_users: Vec<CachedUser> = (6..=25)
-            .map(|i| self.create_user(
-                &format!("batch_user_{}", i),
-                &format!("batch{}@example.com", i),
-                20 + (i % 30),
-                &["北京", "上海", "广州", "深圳", "杭州"][i as usize % 5],
-            ))
+            .map(|i| {
+                self.create_user(
+                    &format!("batch_user_{}", i),
+                    &format!("batch{}@example.com", i),
+                    20 + (i % 30),
+                    &["北京", "上海", "广州", "深圳", "杭州"][i as usize % 5],
+                )
+            })
             .collect();
 
         // 创建测试数据到两个数据库
@@ -325,20 +328,28 @@ impl CachePerformanceTest {
         ];
 
         let non_cached_batch_users: Vec<NonCachedUser> = (6..=25)
-            .map(|i| self.create_non_cached_user(
-                &format!("batch_user_{}", i),
-                &format!("batch{}_noncached@example.com", i),
-                20 + (i % 30),
-                &["北京", "上海", "广州", "深圳", "杭州"][i as usize % 5],
-            ))
+            .map(|i| {
+                self.create_non_cached_user(
+                    &format!("batch_user_{}", i),
+                    &format!("batch{}_noncached@example.com", i),
+                    20 + (i % 30),
+                    &["北京", "上海", "广州", "深圳", "杭州"][i as usize % 5],
+                )
+            })
             .collect();
 
-        for user in non_cached_test_users.iter().chain(non_cached_batch_users.iter()) {
+        for user in non_cached_test_users
+            .iter()
+            .chain(non_cached_batch_users.iter())
+        {
             let mut user_clone = user.clone();
             user_clone.save().await?;
         }
 
-        println!("  ✅ 创建了 {} 条测试记录", test_users.len() + batch_users.len());
+        println!(
+            "  ✅ 创建了 {} 条测试记录",
+            test_users.len() + batch_users.len()
+        );
         Ok(())
     }
 
@@ -355,7 +366,13 @@ impl CachePerformanceTest {
     }
 
     /// 创建非缓存用户数据
-    fn create_non_cached_user(&self, name: &str, email: &str, age: i32, city: &str) -> NonCachedUser {
+    fn create_non_cached_user(
+        &self,
+        name: &str,
+        email: &str,
+        age: i32,
+        city: &str,
+    ) -> NonCachedUser {
         NonCachedUser {
             id: String::new(), // 框架会自动生成UUID
             name: name.to_string(),
@@ -374,13 +391,11 @@ impl CachePerformanceTest {
         set_default_alias("cached_mysql").await?;
 
         // 执行一些查询操作来预热缓存
-        let conditions = vec![
-            QueryCondition {
-                field: "age".to_string(),
-                operator: QueryOperator::Gt,
-                value: DataValue::Int(20),
-            }
-        ];
+        let conditions = vec![QueryCondition {
+            field: "age".to_string(),
+            operator: QueryOperator::Gt,
+            value: DataValue::Int(20),
+        }];
 
         // 预热查询
         let _result = ModelManager::<CachedUser>::find(conditions, None).await?;
@@ -399,13 +414,11 @@ impl CachePerformanceTest {
     async fn test_query_operations(&mut self) -> QuickDbResult<()> {
         println!("\n🔍 测试MySQL查询操作性能...");
 
-        let conditions = vec![
-            QueryCondition {
-                field: "name".to_string(),
-                operator: QueryOperator::Eq,
-                value: DataValue::String("user1".to_string()),
-            }
-        ];
+        let conditions = vec![QueryCondition {
+            field: "name".to_string(),
+            operator: QueryOperator::Eq,
+            value: DataValue::String("user1".to_string()),
+        }];
 
         // 第一次查询（冷启动，从数据库读取）
         set_default_alias("cached_mysql").await?;
@@ -436,13 +449,11 @@ impl CachePerformanceTest {
     async fn test_repeated_queries(&mut self) -> QuickDbResult<()> {
         println!("\n🔄 测试MySQL重复查询性能（缓存命中测试）...");
 
-        let conditions = vec![
-            QueryCondition {
-                field: "age".to_string(),
-                operator: QueryOperator::Gt,
-                value: DataValue::Int(20),
-            }
-        ];
+        let conditions = vec![QueryCondition {
+            field: "age".to_string(),
+            operator: QueryOperator::Gt,
+            value: DataValue::Int(20),
+        }];
 
         let query_count = 10;
 
@@ -473,14 +484,18 @@ impl CachePerformanceTest {
             format!("重复查询 ({}次)", query_count),
             avg_cached_time,
             avg_non_cached_time,
-        ).with_cache_hit_rate(95.0); // 假设95%的缓存命中率
+        )
+        .with_cache_hit_rate(95.0); // 假设95%的缓存命中率
 
         println!("  ✅ 不带缓存总耗时: {:?}", non_cached_duration);
         println!("  ✅ 带缓存总耗时: {:?}", cached_duration);
         println!("  ✅ 不带缓存平均查询: {:?}", avg_non_cached_time);
         println!("  ✅ 带缓存平均查询: {:?}", avg_cached_time);
         println!("  📈 性能提升: {:.2}x", result.improvement_ratio);
-        println!("  🎯 缓存命中率: {:.1}%", result.cache_hit_rate.unwrap_or(0.0));
+        println!(
+            "  🎯 缓存命中率: {:.1}%",
+            result.cache_hit_rate.unwrap_or(0.0)
+        );
 
         self.results.push(result);
         Ok(())
@@ -533,13 +548,11 @@ impl CachePerformanceTest {
     async fn test_update_operations(&mut self) -> QuickDbResult<()> {
         println!("\n✏️ 测试MySQL更新操作性能...");
 
-        let conditions = vec![
-            QueryCondition {
-                field: "name".to_string(),
-                operator: QueryOperator::Eq,
-                value: DataValue::String("user1".to_string()),
-            }
-        ];
+        let conditions = vec![QueryCondition {
+            field: "name".to_string(),
+            operator: QueryOperator::Eq,
+            value: DataValue::String("user1".to_string()),
+        }];
 
         // 查找要更新的用户
         set_default_alias("cached_mysql").await?;
@@ -552,7 +565,10 @@ impl CachePerformanceTest {
             user_clone.email = "user1_updated@example.com".to_string();
             let mut updates = HashMap::new();
             updates.insert("age".to_string(), DataValue::Int(26));
-            updates.insert("email".to_string(), DataValue::String("user1_updated@example.com".to_string()));
+            updates.insert(
+                "email".to_string(),
+                DataValue::String("user1_updated@example.com".to_string()),
+            );
             let _update_result = user_clone.update(updates).await?;
             let first_update_duration = start.elapsed();
 
@@ -572,7 +588,10 @@ impl CachePerformanceTest {
             user_update2.email = "user1_updated@example.com".to_string();
             let mut updates2 = HashMap::new();
             updates2.insert("age".to_string(), DataValue::Int(26));
-            updates2.insert("email".to_string(), DataValue::String("user1_updated@example.com".to_string()));
+            updates2.insert(
+                "email".to_string(),
+                DataValue::String("user1_updated@example.com".to_string()),
+            );
             let _update_result2 = user_update2.update(updates2).await?;
             let second_update_duration = start.elapsed();
 
@@ -599,7 +618,10 @@ impl CachePerformanceTest {
         println!("\n📊 ==================== MySQL缓存性能测试结果汇总 ====================");
         println!("连接配置: 172.16.0.21:3306 (SSL模式)");
         println!("数据库: testdb");
-        println!("{:<25} {:<15} {:<15} {:<10} {:<10}", "操作类型", "带缓存(ms)", "不带缓存(ms)", "提升倍数", "缓存命中率");
+        println!(
+            "{:<25} {:<15} {:<15} {:<10} {:<10}",
+            "操作类型", "带缓存(ms)", "不带缓存(ms)", "提升倍数", "缓存命中率"
+        );
         println!("{}", "-".repeat(80));
 
         let mut total_improvement = 0.0;

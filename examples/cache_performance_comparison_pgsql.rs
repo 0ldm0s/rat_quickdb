@@ -3,13 +3,13 @@
 //! 本示例对比启用缓存和未启用缓存的PostgreSQL数据库操作性能差异
 //! 使用 PostgreSQL 数据库进行测试，支持 TLS 和 SSL 连接
 
-use rat_quickdb::*;
-use rat_quickdb::types::*;
+use rat_logger::{LoggerBuilder, debug, handler::term::TermConfig};
 use rat_quickdb::manager::shutdown;
-use rat_quickdb::{ModelOperations, string_field, integer_field, datetime_field};
+use rat_quickdb::types::*;
+use rat_quickdb::*;
+use rat_quickdb::{ModelOperations, datetime_field, integer_field, string_field};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use rat_logger::{LoggerBuilder, handler::term::TermConfig, debug};
 
 // 定义缓存数据库用户模型
 define_model! {
@@ -143,23 +143,24 @@ impl PgCachePerformanceTest {
     fn create_cached_database_config() -> DatabaseConfig {
         // L1缓存配置（内存缓存）
         let l1_config = L1CacheConfig {
-            max_capacity: 1000,     // 最大1000个条目
-            max_memory_mb: 64,      // 64MB内存限制
-            enable_stats: true,     // 启用统计
+            max_capacity: 1000, // 最大1000个条目
+            max_memory_mb: 64,  // 64MB内存限制
+            enable_stats: true, // 启用统计
         };
 
         // L2缓存配置（磁盘缓存）
-        let l2_config = Some(L2CacheConfig::new("./cache/pgsql_cache_test".to_string())
-            .with_max_disk_mb(512)     // 512MB磁盘缓存
-            .with_compression_level(3)  // ZSTD压缩级别
-            .enable_wal(true)          // 启用WAL模式
-            .clear_on_startup(false)   // 不启动时清理缓存，保留L2缓存
+        let l2_config = Some(
+            L2CacheConfig::new("./cache/pgsql_cache_test".to_string())
+                .with_max_disk_mb(512) // 512MB磁盘缓存
+                .with_compression_level(3) // ZSTD压缩级别
+                .enable_wal(true) // 启用WAL模式
+                .clear_on_startup(false), // 不启动时清理缓存，保留L2缓存
         );
 
         // TTL配置
         let ttl_config = TtlConfig {
-            default_ttl_secs: 1800, // 默认30分钟
-            max_ttl_secs: 7200,     // 最大2小时
+            default_ttl_secs: 1800,   // 默认30分钟
+            max_ttl_secs: 7200,       // 最大2小时
             check_interval_secs: 120, // 检查间隔2分钟
         };
 
@@ -205,13 +206,13 @@ impl PgCachePerformanceTest {
             pool: PoolConfig {
                 min_connections: 1,
                 max_connections: 1,
-                connection_timeout: 10000,  // 增加到10秒
+                connection_timeout: 10000, // 增加到10秒
                 idle_timeout: 600,
                 max_lifetime: 3600,
-                max_retries: 5,  // 增加重试次数
-                retry_interval_ms: 500,  // 减少重试间隔
-                keepalive_interval_sec: 60,  // 增加保活间隔
-                health_check_timeout_sec: 10,  // 增加健康检查超时
+                max_retries: 5,               // 增加重试次数
+                retry_interval_ms: 500,       // 减少重试间隔
+                keepalive_interval_sec: 60,   // 增加保活间隔
+                health_check_timeout_sec: 10, // 增加健康检查超时
             },
             alias: "cached_db".to_string(),
             cache: Some(cache_config),
@@ -246,13 +247,13 @@ impl PgCachePerformanceTest {
             pool: PoolConfig {
                 min_connections: 1,
                 max_connections: 1,
-                connection_timeout: 10000,  // 增加到10秒
+                connection_timeout: 10000, // 增加到10秒
                 idle_timeout: 600,
                 max_lifetime: 3600,
-                max_retries: 5,  // 增加重试次数
-                retry_interval_ms: 500,  // 减少重试间隔
-                keepalive_interval_sec: 60,  // 增加保活间隔
-                health_check_timeout_sec: 10,  // 增加健康检查超时
+                max_retries: 5,               // 增加重试次数
+                retry_interval_ms: 500,       // 减少重试间隔
+                keepalive_interval_sec: 60,   // 增加保活间隔
+                health_check_timeout_sec: 10, // 增加健康检查超时
             },
             alias: "non_cached_db".to_string(),
             cache: None, // 明确禁用缓存
@@ -297,11 +298,13 @@ impl PgCachePerformanceTest {
 
         // 批量用户数据 - 缓存数据库 - 自动生成ID
         let batch_cached_users: Vec<CachedUser> = (6..=25)
-            .map(|i| self.create_user(
-                &format!("批量用户{}", i),
-                &format!("batch{}_cached@example.com", i),
-                (20 + (i % 30)) as i32,
-            ))
+            .map(|i| {
+                self.create_user(
+                    &format!("批量用户{}", i),
+                    &format!("batch{}_cached@example.com", i),
+                    (20 + (i % 30)) as i32,
+                )
+            })
             .collect();
 
         // 非缓存数据库的用户数据（相同数据，用于性能对比）
@@ -315,11 +318,13 @@ impl PgCachePerformanceTest {
 
         // 批量用户数据 - 非缓存数据库 - 自动生成ID
         let batch_non_cached_users: Vec<NonCachedUser> = (26..=45)
-            .map(|i| self.create_non_cached_user(
-                &format!("批量用户{}", i),
-                &format!("batch{}_non_cached@example.com", i),
-                (20 + (i % 30)) as i32,
-            ))
+            .map(|i| {
+                self.create_non_cached_user(
+                    &format!("批量用户{}", i),
+                    &format!("batch{}_non_cached@example.com", i),
+                    (20 + (i % 30)) as i32,
+                )
+            })
             .collect();
 
         // 创建测试数据到两个数据库
@@ -341,9 +346,14 @@ impl PgCachePerformanceTest {
             user_clone.save().await?;
         }
 
-        println!("  ✅ 创建了 {} 条测试记录（每个数据库{}条）",
-                cached_users.len() + batch_cached_users.len() + non_cached_users.len() + batch_non_cached_users.len(),
-                cached_users.len() + batch_cached_users.len());
+        println!(
+            "  ✅ 创建了 {} 条测试记录（每个数据库{}条）",
+            cached_users.len()
+                + batch_cached_users.len()
+                + non_cached_users.len()
+                + batch_non_cached_users.len(),
+            cached_users.len() + batch_cached_users.len()
+        );
         Ok(())
     }
 
@@ -377,35 +387,29 @@ impl PgCachePerformanceTest {
         set_default_alias("cached_db").await?;
 
         // 执行一些查询操作来预热缓存
-        let conditions = vec![
-            QueryCondition {
-                field: "age".to_string(),
-                operator: QueryOperator::Gt,
-                value: DataValue::Int(20),
-            }
-        ];
+        let conditions = vec![QueryCondition {
+            field: "age".to_string(),
+            operator: QueryOperator::Gt,
+            value: DataValue::Int(20),
+        }];
 
         // 预热查询 - 按年龄查询
         let _result = ModelManager::<CachedUser>::find(conditions, None).await?;
 
         // 按姓名查询预热（避免使用ID，因为PostgreSQL使用AutoIncrement）
-        let name_conditions = vec![
-            QueryCondition {
-                field: "name".to_string(),
-                operator: QueryOperator::Eq,
-                value: DataValue::String("张三".to_string()),
-            }
-        ];
+        let name_conditions = vec![QueryCondition {
+            field: "name".to_string(),
+            operator: QueryOperator::Eq,
+            value: DataValue::String("张三".to_string()),
+        }];
         let _result = ModelManager::<CachedUser>::find(name_conditions, None).await?;
 
         // 按邮箱查询预热
-        let email_conditions = vec![
-            QueryCondition {
-                field: "email".to_string(),
-                operator: QueryOperator::Eq,
-                value: DataValue::String("zhangsan_cached@example.com".to_string()),
-            }
-        ];
+        let email_conditions = vec![QueryCondition {
+            field: "email".to_string(),
+            operator: QueryOperator::Eq,
+            value: DataValue::String("zhangsan_cached@example.com".to_string()),
+        }];
         let _result = ModelManager::<CachedUser>::find(email_conditions, None).await?;
 
         println!("  ✅ 缓存预热完成");
@@ -416,13 +420,11 @@ impl PgCachePerformanceTest {
     async fn test_query_operations(&mut self) -> QuickDbResult<()> {
         println!("\n🔍 测试查询操作性能...");
 
-        let conditions = vec![
-            QueryCondition {
-                field: "name".to_string(),
-                operator: QueryOperator::Eq,
-                value: DataValue::String("张三".to_string()),
-            }
-        ];
+        let conditions = vec![QueryCondition {
+            field: "name".to_string(),
+            operator: QueryOperator::Eq,
+            value: DataValue::String("张三".to_string()),
+        }];
 
         // 第一次查询（冷启动，从数据库读取）
         set_default_alias("cached_db").await?;
@@ -453,13 +455,11 @@ impl PgCachePerformanceTest {
     async fn test_repeated_queries(&mut self) -> QuickDbResult<()> {
         println!("\n🔄 测试重复查询性能（缓存命中测试）...");
 
-        let conditions = vec![
-            QueryCondition {
-                field: "age".to_string(),
-                operator: QueryOperator::Gt,
-                value: DataValue::Int(20),
-            }
-        ];
+        let conditions = vec![QueryCondition {
+            field: "age".to_string(),
+            operator: QueryOperator::Gt,
+            value: DataValue::Int(20),
+        }];
 
         let query_count = 10;
 
@@ -494,14 +494,18 @@ impl PgCachePerformanceTest {
             format!("重复查询 ({}次)", query_count),
             avg_cached_time,
             avg_non_cached_time,
-        ).with_cache_hit_rate(95.0); // 假设95%的缓存命中率
+        )
+        .with_cache_hit_rate(95.0); // 假设95%的缓存命中率
 
         println!("  ✅ 不带缓存总耗时: {:?}", non_cached_duration);
         println!("  ✅ 带缓存总耗时: {:?}", cached_duration);
         println!("  ✅ 不带缓存平均查询: {:?}", avg_non_cached_time);
         println!("  ✅ 带缓存平均查询: {:?}", avg_cached_time);
         println!("  📈 性能提升: {:.2}x", result.improvement_ratio);
-        println!("  🎯 缓存命中率: {:.1}%", result.cache_hit_rate.unwrap_or(0.0));
+        println!(
+            "  🎯 缓存命中率: {:.1}%",
+            result.cache_hit_rate.unwrap_or(0.0)
+        );
 
         self.results.push(result);
         Ok(())
@@ -517,29 +521,32 @@ impl PgCachePerformanceTest {
             "lisi_cached@example.com",
             "wangwu_cached@example.com",
             "zhaoliu_cached@example.com",
-            "qianqi_cached@example.com"
+            "qianqi_cached@example.com",
         ];
 
         // 首次批量查询（建立缓存）
         set_default_alias("cached_db").await?;
-        println!("  🔍 批量查询前检查: 找到 {} 个名为'张三'的用户",
-                 ModelManager::<CachedUser>::find(vec![
-                     QueryCondition {
-                         field: "name".to_string(),
-                         operator: QueryOperator::Eq,
-                         value: DataValue::String("张三".to_string()),
-                     }
-                 ], None).await?.len());
+        println!(
+            "  🔍 批量查询前检查: 找到 {} 个名为'张三'的用户",
+            ModelManager::<CachedUser>::find(
+                vec![QueryCondition {
+                    field: "name".to_string(),
+                    operator: QueryOperator::Eq,
+                    value: DataValue::String("张三".to_string()),
+                }],
+                None
+            )
+            .await?
+            .len()
+        );
 
         let start = Instant::now();
         for email in &user_emails {
-            let conditions = vec![
-                QueryCondition {
-                    field: "email".to_string(),
-                    operator: QueryOperator::Eq,
-                    value: DataValue::String(email.to_string()),
-                }
-            ];
+            let conditions = vec![QueryCondition {
+                field: "email".to_string(),
+                operator: QueryOperator::Eq,
+                value: DataValue::String(email.to_string()),
+            }];
             let _result = ModelManager::<CachedUser>::find(conditions, None).await?;
         }
         let first_batch_duration = start.elapsed();
@@ -547,13 +554,11 @@ impl PgCachePerformanceTest {
         // 第二次批量查询（缓存命中）
         let start = Instant::now();
         for email in &user_emails {
-            let conditions = vec![
-                QueryCondition {
-                    field: "email".to_string(),
-                    operator: QueryOperator::Eq,
-                    value: DataValue::String(email.to_string()),
-                }
-            ];
+            let conditions = vec![QueryCondition {
+                field: "email".to_string(),
+                operator: QueryOperator::Eq,
+                value: DataValue::String(email.to_string()),
+            }];
             let _result = ModelManager::<CachedUser>::find(conditions, None).await?;
         }
         let cached_duration = start.elapsed();
@@ -569,15 +574,16 @@ impl PgCachePerformanceTest {
         println!("  📈 性能提升: {:.2}x", result.improvement_ratio);
 
         // 检查张三用户是否还存在
-        let zhangsan_conditions = vec![
-            QueryCondition {
-                field: "name".to_string(),
-                operator: QueryOperator::Eq,
-                value: DataValue::String("张三".to_string()),
-            }
-        ];
+        let zhangsan_conditions = vec![QueryCondition {
+            field: "name".to_string(),
+            operator: QueryOperator::Eq,
+            value: DataValue::String("张三".to_string()),
+        }];
         let zhangsan_check = ModelManager::<CachedUser>::find(zhangsan_conditions, None).await?;
-        println!("  🔍 批量查询后检查: 找到 {} 个名为'张三'的用户", zhangsan_check.len());
+        println!(
+            "  🔍 批量查询后检查: 找到 {} 个名为'张三'的用户",
+            zhangsan_check.len()
+        );
 
         self.results.push(result);
         Ok(())
@@ -587,13 +593,11 @@ impl PgCachePerformanceTest {
     async fn test_update_operations(&mut self) -> QuickDbResult<()> {
         println!("\n✏️ 测试更新操作性能...");
 
-        let conditions = vec![
-            QueryCondition {
-                field: "name".to_string(),
-                operator: QueryOperator::Eq,
-                value: DataValue::String("张三".to_string()),
-            }
-        ];
+        let conditions = vec![QueryCondition {
+            field: "name".to_string(),
+            operator: QueryOperator::Eq,
+            value: DataValue::String("张三".to_string()),
+        }];
 
         // 查找要更新的用户
         set_default_alias("cached_db").await?;
@@ -647,7 +651,10 @@ impl PgCachePerformanceTest {
     /// 显示测试结果汇总
     fn display_results(&self) {
         println!("\n📊 ==================== 性能测试结果汇总 ====================");
-        println!("{:<25} {:<15} {:<15} {:<10} {:<10}", "操作类型", "带缓存(ms)", "不带缓存(ms)", "提升倍数", "缓存命中率");
+        println!(
+            "{:<25} {:<15} {:<15} {:<10} {:<10}",
+            "操作类型", "带缓存(ms)", "不带缓存(ms)", "提升倍数", "缓存命中率"
+        );
         println!("{}", "-".repeat(80));
 
         let mut total_improvement = 0.0;

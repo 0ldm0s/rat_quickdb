@@ -14,17 +14,19 @@
 //! - 连接池管理，高并发支持
 //! - 存储引擎选择（InnoDB/MyISAM）
 
-use rat_quickdb::*;
-use rat_quickdb::types::*;
-use rat_quickdb::{ModelManager, ModelOperations,
-    string_field, integer_field, float_field, boolean_field, datetime_field, uuid_field};
+use chrono::Utc;
+use rat_logger::{LevelFilter, LoggerBuilder, debug, handler::term::TermConfig};
 use rat_quickdb::types::UpdateOperation;
-use rat_quickdb::types::{QueryConditionGroup, LogicalOperator};
-use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig, debug};
+use rat_quickdb::types::*;
+use rat_quickdb::types::{LogicalOperator, QueryConditionGroup};
+use rat_quickdb::*;
+use rat_quickdb::{
+    ModelManager, ModelOperations, boolean_field, datetime_field, float_field, integer_field,
+    string_field, uuid_field,
+};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Instant, SystemTime};
-use chrono::Utc;
-use serde::{Serialize, Deserialize};
 
 // 用户模型 - 用于批量操作演示
 define_model! {
@@ -145,7 +147,9 @@ impl QueryStats {
             self.complex_queries,
             self.batch_operations + self.complex_queries,
             if self.batch_operations + self.complex_queries > 0 {
-                self.successful_operations as f64 / (self.batch_operations + self.complex_queries) as f64 * 100.0
+                self.successful_operations as f64
+                    / (self.batch_operations + self.complex_queries) as f64
+                    * 100.0
             } else {
                 0.0
             },
@@ -251,16 +255,17 @@ async fn demonstrate_batch_operations() -> Result<QueryStats, Box<dyn std::error
     let start = Instant::now();
 
     let mut update_data = HashMap::new();
-    update_data.insert("department".to_string(), DataValue::String("升级部门".to_string()));
+    update_data.insert(
+        "department".to_string(),
+        DataValue::String("升级部门".to_string()),
+    );
     update_data.insert("salary".to_string(), DataValue::Float(50000.0));
 
-    let update_conditions = vec![
-        QueryCondition {
-            field: "age".to_string(),
-            operator: QueryOperator::Gte,
-            value: DataValue::Int(40),
-        },
-    ];
+    let update_conditions = vec![QueryCondition {
+        field: "age".to_string(),
+        operator: QueryOperator::Gte,
+        value: DataValue::Int(40),
+    }];
 
     // 执行批量更新
     let operations = vec![
@@ -274,7 +279,10 @@ async fn demonstrate_batch_operations() -> Result<QueryStats, Box<dyn std::error
 
     match update_result {
         Ok(updated_count) => {
-            println!("✅ 批量更新成功: {} 条记录，耗时 {}ms", updated_count, update_time);
+            println!(
+                "✅ 批量更新成功: {} 条记录，耗时 {}ms",
+                updated_count, update_time
+            );
             stats.add_operation(update_time, true, true);
         }
         Err(e) => {
@@ -287,20 +295,21 @@ async fn demonstrate_batch_operations() -> Result<QueryStats, Box<dyn std::error
     println!("\n执行批量删除...");
     let start = Instant::now();
 
-    let delete_conditions = vec![
-        QueryCondition {
-            field: "is_active".to_string(),
-            operator: QueryOperator::Eq,
-            value: DataValue::Bool(false),
-        },
-    ];
+    let delete_conditions = vec![QueryCondition {
+        field: "is_active".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::Bool(false),
+    }];
 
     let delete_result = User::delete_many(delete_conditions).await;
     let delete_time = start.elapsed().as_millis() as u64;
 
     match delete_result {
         Ok(deleted_count) => {
-            println!("✅ 批量删除成功: {} 条记录，耗时 {}ms", deleted_count, delete_time);
+            println!(
+                "✅ 批量删除成功: {} 条记录，耗时 {}ms",
+                deleted_count, delete_time
+            );
             stats.add_operation(delete_time, true, true);
         }
         Err(e) => {
@@ -325,17 +334,19 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
     println!("\n1. 简单条件查询...");
     let start = Instant::now();
 
-    let simple_conditions = vec![
-        QueryCondition {
-            field: "category".to_string(),
-            operator: QueryOperator::Eq,
-            value: DataValue::String("电子产品".to_string()),
-        },
-    ];
+    let simple_conditions = vec![QueryCondition {
+        field: "category".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("电子产品".to_string()),
+    }];
 
     let simple_result = ModelManager::<Product>::find(simple_conditions, None).await?;
     let simple_time = start.elapsed().as_millis() as u64;
-    println!("✅ 电子产品查询: {} 条记录，耗时 {}ms", simple_result.len(), simple_time);
+    println!(
+        "✅ 电子产品查询: {} 条记录，耗时 {}ms",
+        simple_result.len(),
+        simple_time
+    );
     stats.add_operation(simple_time, true, false);
 
     // 2. 复杂AND/OR混用查询 - (is_available = true AND (category = '电子产品' OR price >= 180.0))
@@ -368,9 +379,14 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
         ],
     };
 
-    let complex_result = ModelManager::<Product>::find_with_groups(vec![complex_condition], None).await?;
+    let complex_result =
+        ModelManager::<Product>::find_with_groups(vec![complex_condition], None).await?;
     let complex_time = start.elapsed().as_millis() as u64;
-    println!("✅ AND/OR混用查询: {} 条记录，耗时 {}ms", complex_result.len(), complex_time);
+    println!(
+        "✅ AND/OR混用查询: {} 条记录，耗时 {}ms",
+        complex_result.len(),
+        complex_time
+    );
     stats.add_operation(complex_time, true, false);
 
     // 3. 排序查询
@@ -393,10 +409,20 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
 
     let sort_result = ModelManager::<Product>::find(vec![], Some(sort_options)).await?;
     let sort_time = start.elapsed().as_millis() as u64;
-    println!("✅ 排序查询: {} 条记录，耗时 {}ms", sort_result.len(), sort_time);
+    println!(
+        "✅ 排序查询: {} 条记录，耗时 {}ms",
+        sort_result.len(),
+        sort_time
+    );
     println!("   最贵3个产品:");
     for (i, product) in sort_result.iter().take(3).enumerate() {
-        println!("   {}. {} - ${:.2} - {}", i + 1, product.name, product.price, product.category);
+        println!(
+            "   {}. {} - ${:.2} - {}",
+            i + 1,
+            product.name,
+            product.price,
+            product.category
+        );
     }
     stats.add_operation(sort_time, true, false);
 
@@ -405,26 +431,30 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
     let start = Instant::now();
 
     let pagination_options = QueryOptions {
-        pagination: Some(PaginationConfig {
-            skip: 10,
-            limit: 5,
-        }),
-        sort: vec![
-            SortConfig {
-                field: "rating".to_string(),
-                direction: SortDirection::Desc,
-            },
-        ],
+        pagination: Some(PaginationConfig { skip: 10, limit: 5 }),
+        sort: vec![SortConfig {
+            field: "rating".to_string(),
+            direction: SortDirection::Desc,
+        }],
         ..Default::default()
     };
 
     let page_result = ModelManager::<Product>::find(vec![], Some(pagination_options)).await?;
     let page_time = start.elapsed().as_millis() as u64;
-    println!("✅ 分页查询: {} 条记录，耗时 {}ms", page_result.len(), page_time);
+    println!(
+        "✅ 分页查询: {} 条记录，耗时 {}ms",
+        page_result.len(),
+        page_time
+    );
     println!("   第2页产品 (按评分排序):");
     for (i, product) in page_result.iter().enumerate() {
-        println!("   {}. {} - 评分: {:.1} - ${:.2}", i + 11, product.name,
-                 product.rating.unwrap_or(0.0), product.price);
+        println!(
+            "   {}. {} - 评分: {:.1} - ${:.2}",
+            i + 11,
+            product.name,
+            product.rating.unwrap_or(0.0),
+            product.price
+        );
     }
     stats.add_operation(page_time, true, false);
 
@@ -433,16 +463,30 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
     let start = Instant::now();
 
     let field_options = QueryOptions {
-        fields: vec!["name".to_string(), "price".to_string(), "category".to_string()],
+        fields: vec![
+            "name".to_string(),
+            "price".to_string(),
+            "category".to_string(),
+        ],
         ..Default::default()
     };
 
     let field_result = ModelManager::<Product>::find(vec![], Some(field_options)).await?;
     let field_time = start.elapsed().as_millis() as u64;
-    println!("✅ 字段选择查询: {} 条记录，耗时 {}ms", field_result.len(), field_time);
+    println!(
+        "✅ 字段选择查询: {} 条记录，耗时 {}ms",
+        field_result.len(),
+        field_time
+    );
     println!("   前5个产品 (仅显示名称、价格、类别):");
     for (i, product) in field_result.iter().take(5).enumerate() {
-        println!("   {}. {} - ${:.2} - {}", i + 1, product.name, product.price, product.category);
+        println!(
+            "   {}. {} - ${:.2} - {}",
+            i + 1,
+            product.name,
+            product.price,
+            product.category
+        );
     }
     stats.add_operation(field_time, true, false);
 
@@ -450,19 +494,17 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
     println!("\n6. IN查询 (数组字段)...");
     let start = Instant::now();
 
-    let in_conditions = vec![
-        QueryCondition {
-            field: "tags".to_string(),
-            operator: QueryOperator::In,
-            value: DataValue::Array(vec![
-                DataValue::String("热销".to_string()),
-                DataValue::String("新品".to_string()),
-                DataValue::String("推荐".to_string()),
-                DataValue::String("特价".to_string()),
-                DataValue::String("限量".to_string()),
-            ]),
-        },
-    ];
+    let in_conditions = vec![QueryCondition {
+        field: "tags".to_string(),
+        operator: QueryOperator::In,
+        value: DataValue::Array(vec![
+            DataValue::String("热销".to_string()),
+            DataValue::String("新品".to_string()),
+            DataValue::String("推荐".to_string()),
+            DataValue::String("特价".to_string()),
+            DataValue::String("限量".to_string()),
+        ]),
+    }];
 
     let in_result = ModelManager::<Product>::find(in_conditions, None).await?;
     let in_time = start.elapsed().as_millis() as u64;
@@ -488,35 +530,44 @@ async fn performance_benchmark() -> Result<(), Box<dyn std::error::Error>> {
 
     // 测试不同查询类型的性能
     let test_queries = vec![
-        ("单字段查询", vec![QueryCondition {
-            field: "is_available".to_string(),
-            operator: QueryOperator::Eq,
-            value: DataValue::Bool(true),
-        }]),
-        ("双字段AND查询", vec![
-            QueryCondition {
+        (
+            "单字段查询",
+            vec![QueryCondition {
                 field: "is_available".to_string(),
                 operator: QueryOperator::Eq,
                 value: DataValue::Bool(true),
-            },
-            QueryCondition {
-                field: "price".to_string(),
-                operator: QueryOperator::Gte,
-                value: DataValue::Float(300.0),
-            },
-        ]),
-        ("范围查询", vec![
-            QueryCondition {
-                field: "price".to_string(),
-                operator: QueryOperator::Gte,
-                value: DataValue::Float(100.0),
-            },
-            QueryCondition {
-                field: "price".to_string(),
-                operator: QueryOperator::Lte,
-                value: DataValue::Float(500.0),
-            },
-        ]),
+            }],
+        ),
+        (
+            "双字段AND查询",
+            vec![
+                QueryCondition {
+                    field: "is_available".to_string(),
+                    operator: QueryOperator::Eq,
+                    value: DataValue::Bool(true),
+                },
+                QueryCondition {
+                    field: "price".to_string(),
+                    operator: QueryOperator::Gte,
+                    value: DataValue::Float(300.0),
+                },
+            ],
+        ),
+        (
+            "范围查询",
+            vec![
+                QueryCondition {
+                    field: "price".to_string(),
+                    operator: QueryOperator::Gte,
+                    value: DataValue::Float(100.0),
+                },
+                QueryCondition {
+                    field: "price".to_string(),
+                    operator: QueryOperator::Lte,
+                    value: DataValue::Float(500.0),
+                },
+            ],
+        ),
     ];
 
     for (name, conditions) in test_queries {
@@ -590,17 +641,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 cipher_suites: None,
             }),
         })
-        .pool(PoolConfig::builder()
-            .max_connections(1)
-            .min_connections(1)
-            .connection_timeout(30)
-            .idle_timeout(300)
-            .max_lifetime(3600)
-            .max_retries(3)
-            .retry_interval_ms(1000)
-            .keepalive_interval_sec(60)
-            .health_check_timeout_sec(10)
-            .build()?)
+        .pool(
+            PoolConfig::builder()
+                .max_connections(1)
+                .min_connections(1)
+                .connection_timeout(30)
+                .idle_timeout(300)
+                .max_lifetime(3600)
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()?,
+        )
         .alias("main")
         .id_strategy(IdStrategy::Uuid)
         .build()?;

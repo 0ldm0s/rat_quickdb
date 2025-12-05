@@ -54,8 +54,14 @@ mod tests {
         register_database_alias("test_sqlite".to_string(), DatabaseType::SQLite).unwrap();
         register_database_alias("test_mysql".to_string(), DatabaseType::MySQL).unwrap();
 
-        assert_eq!(get_database_type_by_alias("test_sqlite"), Some(DatabaseType::SQLite));
-        assert_eq!(get_database_type_by_alias("test_mysql"), Some(DatabaseType::MySQL));
+        assert_eq!(
+            get_database_type_by_alias("test_sqlite"),
+            Some(DatabaseType::SQLite)
+        );
+        assert_eq!(
+            get_database_type_by_alias("test_mysql"),
+            Some(DatabaseType::MySQL)
+        );
         assert_eq!(get_database_type_by_alias("nonexistent"), None);
 
         let aliases = get_all_registered_aliases();

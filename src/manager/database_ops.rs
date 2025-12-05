@@ -1,18 +1,19 @@
-  //! 数据库操作相关方法
 
-use crate::error::{QuickDbError, QuickDbResult};
-use crate::pool::{ConnectionPool, PooledConnection, ExtendedPoolConfig};
-use crate::types::{DatabaseConfig, DatabaseType, IdType};
-use crate::id_generator::{IdGenerator, MongoAutoIncrementGenerator};
+//! 数据库操作相关方法
+
 use crate::cache::{CacheManager, CacheStats};
+use crate::error::{QuickDbError, QuickDbResult};
+use crate::id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 use crate::model::ModelMeta;
+use crate::pool::{ConnectionPool, ExtendedPoolConfig, PooledConnection};
 use crate::types::id_types::IdStrategy;
+use crate::types::{DatabaseConfig, DatabaseType, IdType};
 use dashmap::DashMap;
+use rat_logger::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tokio::time::{interval, Duration};
-use rat_logger::{info, warn, error, debug};
+use tokio::time::{Duration, interval};
 
 use super::PoolManager;
 
@@ -20,15 +21,15 @@ impl PoolManager {
     /// 添加数据库配置并创建连接池
     pub async fn add_database(&self, config: DatabaseConfig) -> QuickDbResult<()> {
         let alias = config.alias.clone();
-        
-                info!("添加数据库配置: 别名={}, 类型={:?}", alias, config.db_type);
-        
+
+        info!("添加数据库配置: 别名={}, 类型={:?}", alias, config.db_type);
+
         // 检查别名是否已存在
         if self.pools.contains_key(&alias) {
             warn!("数据库别名已存在，将替换现有配置: {}", alias);
             self.remove_database(&alias).await?;
         }
-        
+
         // 初始化缓存管理器（如果配置了缓存）
         let cache_manager_arc = if let Some(cache_config) = &config.cache {
             let cache_manager = CacheManager::new(cache_config.clone()).await.map_err(|e| {
@@ -37,41 +38,47 @@ impl PoolManager {
             })?;
             let cache_manager_arc = Arc::new(cache_manager);
             // 保存到管理器中
-            self.cache_managers.insert(alias.clone(), cache_manager_arc.clone());
+            self.cache_managers
+                .insert(alias.clone(), cache_manager_arc.clone());
             debug!("为数据库 {} 创建缓存管理器", alias);
             Some(cache_manager_arc)
         } else {
             None
         };
-        
+
         // 创建连接池（传入缓存管理器）
         let pool_config = ExtendedPoolConfig::from_pool_config(config.pool.clone());
-                let pool = ConnectionPool::with_config_and_cache(config.clone(), pool_config, cache_manager_arc).await.map_err(|e| {
-            error!("连接池创建失败: 别名={}, 错误={}", alias, e);
-            e
-        })?;
-        
+        let pool =
+            ConnectionPool::with_config_and_cache(config.clone(), pool_config, cache_manager_arc)
+                .await
+                .map_err(|e| {
+                    error!("连接池创建失败: 别名={}, 错误={}", alias, e);
+                    e
+                })?;
+
         // 添加到管理器
         self.pools.insert(alias.clone(), Arc::new(pool));
-        
+
         // 初始化ID生成器
         match IdGenerator::new(config.id_strategy.clone()) {
             Ok(generator) => {
-                self.id_generators.insert(alias.clone(), Arc::new(generator));
+                self.id_generators
+                    .insert(alias.clone(), Arc::new(generator));
                 debug!("为数据库 {} 创建ID生成器: {:?}", alias, config.id_strategy);
             }
             Err(e) => {
                 warn!("为数据库 {} 创建ID生成器失败: {}", alias, e);
             }
         }
-        
+
         // 为MongoDB创建自增ID生成器
         if matches!(config.db_type, DatabaseType::MongoDB) {
             let mongo_generator = MongoAutoIncrementGenerator::new(alias.clone());
-            self.mongo_auto_increment_generators.insert(alias.clone(), Arc::new(mongo_generator));
+            self.mongo_auto_increment_generators
+                .insert(alias.clone(), Arc::new(mongo_generator));
             debug!("为MongoDB数据库 {} 创建自增ID生成器", alias);
         }
-        
+
         // 如果这是第一个数据库，设置为默认
         {
             let mut default_alias = self.default_alias.write().await;
@@ -93,20 +100,20 @@ impl PoolManager {
     /// 移除数据库配置
     pub async fn remove_database(&self, alias: &str) -> QuickDbResult<()> {
         info!("移除数据库配置: 别名={}", alias);
-        
+
         if let Some((_, _pool)) = self.pools.remove(alias) {
             // 清理ID生成器
             self.id_generators.remove(alias);
             self.mongo_auto_increment_generators.remove(alias);
-            
+
             // 清理缓存管理器
             if let Some((_, cache_manager)) = self.cache_managers.remove(alias) {
                 // 这里可以添加缓存清理逻辑
                 info!("清理数据库 {} 的缓存管理器", alias);
             }
-            
+
             info!("数据库配置已移除: 别名={}", alias);
-            
+
             // 如果移除的是默认数据库，重新设置默认
             {
                 let mut default_alias = self.default_alias.write().await;
@@ -119,7 +126,7 @@ impl PoolManager {
                     }
                 }
             }
-            
+
             Ok(())
         } else {
             Err(crate::quick_error!(alias_not_found, alias))
@@ -151,8 +158,11 @@ impl PoolManager {
 
     /// 释放连接
     pub async fn release_connection(&self, connection: &PooledConnection) -> QuickDbResult<()> {
-        debug!("释放数据库连接: ID={}, 别名={}", connection.id, connection.alias);
-        
+        debug!(
+            "释放数据库连接: ID={}, 别名={}",
+            connection.id, connection.alias
+        );
+
         if let Some(pool) = self.pools.get(&connection.alias) {
             pool.release_connection(&connection.id).await
         } else {
@@ -183,8 +193,6 @@ impl PoolManager {
         }
     }
 
-
-
     /// 获取数据库类型
     pub fn get_database_type(&self, alias: &str) -> QuickDbResult<DatabaseType> {
         if let Some(pool) = self.pools.get(alias) {
@@ -203,21 +211,30 @@ impl PoolManager {
         }
     }
 
-      /// 获取ID生成器
+    /// 获取ID生成器
     pub fn get_id_generator(&self, alias: &str) -> QuickDbResult<Arc<IdGenerator>> {
         if let Some(generator) = self.id_generators.get(alias) {
             Ok(generator.clone())
         } else {
-            Err(crate::quick_error!(config, format!("数据库 {} 没有配置ID生成器", alias)))
+            Err(crate::quick_error!(
+                config,
+                format!("数据库 {} 没有配置ID生成器", alias)
+            ))
         }
     }
 
     /// 获取MongoDB自增ID生成器
-    pub fn get_mongo_auto_increment_generator(&self, alias: &str) -> QuickDbResult<Arc<MongoAutoIncrementGenerator>> {
+    pub fn get_mongo_auto_increment_generator(
+        &self,
+        alias: &str,
+    ) -> QuickDbResult<Arc<MongoAutoIncrementGenerator>> {
         if let Some(generator) = self.mongo_auto_increment_generators.get(alias) {
             Ok(generator.clone())
         } else {
-            Err(crate::quick_error!(config, format!("数据库 {} 没有MongoDB自增ID生成器", alias)))
+            Err(crate::quick_error!(
+                config,
+                format!("数据库 {} 没有MongoDB自增ID生成器", alias)
+            ))
         }
     }
 

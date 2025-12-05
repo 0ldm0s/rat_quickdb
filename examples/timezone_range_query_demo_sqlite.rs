@@ -2,11 +2,11 @@
 //!
 //! 展示如何使用时区感知的DateTime字段进行范围查询
 
-use rat_quickdb::*;
-use rat_quickdb::types::{QueryCondition, QueryOperator, DataValue, QueryOptions};
-use rat_quickdb::manager::shutdown;
-use rat_quickdb::{ModelOperations, string_field, integer_field, datetime_field};
 use chrono::{DateTime, Utc};
+use rat_quickdb::manager::shutdown;
+use rat_quickdb::types::{DataValue, QueryCondition, QueryOperator, QueryOptions};
+use rat_quickdb::*;
+use rat_quickdb::{ModelOperations, datetime_field, integer_field, string_field};
 use std::collections::HashMap;
 
 // 定义用户活动日志模型（使用北京时间）
@@ -99,17 +99,19 @@ async fn main() -> QuickDbResult<()> {
             path: "./timezone_range_demo.db".to_string(),
             create_if_missing: true,
         })
-        .pool(PoolConfig::builder()
-            .min_connections(2)
-            .max_connections(10)
-            .connection_timeout(30)
-            .idle_timeout(300)
-            .max_lifetime(3600)
-            .max_retries(3)
-            .retry_interval_ms(1000)
-            .keepalive_interval_sec(60)
-            .health_check_timeout_sec(10)
-            .build()?)
+        .pool(
+            PoolConfig::builder()
+                .min_connections(2)
+                .max_connections(10)
+                .connection_timeout(30)
+                .idle_timeout(300)
+                .max_lifetime(3600)
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()?,
+        )
         .alias("default".to_string())
         .id_strategy(IdStrategy::Uuid)
         .build()?;
@@ -158,45 +160,45 @@ async fn create_test_data() -> QuickDbResult<()> {
             "张三",
             "login",
             "用户登录系统",
-            "2024-01-15T09:30:00+08:00",  // 北京时间上午9:30
+            "2024-01-15T09:30:00+08:00", // 北京时间上午9:30
             15,
-            "192.168.1.100"
+            "192.168.1.100",
         ),
         create_user_activity(
             "user_002",
             "李四",
             "file_upload",
             "上传文件report.pdf",
-            "2024-01-15T14:20:00+08:00",  // 北京时间下午2:20
+            "2024-01-15T14:20:00+08:00", // 北京时间下午2:20
             45,
-            "192.168.1.101"
+            "192.168.1.101",
         ),
         create_user_activity(
             "user_003",
             "王五",
             "data_export",
             "导出年度报表数据",
-            "2024-01-15T16:45:00+08:00",  // 北京时间下午4:45
+            "2024-01-15T16:45:00+08:00", // 北京时间下午4:45
             120,
-            "192.168.1.102"
+            "192.168.1.102",
         ),
         create_user_activity(
             "user_001",
             "张三",
             "meeting",
             "参加团队会议",
-            "2024-01-15T20:00:00+08:00",  // 北京时间晚上8:00
+            "2024-01-15T20:00:00+08:00", // 北京时间晚上8:00
             90,
-            "192.168.1.100"
+            "192.168.1.100",
         ),
         create_user_activity(
             "user_004",
             "赵六",
             "system_backup",
             "执行系统备份",
-            "2024-01-16T01:30:00+08:00",  // 北京时间次日凌晨1:30
+            "2024-01-16T01:30:00+08:00", // 北京时间次日凌晨1:30
             60,
-            "192.168.1.103"
+            "192.168.1.103",
         ),
     ];
 
@@ -214,40 +216,40 @@ async fn create_test_data() -> QuickDbResult<()> {
             "web_server",
             "warning",
             "Web服务器重启",
-            "2024-01-15T01:30:00Z",  // UTC时间1:30
-            150
+            "2024-01-15T01:30:00Z", // UTC时间1:30
+            150,
         ),
         create_system_event(
             "database_maintenance",
             "database",
             "info",
             "数据库例行维护",
-            "2024-01-15T06:00:00Z",  // UTC时间6:00
-            0
+            "2024-01-15T06:00:00Z", // UTC时间6:00
+            0,
         ),
         create_system_event(
             "security_alert",
             "firewall",
             "critical",
             "检测到异常登录尝试",
-            "2024-01-15T12:45:00Z",  // UTC时间12:45
-            3
+            "2024-01-15T12:45:00Z", // UTC时间12:45
+            3,
         ),
         create_system_event(
             "performance_issue",
             "api_server",
             "error",
             "API响应时间异常",
-            "2024-01-15T15:30:00Z",  // UTC时间15:30
-            500
+            "2024-01-15T15:30:00Z", // UTC时间15:30
+            500,
         ),
         create_system_event(
             "network_outage",
             "load_balancer",
             "critical",
             "负载均衡器故障",
-            "2024-01-15T18:15:00Z",  // UTC时间18:15
-            1200
+            "2024-01-15T18:15:00Z", // UTC时间18:15
+            1200,
         ),
     ];
 
@@ -293,15 +295,16 @@ async fn test_beijing_time_range_query() -> QuickDbResult<()> {
                 // 现在框架支持输入输出一致性：
                 // 输入：String("2024-01-15T09:00:00+08:00")
                 // 输出：String("2024-01-15T09:00:00+08:00")
-                println!("   - {} ({}) - {} - 持续{}分钟 - {}",
+                println!(
+                    "   - {} ({}) - {} - 持续{}分钟 - {}",
                     activity.username,
                     activity.activity_type,
-                    activity.beijing_time,  // 现在是String类型，自动保持时区格式
+                    activity.beijing_time, // 现在是String类型，自动保持时区格式
                     activity.duration_minutes,
                     activity.description
                 );
             }
-        },
+        }
         Err(e) => println!("❌ 查询失败: {}", e),
     }
 
@@ -337,15 +340,16 @@ async fn test_utc_time_range_query() -> QuickDbResult<()> {
         Ok(events) => {
             println!("✅ 找到 {} 个系统事件:", events.len());
             for event in events {
-                println!("   - {} ({}) - 影响用户:{} - {}",
+                println!(
+                    "   - {} ({}) - 影响用户:{} - {}",
                     event.event_type,
                     event.severity,
                     event.affected_users,
-                    event.utc_timestamp  // 现在是String类型，自动保持时区格式
+                    event.utc_timestamp // 现在是String类型，自动保持时区格式
                 );
                 println!("     消息: {}", event.message);
             }
-        },
+        }
         Err(e) => println!("❌ 查询失败: {}", e),
     }
 
@@ -368,7 +372,7 @@ async fn test_duration_range_query() -> QuickDbResult<()> {
         QueryCondition {
             field: "duration_minutes".to_string(),
             operator: QueryOperator::Lte,
-            value: DataValue::Int(120),  // 2小时 = 120分钟
+            value: DataValue::Int(120), // 2小时 = 120分钟
         },
     ];
 
@@ -378,14 +382,15 @@ async fn test_duration_range_query() -> QuickDbResult<()> {
         Ok(activities) => {
             println!("✅ 找到 {} 个长时间活动:", activities.len());
             for activity in activities {
-                println!("   - {} ({}) - {}分钟 - {}",
+                println!(
+                    "   - {} ({}) - {}分钟 - {}",
                     activity.username,
                     activity.activity_type,
                     activity.duration_minutes,
                     activity.description
                 );
             }
-        },
+        }
         Err(e) => println!("❌ 查询失败: {}", e),
     }
 
@@ -428,15 +433,16 @@ async fn test_complex_range_query() -> QuickDbResult<()> {
         Ok(events) => {
             println!("✅ 找到 {} 个高影响系统事件:", events.len());
             for event in events {
-                println!("   - {} ({}) - 影响用户:{} - {}",
+                println!(
+                    "   - {} ({}) - 影响用户:{} - {}",
                     event.event_type,
                     event.severity,
                     event.affected_users,
-                    event.utc_timestamp  // 现在是String类型，自动保持时区格式
+                    event.utc_timestamp // 现在是String类型，自动保持时区格式
                 );
                 println!("     消息: {}", event.message);
             }
-        },
+        }
         Err(e) => println!("❌ 查询失败: {}", e),
     }
 
@@ -454,12 +460,15 @@ async fn test_timezone_conversion() -> QuickDbResult<()> {
         Ok(activities) => {
             println!("✅ 验证 {} 个用户活动的时区转换:", activities.len());
             for activity in activities {
-                println!("   用户: {} - 活动: {}", activity.username, activity.activity_type);
+                println!(
+                    "   用户: {} - 活动: {}",
+                    activity.username, activity.activity_type
+                );
                 println!("     北京时间: {} (输入输出一致)", activity.beijing_time);
                 println!("     描述: {}", activity.description);
                 println!();
             }
-        },
+        }
         Err(e) => println!("❌ 查询失败: {}", e),
     }
 
@@ -474,20 +483,20 @@ fn create_user_activity(
     username: &str,
     activity_type: &str,
     description: &str,
-    beijing_time_str: &str,  // 北京时间字符串
+    beijing_time_str: &str, // 北京时间字符串
     duration_minutes: i32,
     ip_address: &str,
 ) -> UserActivity {
     UserActivity {
-        id: String::new(),  // 框架会自动生成ID
+        id: String::new(), // 框架会自动生成ID
         user_id: user_id.to_string(),
         username: username.to_string(),
         activity_type: activity_type.to_string(),
         description: description.to_string(),
-        beijing_time: beijing_time_str.to_string(),  // 直接使用字符串格式
+        beijing_time: beijing_time_str.to_string(), // 直接使用字符串格式
         duration_minutes,
         ip_address: ip_address.to_string(),
-        created_at: Utc::now().to_rfc3339(),  // 转换为字符串格式
+        created_at: Utc::now().to_rfc3339(), // 转换为字符串格式
     }
 }
 
@@ -497,19 +506,18 @@ fn create_system_event(
     component: &str,
     severity: &str,
     message: &str,
-    utc_timestamp_str: &str,  // UTC时间字符串
+    utc_timestamp_str: &str, // UTC时间字符串
     affected_users: i32,
 ) -> SystemEvent {
     SystemEvent {
-        id: String::new(),  // 框架会自动生成ID
+        id: String::new(), // 框架会自动生成ID
         event_type: event_type.to_string(),
         component: component.to_string(),
         severity: severity.to_string(),
         message: message.to_string(),
-        utc_timestamp: utc_timestamp_str.to_string(),  // 直接使用字符串格式
+        utc_timestamp: utc_timestamp_str.to_string(), // 直接使用字符串格式
         affected_users,
         resolved: false,
         resolved_at: None,
     }
 }
-

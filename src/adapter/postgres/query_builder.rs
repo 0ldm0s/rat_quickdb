@@ -2,10 +2,10 @@
 //!
 //! 提供安全的SQL查询构建功能，防止SQL注入攻击
 
-use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
 use crate::adapter::utils::get_field_type;
+use crate::error::{QuickDbError, QuickDbResult};
 use crate::security::DatabaseSecurityValidator;
+use crate::types::*;
 use std::collections::HashMap;
 
 /// SQL查询构建器
@@ -74,7 +74,6 @@ impl SqlQueryBuilder {
         }
     }
 
-    
     /// 设置查询类型为SELECT
     pub fn select(mut self, fields: &[&str]) -> Self {
         self.query_type = QueryType::Select;
@@ -102,7 +101,6 @@ impl SqlQueryBuilder {
         self
     }
 
-    
     /// 添加WHERE条件
     pub fn where_condition(mut self, condition: QueryCondition) -> Self {
         self.conditions.push(condition);
@@ -210,16 +208,21 @@ impl SqlQueryBuilder {
                 JoinType::Right => "RIGHT JOIN",
                 JoinType::Full => "FULL OUTER JOIN",
             };
-            sql.push_str(&format!(" {} {} ON {}", join_type, join.table, join.on_condition));
+            sql.push_str(&format!(
+                " {} {} ON {}",
+                join_type, join.table, join.on_condition
+            ));
         }
 
         // 添加WHERE条件（优先使用条件组合）
         if !self.condition_groups.is_empty() {
-            let (where_clause, where_params) = self.build_where_clause_from_groups(&self.condition_groups, table, alias)?;
+            let (where_clause, where_params) =
+                self.build_where_clause_from_groups(&self.condition_groups, table, alias)?;
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);
         } else if !self.conditions.is_empty() {
-            let (where_clause, where_params) = self.build_where_clause(&self.conditions, table, alias)?;
+            let (where_clause, where_params) =
+                self.build_where_clause(&self.conditions, table, alias)?;
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);
         }
@@ -231,14 +234,16 @@ impl SqlQueryBuilder {
 
         // 添加HAVING
         if !self.having.is_empty() {
-            let (having_clause, having_params) = self.build_where_clause(&self.having, table, alias)?;
+            let (having_clause, having_params) =
+                self.build_where_clause(&self.having, table, alias)?;
             sql.push_str(&format!(" HAVING {}", having_clause));
             params.extend(having_params);
         }
 
         // 添加ORDER BY
         if !self.order_by.is_empty() {
-            let order_clauses: Vec<String> = self.order_by
+            let order_clauses: Vec<String> = self
+                .order_by
                 .iter()
                 .map(|o| {
                     let direction = match o.direction {
@@ -277,7 +282,8 @@ impl SqlQueryBuilder {
         }
 
         // 过滤掉 NULL 值，让数据库使用默认值或 NULL
-        let non_null_values: HashMap<String, DataValue> = self.values
+        let non_null_values: HashMap<String, DataValue> = self
+            .values
             .iter()
             .filter(|(_, value)| !matches!(value, DataValue::Null))
             .map(|(k, v)| (k.clone(), v.clone()))
@@ -323,7 +329,8 @@ impl SqlQueryBuilder {
         }
 
         // 过滤掉 NULL 值，让数据库保持原值或设置为 NULL（如果需要显式设置 NULL，应该使用 IS NULL 操作）
-        let non_null_values: HashMap<String, DataValue> = self.values
+        let non_null_values: HashMap<String, DataValue> = self
+            .values
             .iter()
             .filter(|(_, value)| !matches!(value, DataValue::Null))
             .map(|(k, v)| (k.clone(), v.clone()))
@@ -336,18 +343,22 @@ impl SqlQueryBuilder {
         }
 
         let mut param_index = 1;
-        let set_clauses: Vec<String> = non_null_values.keys().map(|k| {
-            let placeholder = self.get_placeholder(param_index);
-            param_index += 1;
-            format!("{} = {}", k, placeholder)
-        }).collect();
+        let set_clauses: Vec<String> = non_null_values
+            .keys()
+            .map(|k| {
+                let placeholder = self.get_placeholder(param_index);
+                param_index += 1;
+                format!("{} = {}", k, placeholder)
+            })
+            .collect();
         let mut params: Vec<DataValue> = non_null_values.values().cloned().collect();
 
         let mut sql = format!("UPDATE {} SET {}", table, set_clauses.join(", "));
 
         // 添加WHERE条件
         if !self.conditions.is_empty() {
-            let (where_clause, where_params) = self.build_where_clause_with_offset(&self.conditions, param_index, table, alias)?;
+            let (where_clause, where_params) =
+                self.build_where_clause_with_offset(&self.conditions, param_index, table, alias)?;
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);
         }
@@ -373,7 +384,8 @@ impl SqlQueryBuilder {
 
         // 添加WHERE条件
         if !self.conditions.is_empty() {
-            let (where_clause, where_params) = self.build_where_clause(&self.conditions, table, alias)?;
+            let (where_clause, where_params) =
+                self.build_where_clause(&self.conditions, table, alias)?;
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);
         }
@@ -387,17 +399,33 @@ impl SqlQueryBuilder {
     }
 
     /// 构建WHERE子句
-    pub(crate) fn build_where_clause(&self, conditions: &[QueryCondition], table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>)> {
+    pub(crate) fn build_where_clause(
+        &self,
+        conditions: &[QueryCondition],
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>)> {
         self.build_where_clause_with_offset(conditions, 1, table, alias)
     }
 
     /// 构建WHERE子句（支持条件组合）
-    pub fn build_where_clause_from_groups(&self, groups: &[QueryConditionGroup], table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>)> {
+    pub fn build_where_clause_from_groups(
+        &self,
+        groups: &[QueryConditionGroup],
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>)> {
         self.build_where_clause_from_groups_with_offset(groups, 1, table, alias)
     }
 
     /// 构建WHERE子句（支持条件组合），从指定的参数索引开始
-    fn build_where_clause_from_groups_with_offset(&self, groups: &[QueryConditionGroup], start_index: usize, table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>)> {
+    fn build_where_clause_from_groups_with_offset(
+        &self,
+        groups: &[QueryConditionGroup],
+        start_index: usize,
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>)> {
         if groups.is_empty() {
             return Ok((String::new(), Vec::new()));
         }
@@ -407,7 +435,8 @@ impl SqlQueryBuilder {
         let mut param_index = start_index;
 
         for group in groups {
-            let (clause, group_params, new_index) = self.build_condition_group_clause(group, param_index, table, alias)?;
+            let (clause, group_params, new_index) =
+                self.build_condition_group_clause(group, param_index, table, alias)?;
             clauses.push(clause);
             params.extend(group_params);
             param_index = new_index;
@@ -417,13 +446,23 @@ impl SqlQueryBuilder {
     }
 
     /// 构建单个条件组合的子句
-    fn build_condition_group_clause(&self, group: &QueryConditionGroup, start_index: usize, table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
+    fn build_condition_group_clause(
+        &self,
+        group: &QueryConditionGroup,
+        start_index: usize,
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
         match group {
             QueryConditionGroup::Single(condition) => {
-                let (clause, mut params, new_index) = self.build_single_condition_clause(condition, start_index, table, alias)?;
+                let (clause, mut params, new_index) =
+                    self.build_single_condition_clause(condition, start_index, table, alias)?;
                 Ok((clause, params, new_index))
             }
-            QueryConditionGroup::Group { operator, conditions } => {
+            QueryConditionGroup::Group {
+                operator,
+                conditions,
+            } => {
                 if conditions.is_empty() {
                     return Ok((String::new(), Vec::new(), start_index));
                 }
@@ -433,7 +472,8 @@ impl SqlQueryBuilder {
                 let mut param_index = start_index;
 
                 for condition in conditions {
-                    let (clause, condition_params, new_index) = self.build_condition_group_clause(condition, param_index, table, alias)?;
+                    let (clause, condition_params, new_index) =
+                        self.build_condition_group_clause(condition, param_index, table, alias)?;
                     if !clause.is_empty() {
                         clauses.push(clause);
                         params.extend(condition_params);
@@ -462,45 +502,78 @@ impl SqlQueryBuilder {
     }
 
     /// 构建单个条件的子句
-    fn build_single_condition_clause(&self, condition: &QueryCondition, param_index: usize, table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
+    fn build_single_condition_clause(
+        &self,
+        condition: &QueryCondition,
+        param_index: usize,
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
         let placeholder = self.get_placeholder(param_index);
         let mut new_index = param_index;
 
-        let safe_field = self.security_validator.get_safe_field_identifier(&condition.field)?;
+        let safe_field = self
+            .security_validator
+            .get_safe_field_identifier(&condition.field)?;
         let (clause, params) = match condition.operator {
             QueryOperator::Eq => {
                 new_index += 1;
-                let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
+                let value = self.convert_uuid_value_for_postgres(
+                    table,
+                    &condition.field,
+                    &condition.value,
+                    alias,
+                )?;
                 (format!("{} = {}", safe_field, placeholder), vec![value])
             }
             QueryOperator::Ne => {
                 new_index += 1;
-                (format!("{} != {}", safe_field, placeholder), vec![condition.value.clone()])
+                (
+                    format!("{} != {}", safe_field, placeholder),
+                    vec![condition.value.clone()],
+                )
             }
             QueryOperator::Gt => {
                 new_index += 1;
-                (format!("{} > {}", safe_field, placeholder), vec![condition.value.clone()])
+                (
+                    format!("{} > {}", safe_field, placeholder),
+                    vec![condition.value.clone()],
+                )
             }
             QueryOperator::Gte => {
                 new_index += 1;
-                (format!("{} >= {}", safe_field, placeholder), vec![condition.value.clone()])
+                (
+                    format!("{} >= {}", safe_field, placeholder),
+                    vec![condition.value.clone()],
+                )
             }
             QueryOperator::Lt => {
                 new_index += 1;
-                (format!("{} < {}", safe_field, placeholder), vec![condition.value.clone()])
+                (
+                    format!("{} < {}", safe_field, placeholder),
+                    vec![condition.value.clone()],
+                )
             }
             QueryOperator::Lte => {
                 new_index += 1;
-                (format!("{} <= {}", safe_field, placeholder), vec![condition.value.clone()])
+                (
+                    format!("{} <= {}", safe_field, placeholder),
+                    vec![condition.value.clone()],
+                )
             }
             QueryOperator::Contains => {
                 new_index += 1;
 
                 // PostgreSQL：必须根据字段类型确定操作符
-                let field_type = get_field_type(table, alias, &condition.field)
-                    .ok_or_else(|| QuickDbError::ValidationError {
-                        field: condition.field.clone(),
-                        message: format!("无法确定字段 '{}' 的类型，请确保已正确注册模型元数据 (alias={})", condition.field, alias),
+                let field_type =
+                    get_field_type(table, alias, &condition.field).ok_or_else(|| {
+                        QuickDbError::ValidationError {
+                            field: condition.field.clone(),
+                            message: format!(
+                                "无法确定字段 '{}' 的类型，请确保已正确注册模型元数据 (alias={})",
+                                condition.field, alias
+                            ),
+                        }
                     })?;
 
                 match field_type {
@@ -552,13 +625,19 @@ impl SqlQueryBuilder {
                     // 验证Array字段IN操作的数据类型
                     for value in values {
                         match value {
-                            DataValue::String(_) | DataValue::Int(_) | DataValue::Float(_) | DataValue::Uuid(_) => {
+                            DataValue::String(_)
+                            | DataValue::Int(_)
+                            | DataValue::Float(_)
+                            | DataValue::Uuid(_) => {
                                 // 支持的类型
                             }
                             _ => {
                                 return Err(QuickDbError::ValidationError {
                                     field: condition.field.clone(),
-                                    message: format!("Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}", value),
+                                    message: format!(
+                                        "Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}",
+                                        value
+                                    ),
                                 });
                             }
                         }
@@ -591,7 +670,10 @@ impl SqlQueryBuilder {
                         placeholders.push(self.get_placeholder(new_index));
                         new_index += 1;
                     }
-                    (format!("{} NOT IN ({})", safe_field, placeholders.join(", ")), values.clone())
+                    (
+                        format!("{} NOT IN ({})", safe_field, placeholders.join(", ")),
+                        values.clone(),
+                    )
                 } else {
                     return Err(QuickDbError::QueryError {
                         message: "NOT IN 操作符需要数组类型的值".to_string(),
@@ -611,28 +693,34 @@ impl SqlQueryBuilder {
                     }
                     _ => condition.value.to_json_value(),
                 };
-                (format!("{} @> {}::jsonb", safe_field, placeholder), vec![DataValue::Json(json_value)])
+                (
+                    format!("{} @> {}::jsonb", safe_field, placeholder),
+                    vec![DataValue::Json(json_value)],
+                )
             }
             QueryOperator::Regex => {
                 new_index += 1;
-                (format!("{} REGEXP {}", safe_field, placeholder), vec![condition.value.clone()])
+                (
+                    format!("{} REGEXP {}", safe_field, placeholder),
+                    vec![condition.value.clone()],
+                )
             }
-            QueryOperator::Exists => {
-                (format!("{} IS NOT NULL", safe_field), vec![])
-            }
-            QueryOperator::IsNull => {
-                (format!("{} IS NULL", safe_field), vec![])
-            }
-            QueryOperator::IsNotNull => {
-                (format!("{} IS NOT NULL", safe_field), vec![])
-            }
+            QueryOperator::Exists => (format!("{} IS NOT NULL", safe_field), vec![]),
+            QueryOperator::IsNull => (format!("{} IS NULL", safe_field), vec![]),
+            QueryOperator::IsNotNull => (format!("{} IS NOT NULL", safe_field), vec![]),
         };
 
         Ok((clause, params, new_index))
     }
 
     /// 构建WHERE子句，从指定的参数索引开始
-    pub(crate) fn build_where_clause_with_offset(&self, conditions: &[QueryCondition], start_index: usize, table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>)> {
+    pub(crate) fn build_where_clause_with_offset(
+        &self,
+        conditions: &[QueryCondition],
+        start_index: usize,
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>)> {
         if conditions.is_empty() {
             return Ok((String::new(), Vec::new()));
         }
@@ -643,11 +731,18 @@ impl SqlQueryBuilder {
 
         for condition in conditions {
             let placeholder = self.get_placeholder(param_index);
-            let safe_field = self.security_validator.get_safe_field_identifier(&condition.field)?;
+            let safe_field = self
+                .security_validator
+                .get_safe_field_identifier(&condition.field)?;
 
             match condition.operator {
                 QueryOperator::Eq => {
-                    let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
+                    let value = self.convert_uuid_value_for_postgres(
+                        table,
+                        &condition.field,
+                        &condition.value,
+                        alias,
+                    )?;
                     clauses.push(format!("{} = {}", safe_field, placeholder));
                     params.push(value);
                     param_index += 1;
@@ -679,11 +774,15 @@ impl SqlQueryBuilder {
                 }
                 QueryOperator::Contains => {
                     // PostgreSQL：必须根据字段类型确定操作符
-                    let field_type = get_field_type(table, alias, &condition.field)
-                        .ok_or_else(|| QuickDbError::ValidationError {
+                    let field_type = get_field_type(table, alias, &condition.field).ok_or_else(
+                        || QuickDbError::ValidationError {
                             field: condition.field.clone(),
-                            message: format!("无法确定字段 '{}' 的类型，请确保已正确注册模型元数据 (alias={})", condition.field, alias),
-                        })?;
+                            message: format!(
+                                "无法确定字段 '{}' 的类型，请确保已正确注册模型元数据 (alias={})",
+                                condition.field, alias
+                            ),
+                        },
+                    )?;
 
                     match field_type {
                         crate::model::FieldType::Json | crate::model::FieldType::Array { .. } => {
@@ -736,13 +835,19 @@ impl SqlQueryBuilder {
                         // 验证Array字段IN操作的数据类型
                         for value in values {
                             match value {
-                                DataValue::String(_) | DataValue::Int(_) | DataValue::Float(_) | DataValue::Uuid(_) => {
+                                DataValue::String(_)
+                                | DataValue::Int(_)
+                                | DataValue::Float(_)
+                                | DataValue::Uuid(_) => {
                                     // 支持的类型
                                 }
                                 _ => {
                                     return Err(QuickDbError::ValidationError {
                                         field: condition.field.clone(),
-                                        message: format!("Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}", value),
+                                        message: format!(
+                                            "Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}",
+                                            value
+                                        ),
                                     });
                                 }
                             }
@@ -758,7 +863,10 @@ impl SqlQueryBuilder {
                             let mut sub_clauses = Vec::new();
                             for value in values {
                                 let json_value = value.to_json_value().to_string();
-                                sub_clauses.push(format!("{} @> '{}'::jsonb", condition.field, json_value));
+                                sub_clauses.push(format!(
+                                    "{} @> '{}'::jsonb",
+                                    condition.field, json_value
+                                ));
                             }
                             clauses.push(format!("({})", sub_clauses.join(" OR ")));
                         }
@@ -775,7 +883,11 @@ impl SqlQueryBuilder {
                             placeholders.push(self.get_placeholder(param_index));
                             param_index += 1;
                         }
-                        clauses.push(format!("{} NOT IN ({})", condition.field, placeholders.join(", ")));
+                        clauses.push(format!(
+                            "{} NOT IN ({})",
+                            condition.field,
+                            placeholders.join(", ")
+                        ));
                         params.extend(values.clone());
                     } else {
                         return Err(QuickDbError::QueryError {
@@ -839,7 +951,7 @@ impl SqlQueryBuilder {
     /// 获取字段类型信息
     ///
     /// 通过查询模型元数据来确定指定字段的类型
-    
+
     /// PostgreSQL UUID字段值转换
     ///
     /// 仅在PostgreSQL数据库且字段类型为UUID时使用
@@ -854,7 +966,13 @@ impl SqlQueryBuilder {
     /// # 返回值
     /// * `Ok(DataValue)` - 转换后的值
     /// * `Err(QuickDbError)` - 转换失败（非字符串格式或无效UUID）
-    fn convert_uuid_value_for_postgres(&self, table_name: &str, field_name: &str, value: &DataValue, alias: &str) -> QuickDbResult<DataValue> {
+    fn convert_uuid_value_for_postgres(
+        &self,
+        table_name: &str,
+        field_name: &str,
+        value: &DataValue,
+        alias: &str,
+    ) -> QuickDbResult<DataValue> {
         // 检查字段类型是否为UUID
         if let Some(field_type) = get_field_type(table_name, alias, field_name) {
             if matches!(field_type, crate::model::FieldType::Uuid) {
@@ -868,7 +986,10 @@ impl SqlQueryBuilder {
                         Err(e) => {
                             return Err(QuickDbError::ValidationError {
                                 field: field_name.to_string(),
-                                message: format!("无效的UUID格式: {}. PostgreSQL UUID字段要求有效的UUID字符串格式", e),
+                                message: format!(
+                                    "无效的UUID格式: {}. PostgreSQL UUID字段要求有效的UUID字符串格式",
+                                    e
+                                ),
                             });
                         }
                     }

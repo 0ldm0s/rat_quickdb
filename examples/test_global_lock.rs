@@ -1,9 +1,9 @@
 //! 测试全局操作锁机制
 //! 验证查询开始后不能再添加数据库的功能
 
-use rat_quickdb::*;
 use rat_quickdb::types::*;
-use tokio::time::{sleep, Duration};
+use rat_quickdb::*;
+use tokio::time::{Duration, sleep};
 
 // 在测试结束时清理测试文件
 use std::fs;
@@ -23,12 +23,12 @@ async fn main() -> QuickDbResult<()> {
     test_database_addition_after_table_ops().await?;
 
     // 清理测试文件
-  let _ = fs::remove_file("test_global_lock.db");
-  let _ = fs::remove_file("test_should_fail.db");
-  let _ = fs::remove_file("test_should_also_fail.db");
+    let _ = fs::remove_file("test_global_lock.db");
+    let _ = fs::remove_file("test_should_fail.db");
+    let _ = fs::remove_file("test_should_also_fail.db");
 
-  println!("\n✅ 全局操作锁机制测试完成！");
-  Ok(())
+    println!("\n✅ 全局操作锁机制测试完成！");
+    Ok(())
 }
 
 async fn test_normal_database_addition() -> QuickDbResult<()> {
@@ -65,16 +65,21 @@ async fn test_database_addition_after_queries() -> QuickDbResult<()> {
     println!("执行查询操作以触发全局锁...");
 
     // 创建一个简单的查询条件
-    let conditions = vec![
-        QueryCondition {
-            field: "id".to_string(),
-            operator: QueryOperator::Eq,
-            value: DataValue::String("test".to_string()),
-        }
-    ];
+    let conditions = vec![QueryCondition {
+        field: "id".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("test".to_string()),
+    }];
 
     // 执行查询（应该触发全局锁）
-    match find("test_collection", conditions.clone(), None, Some("test_normal")).await {
+    match find(
+        "test_collection",
+        conditions.clone(),
+        None,
+        Some("test_normal"),
+    )
+    .await
+    {
         Ok(_) => println!("✅ 查询操作执行成功（已触发全局锁）"),
         Err(e) => println!("⚠️ 查询操作执行失败: {}（但可能已触发全局锁）", e),
     }

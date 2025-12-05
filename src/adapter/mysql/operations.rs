@@ -1,17 +1,18 @@
-    //! MySQL适配器trait实现
 
-use crate::adapter::MysqlAdapter;
+//! MySQL适配器trait实现
+
 use crate::adapter::DatabaseAdapter;
+use crate::adapter::MysqlAdapter;
 use crate::adapter::mysql::query_builder::SqlQueryBuilder;
-use crate::pool::DatabaseConnection;
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
-use crate::model::{FieldType, FieldDefinition};
 use crate::manager;
+use crate::model::{FieldDefinition, FieldType};
+use crate::pool::DatabaseConnection;
+use crate::types::*;
 use async_trait::async_trait;
 use rat_logger::debug;
-use std::collections::HashMap;
 use sqlx::Row;
+use std::collections::HashMap;
 
 use super::query as mysql_query;
 use super::schema as mysql_schema;
@@ -38,14 +39,24 @@ impl DatabaseAdapter for MysqlAdapter {
                         debug!("表 {} 不存在，使用预定义模型元数据创建", table);
 
                         // 使用模型元数据创建表
-                        self.create_table(connection, table, &model_meta.fields, id_strategy, alias).await?;
+                        self.create_table(
+                            connection,
+                            table,
+                            &model_meta.fields,
+                            id_strategy,
+                            alias,
+                        )
+                        .await?;
                         // 等待100ms确保数据库事务完全提交
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                         debug!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
                     } else {
                         return Err(QuickDbError::ValidationError {
                             field: "table_creation".to_string(),
-                            message: format!("表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。", table),
+                            message: format!(
+                                "表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。",
+                                table
+                            ),
                         });
                     }
                 } else {
@@ -53,7 +64,7 @@ impl DatabaseAdapter for MysqlAdapter {
                 }
                 // 锁会在这里自动释放（当 _lock 超出作用域时）
             }
-            
+
             let (sql, params) = SqlQueryBuilder::new()
                 .insert(data.clone())
                 .build(table, alias)?;
@@ -62,11 +73,10 @@ impl DatabaseAdapter for MysqlAdapter {
             debug!("绑定参数: {:?}", params);
 
             // 使用事务确保插入和获取ID在同一个连接中
-            let mut tx = pool.begin().await
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("开始事务失败: {}", e),
-                })?;
-            
+            let mut tx = pool.begin().await.map_err(|e| QuickDbError::QueryError {
+                message: format!("开始事务失败: {}", e),
+            })?;
+
             let affected_rows = {
                 let mut query = sqlx::query::<sqlx::MySql>(&sql);
                 // 绑定参数
@@ -83,27 +93,27 @@ impl DatabaseAdapter for MysqlAdapter {
                         DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
                         DataValue::Null => query.bind(Option::<String>::None),
                         DataValue::Array(arr) => {
-                            let json_values: Vec<serde_json::Value> = arr.iter()
-                                .map(|v| v.to_json_value())
-                                .collect();
+                            let json_values: Vec<serde_json::Value> =
+                                arr.iter().map(|v| v.to_json_value()).collect();
                             query.bind(serde_json::to_string(&json_values).unwrap_or_default())
-                        },
+                        }
                         DataValue::Object(obj) => {
-                            let json_map: serde_json::Map<String, serde_json::Value> = obj.iter()
+                            let json_map: serde_json::Map<String, serde_json::Value> = obj
+                                .iter()
                                 .map(|(k, v)| (k.clone(), v.to_json_value()))
                                 .collect();
                             query.bind(serde_json::to_string(&json_map).unwrap_or_default())
-                        },
+                        }
                     };
                 }
-                
+
                 let execute_result = query.execute(&mut *tx).await;
                 match execute_result {
                     Ok(result) => {
                         let rows = result.rows_affected();
                         debug!("✅ SQL执行成功，影响的行数: {}", rows);
                         rows
-                    },
+                    }
                     Err(e) => {
                         debug!("❌ SQL执行失败: {}", e);
                         return Err(QuickDbError::QueryError {
@@ -126,14 +136,16 @@ impl DatabaseAdapter for MysqlAdapter {
                             message: format!("获取LAST_INSERT_ID失败: {}", e),
                         })?;
 
-                    let last_id: u64 = last_id_row.try_get(0)
-                        .map_err(|e| QuickDbError::QueryError {
-                            message: format!("解析LAST_INSERT_ID失败: {}", e),
-                        })?;
+                    let last_id: u64 =
+                        last_id_row
+                            .try_get(0)
+                            .map_err(|e| QuickDbError::QueryError {
+                                message: format!("解析LAST_INSERT_ID失败: {}", e),
+                            })?;
 
                     debug!("在事务中获取到的LAST_INSERT_ID: {}", last_id);
                     DataValue::Int(last_id as i64)
-                },
+                }
                 _ => {
                     // 其他策略：使用数据中的ID字段
                     if let Some(id_data) = data.get("id") {
@@ -162,9 +174,15 @@ impl DatabaseAdapter for MysqlAdapter {
             let mut result_map = std::collections::HashMap::new();
 
             result_map.insert("id".to_string(), id_value.clone());
-            result_map.insert("affected_rows".to_string(), DataValue::Int(affected_rows as i64));
+            result_map.insert(
+                "affected_rows".to_string(),
+                DataValue::Int(affected_rows as i64),
+            );
 
-            debug!("最终返回的DataValue: {:?}", DataValue::Object(result_map.clone()));
+            debug!(
+                "最终返回的DataValue: {:?}",
+                DataValue::Object(result_map.clone())
+            );
             Ok(DataValue::Object(result_map))
         } else {
             Err(QuickDbError::ConnectionError {
@@ -186,13 +204,13 @@ impl DatabaseAdapter for MysqlAdapter {
                 operator: QueryOperator::Eq,
                 value: id.clone(),
             };
-            
+
             let (sql, params) = SqlQueryBuilder::new()
                 .select(&["*"])
                 .where_condition(condition)
                 .limit(1)
                 .build(table, alias)?;
-            
+
             let results = self.execute_query(pool, &sql, &params).await?;
             Ok(results.into_iter().next())
         } else {
@@ -214,7 +232,8 @@ impl DatabaseAdapter for MysqlAdapter {
         let condition_groups = if conditions.is_empty() {
             vec![]
         } else {
-            let group_conditions = conditions.iter()
+            let group_conditions = conditions
+                .iter()
                 .map(|c| QueryConditionGroup::Single(c.clone()))
                 .collect();
             vec![QueryConditionGroup::Group {
@@ -222,9 +241,10 @@ impl DatabaseAdapter for MysqlAdapter {
                 conditions: group_conditions,
             }]
         };
-        
+
         // 统一使用 find_with_groups 实现
-        self.find_with_groups(connection, table, &condition_groups, options, alias).await
+        self.find_with_groups(connection, table, &condition_groups, options, alias)
+            .await
     }
 
     /// MySQL条件组合查找操作
@@ -240,19 +260,19 @@ impl DatabaseAdapter for MysqlAdapter {
             let mut builder = SqlQueryBuilder::new()
                 .select(&["*"])
                 .where_condition_groups(condition_groups);
-            
+
             // 添加排序
             for sort_field in &options.sort {
                 builder = builder.order_by(&sort_field.field, sort_field.direction.clone());
             }
-            
+
             // 添加分页
             if let Some(pagination) = &options.pagination {
                 builder = builder.limit(pagination.limit).offset(pagination.skip);
             }
-            
+
             let (sql, params) = builder.build(table, alias)?;
-            
+
             debug!("执行MySQL条件组合查询: {}", sql);
 
             self.execute_query(pool, &sql, &params).await
@@ -274,29 +294,41 @@ impl DatabaseAdapter for MysqlAdapter {
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MySQL(pool) = connection {
             // 获取字段元数据进行验证和转换
-            let model_meta = crate::manager::get_model_with_alias(table, alias)
-                .ok_or_else(|| QuickDbError::ValidationError {
-                    field: "model".to_string(),
-                    message: format!("模型 '{}' 不存在", table),
+            let model_meta =
+                crate::manager::get_model_with_alias(table, alias).ok_or_else(|| {
+                    QuickDbError::ValidationError {
+                        field: "model".to_string(),
+                        message: format!("模型 '{}' 不存在", table),
+                    }
                 })?;
 
             // 验证字段存在性，并处理DateTimeWithTz字段转换
-            let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> = model_meta.fields.iter()
-                .map(|(name, f)| (name.clone(), f.clone()))
-                .collect();
+            let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> =
+                model_meta
+                    .fields
+                    .iter()
+                    .map(|(name, f)| (name.clone(), f.clone()))
+                    .collect();
 
             let mut validated_data = HashMap::new();
             for (field_name, data_value) in data {
                 if let Some(field_def) = field_map.get(field_name) {
-                    if matches!(field_def.field_type, crate::model::FieldType::DateTimeWithTz { .. }) {
+                    if matches!(
+                        field_def.field_type,
+                        crate::model::FieldType::DateTimeWithTz { .. }
+                    ) {
                         // DateTimeWithTz字段：将String转换为DateTime
                         let converted = match data_value {
-                            DataValue::String(s) => {
-                                chrono::DateTime::parse_from_rfc3339(s)
-                                    .map(|dt| DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0))))
-                                    .unwrap_or(data_value.clone())
-                            },
-                            DataValue::DateTimeUTC(dt) => DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0))),
+                            DataValue::String(s) => chrono::DateTime::parse_from_rfc3339(s)
+                                .map(|dt| {
+                                    DataValue::DateTime(
+                                        dt.with_timezone(&chrono::FixedOffset::east(0)),
+                                    )
+                                })
+                                .unwrap_or(data_value.clone()),
+                            DataValue::DateTimeUTC(dt) => {
+                                DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0)))
+                            }
                             _ => data_value.clone(),
                         };
                         validated_data.insert(field_name.clone(), converted);
@@ -339,7 +371,7 @@ impl DatabaseAdapter for MysqlAdapter {
                 operator: QueryOperator::Eq,
                 value: id.clone(),
             };
-            
+
             let (sql, params) = SqlQueryBuilder::new()
                 .update(data.clone())
                 .where_condition(condition)
@@ -390,11 +422,17 @@ impl DatabaseAdapter for MysqlAdapter {
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::PercentIncrease => {
-                        set_clauses.push(format!("{} = {} * (1.0 + ?/100.0)", operation.field, operation.field));
+                        set_clauses.push(format!(
+                            "{} = {} * (1.0 + ?/100.0)",
+                            operation.field, operation.field
+                        ));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::PercentDecrease => {
-                        set_clauses.push(format!("{} = {} * (1.0 - ?/100.0)", operation.field, operation.field));
+                        set_clauses.push(format!(
+                            "{} = {} * (1.0 - ?/100.0)",
+                            operation.field, operation.field
+                        ));
                         params.push(operation.value.clone());
                     }
                 }
@@ -458,7 +496,6 @@ impl DatabaseAdapter for MysqlAdapter {
         mysql_query::count(self, connection, table, conditions, alias).await
     }
 
-    
     async fn create_table(
         &self,
         connection: &DatabaseConnection,
@@ -489,18 +526,11 @@ impl DatabaseAdapter for MysqlAdapter {
         mysql_schema::table_exists(self, connection, table).await
     }
 
-    async fn drop_table(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-    ) -> QuickDbResult<()> {
+    async fn drop_table(&self, connection: &DatabaseConnection, table: &str) -> QuickDbResult<()> {
         mysql_schema::drop_table(self, connection, table).await
     }
 
-    async fn get_server_version(
-        &self,
-        connection: &DatabaseConnection,
-    ) -> QuickDbResult<String> {
+    async fn get_server_version(&self, connection: &DatabaseConnection) -> QuickDbResult<String> {
         mysql_schema::get_server_version(self, connection).await
     }
 
@@ -515,7 +545,8 @@ impl DatabaseAdapter for MysqlAdapter {
         debug!("开始创建MySQL存储过程: {}", config.procedure_name);
 
         // 验证配置
-        config.validate()
+        config
+            .validate()
             .map_err(|e| crate::error::QuickDbError::ValidationError {
                 field: "config".to_string(),
                 message: format!("存储过程配置验证失败: {}", e),
@@ -530,7 +561,14 @@ impl DatabaseAdapter for MysqlAdapter {
                 let id_strategy = crate::manager::get_id_strategy(&config.database)
                     .unwrap_or(IdStrategy::AutoIncrement);
 
-                self.create_table(connection, table_name, &model_meta.fields, &id_strategy, &config.database).await?;
+                self.create_table(
+                    connection,
+                    table_name,
+                    &model_meta.fields,
+                    &id_strategy,
+                    &config.database,
+                )
+                .await?;
             }
         }
 
@@ -548,7 +586,10 @@ impl DatabaseAdapter for MysqlAdapter {
 
         let mut procedures = self.stored_procedures.lock().await;
         procedures.insert(config.procedure_name.clone(), procedure_info);
-        debug!("✅ MySQL存储过程 {} 模板已存储到适配器映射表", config.procedure_name);
+        debug!(
+            "✅ MySQL存储过程 {} 模板已存储到适配器映射表",
+            config.procedure_name
+        );
 
         Ok(StoredProcedureCreateResult {
             success: true,
@@ -578,23 +619,32 @@ impl DatabaseAdapter for MysqlAdapter {
         let sql_template = procedure_info.template.clone();
         drop(procedures);
 
-        debug!("执行存储过程查询: {}, 模板: {}", procedure_name, sql_template);
+        debug!(
+            "执行存储过程查询: {}, 模板: {}",
+            procedure_name, sql_template
+        );
 
         // 构建最终的SQL查询（复用SQLite的逻辑）
-        let final_sql = self.build_final_query_from_template(&sql_template, params).await?;
+        let final_sql = self
+            .build_final_query_from_template(&sql_template, params)
+            .await?;
 
         // 执行查询
         // 直接执行SQL查询（复用find_with_groups的模式）
         let pool = match connection {
             DatabaseConnection::MySQL(pool) => pool,
-            _ => return Err(QuickDbError::ConnectionError {
-                message: "Invalid connection type for MySQL".to_string(),
-            }),
+            _ => {
+                return Err(QuickDbError::ConnectionError {
+                    message: "Invalid connection type for MySQL".to_string(),
+                });
+            }
         };
 
         debug!("执行存储过程查询SQL: {}", final_sql);
 
-        let rows = sqlx::query::<sqlx::MySql>(&final_sql).fetch_all(pool).await
+        let rows = sqlx::query::<sqlx::MySql>(&final_sql)
+            .fetch_all(pool)
+            .await
             .map_err(|e| QuickDbError::QueryError {
                 message: format!("执行存储过程查询失败: {}", e),
             })?;
@@ -615,7 +665,11 @@ impl DatabaseAdapter for MysqlAdapter {
             result.push(row_map);
         }
 
-        debug!("存储过程 {} 执行完成，返回 {} 条记录", procedure_name, result.len());
+        debug!(
+            "存储过程 {} 执行完成，返回 {} 条记录",
+            procedure_name,
+            result.len()
+        );
         Ok(result)
     }
 }

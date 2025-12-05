@@ -1,9 +1,9 @@
 //! 测试RFC3339字符串DateTime查询
 
-use rat_quickdb::*;
-use rat_quickdb::types::{DatabaseType, ConnectionConfig};
-use rat_quickdb::{ModelManager, ModelOperations};
+use rat_quickdb::types::{ConnectionConfig, DatabaseType};
 use rat_quickdb::types::{QueryCondition, QueryOperator};
+use rat_quickdb::*;
+use rat_quickdb::{ModelManager, ModelOperations};
 
 // 定义测试模型
 define_model! {
@@ -55,7 +55,11 @@ async fn main() -> QuickDbResult<()> {
         };
 
         model.save().await?;
-        println!("✅ 创建事件_{}: {}", i + 1, event_time.format("%Y-%m-%d %H:%M:%S UTC"));
+        println!(
+            "✅ 创建事件_{}: {}",
+            i + 1,
+            event_time.format("%Y-%m-%d %H:%M:%S UTC")
+        );
     }
     println!();
 
@@ -83,9 +87,13 @@ async fn main() -> QuickDbResult<()> {
         Ok(results) => {
             println!("✅ RFC3339字符串查询成功，找到 {} 条记录", results.len());
             for model in results {
-                println!("  📋 {}: {}", model.name, model.event_time.format("%Y-%m-%d %H:%M:%S UTC"));
+                println!(
+                    "  📋 {}: {}",
+                    model.name,
+                    model.event_time.format("%Y-%m-%d %H:%M:%S UTC")
+                );
             }
-        },
+        }
         Err(e) => println!("❌ RFC3339字符串查询失败: {}", e),
     }
 

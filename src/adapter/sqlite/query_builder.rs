@@ -2,10 +2,10 @@
 //!
 //! 提供安全的SQL查询构建功能，防止SQL注入攻击
 
-use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
-use crate::security::DatabaseSecurityValidator;
 use crate::adapter::get_field_type;
+use crate::error::{QuickDbError, QuickDbResult};
+use crate::security::DatabaseSecurityValidator;
+use crate::types::*;
 use std::collections::HashMap;
 
 /// SQLite查询构建器
@@ -101,7 +101,6 @@ impl SqlQueryBuilder {
         self
     }
 
-    
     /// 添加WHERE条件
     pub fn where_condition(mut self, condition: QueryCondition) -> Self {
         self.conditions.push(condition);
@@ -209,16 +208,21 @@ impl SqlQueryBuilder {
                 JoinType::Right => "RIGHT JOIN",
                 JoinType::Full => "FULL OUTER JOIN",
             };
-            sql.push_str(&format!(" {} {} ON {}", join_type, join.table, join.on_condition));
+            sql.push_str(&format!(
+                " {} {} ON {}",
+                join_type, join.table, join.on_condition
+            ));
         }
 
         // 添加WHERE条件（优先使用条件组合）
         if !self.condition_groups.is_empty() {
-            let (where_clause, where_params) = self.build_where_clause_from_groups(&self.condition_groups, table, alias)?;
+            let (where_clause, where_params) =
+                self.build_where_clause_from_groups(&self.condition_groups, table, alias)?;
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);
         } else if !self.conditions.is_empty() {
-            let (where_clause, where_params) = self.build_where_clause(&self.conditions, table, alias)?;
+            let (where_clause, where_params) =
+                self.build_where_clause(&self.conditions, table, alias)?;
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);
         }
@@ -230,14 +234,16 @@ impl SqlQueryBuilder {
 
         // 添加HAVING
         if !self.having.is_empty() {
-            let (having_clause, having_params) = self.build_where_clause(&self.having, table, alias)?;
+            let (having_clause, having_params) =
+                self.build_where_clause(&self.having, table, alias)?;
             sql.push_str(&format!(" HAVING {}", having_clause));
             params.extend(having_params);
         }
 
         // 添加ORDER BY
         if !self.order_by.is_empty() {
-            let order_clauses: Vec<String> = self.order_by
+            let order_clauses: Vec<String> = self
+                .order_by
                 .iter()
                 .map(|o| {
                     let direction = match o.direction {
@@ -276,7 +282,8 @@ impl SqlQueryBuilder {
         }
 
         // 过滤掉 NULL 值，让数据库使用默认值或 NULL
-        let non_null_values: HashMap<String, DataValue> = self.values
+        let non_null_values: HashMap<String, DataValue> = self
+            .values
             .iter()
             .filter(|(_, value)| !matches!(value, DataValue::Null))
             .map(|(k, v)| (k.clone(), v.clone()))
@@ -322,7 +329,8 @@ impl SqlQueryBuilder {
         }
 
         // 过滤掉 NULL 值，让数据库保持原值或设置为 NULL（如果需要显式设置 NULL，应该使用 IS NULL 操作）
-        let non_null_values: HashMap<String, DataValue> = self.values
+        let non_null_values: HashMap<String, DataValue> = self
+            .values
             .iter()
             .filter(|(_, value)| !matches!(value, DataValue::Null))
             .map(|(k, v)| (k.clone(), v.clone()))
@@ -335,18 +343,22 @@ impl SqlQueryBuilder {
         }
 
         let mut param_index = 1;
-        let set_clauses: Vec<String> = non_null_values.keys().map(|k| {
-            let placeholder = self.get_placeholder(param_index);
-            param_index += 1;
-            format!("{} = {}", k, placeholder)
-        }).collect();
+        let set_clauses: Vec<String> = non_null_values
+            .keys()
+            .map(|k| {
+                let placeholder = self.get_placeholder(param_index);
+                param_index += 1;
+                format!("{} = {}", k, placeholder)
+            })
+            .collect();
         let mut params: Vec<DataValue> = non_null_values.values().cloned().collect();
 
         let mut sql = format!("UPDATE {} SET {}", table, set_clauses.join(", "));
 
         // 添加WHERE条件
         if !self.conditions.is_empty() {
-            let (where_clause, where_params) = self.build_where_clause_with_offset(&self.conditions, param_index, table, alias)?;
+            let (where_clause, where_params) =
+                self.build_where_clause_with_offset(&self.conditions, param_index, table, alias)?;
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);
         }
@@ -372,7 +384,8 @@ impl SqlQueryBuilder {
 
         // 添加WHERE条件
         if !self.conditions.is_empty() {
-            let (where_clause, where_params) = self.build_where_clause(&self.conditions, table, alias)?;
+            let (where_clause, where_params) =
+                self.build_where_clause(&self.conditions, table, alias)?;
             sql.push_str(&format!(" WHERE {}", where_clause));
             params.extend(where_params);
         }
@@ -386,17 +399,33 @@ impl SqlQueryBuilder {
     }
 
     /// 构建WHERE子句
-    pub(crate) fn build_where_clause(&self, conditions: &[QueryCondition], table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>)> {
+    pub(crate) fn build_where_clause(
+        &self,
+        conditions: &[QueryCondition],
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>)> {
         self.build_where_clause_with_offset(conditions, 1, table, alias)
     }
 
     /// 构建WHERE子句（支持条件组合）
-    pub fn build_where_clause_from_groups(&self, groups: &[QueryConditionGroup], table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>)> {
+    pub fn build_where_clause_from_groups(
+        &self,
+        groups: &[QueryConditionGroup],
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>)> {
         self.build_where_clause_from_groups_with_offset(groups, 1, table, alias)
     }
 
     /// 构建WHERE子句（支持条件组合），从指定的参数索引开始
-    fn build_where_clause_from_groups_with_offset(&self, groups: &[QueryConditionGroup], start_index: usize, table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>)> {
+    fn build_where_clause_from_groups_with_offset(
+        &self,
+        groups: &[QueryConditionGroup],
+        start_index: usize,
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>)> {
         if groups.is_empty() {
             return Ok((String::new(), Vec::new()));
         }
@@ -406,7 +435,8 @@ impl SqlQueryBuilder {
         let mut param_index = start_index;
 
         for group in groups {
-            let (clause, group_params, new_index) = self.build_condition_group_clause(group, param_index, table, alias)?;
+            let (clause, group_params, new_index) =
+                self.build_condition_group_clause(group, param_index, table, alias)?;
             clauses.push(clause);
             params.extend(group_params);
             param_index = new_index;
@@ -416,13 +446,23 @@ impl SqlQueryBuilder {
     }
 
     /// 构建单个条件组合的子句
-    fn build_condition_group_clause(&self, group: &QueryConditionGroup, start_index: usize, table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
+    fn build_condition_group_clause(
+        &self,
+        group: &QueryConditionGroup,
+        start_index: usize,
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
         match group {
             QueryConditionGroup::Single(condition) => {
-                let (clause, mut params, new_index) = self.build_single_condition_clause(condition, start_index, table, alias)?;
+                let (clause, mut params, new_index) =
+                    self.build_single_condition_clause(condition, start_index, table, alias)?;
                 Ok((clause, params, new_index))
             }
-            QueryConditionGroup::Group { operator, conditions } => {
+            QueryConditionGroup::Group {
+                operator,
+                conditions,
+            } => {
                 if conditions.is_empty() {
                     return Ok((String::new(), Vec::new(), start_index));
                 }
@@ -432,7 +472,8 @@ impl SqlQueryBuilder {
                 let mut param_index = start_index;
 
                 for condition in conditions {
-                    let (clause, condition_params, new_index) = self.build_condition_group_clause(condition, param_index, table, alias)?;
+                    let (clause, condition_params, new_index) =
+                        self.build_condition_group_clause(condition, param_index, table, alias)?;
                     if !clause.is_empty() {
                         clauses.push(clause);
                         params.extend(condition_params);
@@ -461,39 +502,69 @@ impl SqlQueryBuilder {
     }
 
     /// 构建单个条件的子句
-    fn build_single_condition_clause(&self, condition: &QueryCondition, param_index: usize, table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
+    fn build_single_condition_clause(
+        &self,
+        condition: &QueryCondition,
+        param_index: usize,
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
         let placeholder = self.get_placeholder(param_index);
         let mut new_index = param_index;
 
-        let safe_field = self.security_validator.get_safe_field_identifier(&condition.field)?;
+        let safe_field = self
+            .security_validator
+            .get_safe_field_identifier(&condition.field)?;
         let (clause, params) = match condition.operator {
             QueryOperator::Eq => {
                 new_index += 1;
-                (format!("{} = {}", safe_field, placeholder), vec![condition.value.clone()])
+                (
+                    format!("{} = {}", safe_field, placeholder),
+                    vec![condition.value.clone()],
+                )
             }
             QueryOperator::Ne => {
                 new_index += 1;
-                (format!("{} != {}", safe_field, placeholder), vec![condition.value.clone()])
+                (
+                    format!("{} != {}", safe_field, placeholder),
+                    vec![condition.value.clone()],
+                )
             }
             QueryOperator::Gt => {
                 new_index += 1;
-                let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
-                (format!("{} > {}", safe_field, placeholder), vec![processed_value])
+                let processed_value =
+                    process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                (
+                    format!("{} > {}", safe_field, placeholder),
+                    vec![processed_value],
+                )
             }
             QueryOperator::Gte => {
                 new_index += 1;
-                let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
-                (format!("{} >= {}", safe_field, placeholder), vec![processed_value])
+                let processed_value =
+                    process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                (
+                    format!("{} >= {}", safe_field, placeholder),
+                    vec![processed_value],
+                )
             }
             QueryOperator::Lt => {
                 new_index += 1;
-                let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
-                (format!("{} < {}", safe_field, placeholder), vec![processed_value])
+                let processed_value =
+                    process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                (
+                    format!("{} < {}", safe_field, placeholder),
+                    vec![processed_value],
+                )
             }
             QueryOperator::Lte => {
                 new_index += 1;
-                let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
-                (format!("{} <= {}", safe_field, placeholder), vec![processed_value])
+                let processed_value =
+                    process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                (
+                    format!("{} <= {}", safe_field, placeholder),
+                    vec![processed_value],
+                )
             }
             QueryOperator::Contains => {
                 new_index += 1;
@@ -503,10 +574,12 @@ impl SqlQueryBuilder {
                     if matches!(field_type, crate::model::FieldType::String { .. }) {
                         let value = match &condition.value {
                             DataValue::String(s) => DataValue::String(format!("%{}%", s)),
-                            _ => return Err(QuickDbError::ValidationError {
-                                field: condition.field.clone(),
-                                message: "Contains操作符需要字符串类型的值".to_string(),
-                            }),
+                            _ => {
+                                return Err(QuickDbError::ValidationError {
+                                    field: condition.field.clone(),
+                                    message: "Contains操作符需要字符串类型的值".to_string(),
+                                });
+                            }
                         };
                         (format!("{} LIKE {}", safe_field, placeholder), vec![value])
                     } else {
@@ -526,7 +599,9 @@ impl SqlQueryBuilder {
                 // SQLite不支持JSON字段的JsonContains操作
                 return Err(QuickDbError::ValidationError {
                     field: condition.field.clone(),
-                    message: "SQLite不支持JSON字段的JsonContains操作，建议使用PostgreSQL、MySQL或MongoDB".to_string(),
+                    message:
+                        "SQLite不支持JSON字段的JsonContains操作，建议使用PostgreSQL、MySQL或MongoDB"
+                            .to_string(),
                 });
             }
             QueryOperator::StartsWith => {
@@ -562,13 +637,19 @@ impl SqlQueryBuilder {
                             // 检查查询值是否为支持的简单类型
                             for value in values {
                                 match value {
-                                    DataValue::String(_) | DataValue::Int(_) | DataValue::Float(_) | DataValue::Uuid(_) => {
+                                    DataValue::String(_)
+                                    | DataValue::Int(_)
+                                    | DataValue::Float(_)
+                                    | DataValue::Uuid(_) => {
                                         // 支持的类型
-                                    },
+                                    }
                                     _ => {
                                         return Err(QuickDbError::ValidationError {
                                             field: condition.field.clone(),
-                                            message: format!("Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}", value),
+                                            message: format!(
+                                                "Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}",
+                                                value
+                                            ),
                                         });
                                     }
                                 }
@@ -584,7 +665,10 @@ impl SqlQueryBuilder {
                                     _ => unreachable!(), // 已经检查过
                                 };
                                 new_index += 1;
-                                (format!("{} LIKE {}", safe_field, placeholder), vec![DataValue::String(format!("%{}%", target_value))])
+                                (
+                                    format!("{} LIKE {}", safe_field, placeholder),
+                                    vec![DataValue::String(format!("%{}%", target_value))],
+                                )
                             } else {
                                 // 多个值，使用OR连接的LIKE查询
                                 let mut like_conditions = Vec::new();
@@ -598,8 +682,13 @@ impl SqlQueryBuilder {
                                         DataValue::Uuid(uuid) => format!("\"{}\"", uuid),
                                         _ => unreachable!(), // 已经检查过
                                     };
-                                    like_conditions.push(format!("{} LIKE {}", safe_field, self.get_placeholder(new_index)));
-                                    like_params.push(DataValue::String(format!("%{}%", target_value)));
+                                    like_conditions.push(format!(
+                                        "{} LIKE {}",
+                                        safe_field,
+                                        self.get_placeholder(new_index)
+                                    ));
+                                    like_params
+                                        .push(DataValue::String(format!("%{}%", target_value)));
                                     new_index += 1;
                                 }
 
@@ -633,24 +722,27 @@ impl SqlQueryBuilder {
             }
             QueryOperator::Regex => {
                 new_index += 1;
-                (format!("{} REGEXP {}", safe_field, placeholder), vec![condition.value.clone()])
+                (
+                    format!("{} REGEXP {}", safe_field, placeholder),
+                    vec![condition.value.clone()],
+                )
             }
-            QueryOperator::Exists => {
-                (format!("{} IS NOT NULL", safe_field), vec![])
-            }
-            QueryOperator::IsNull => {
-                (format!("{} IS NULL", safe_field), vec![])
-            }
-            QueryOperator::IsNotNull => {
-                (format!("{} IS NOT NULL", safe_field), vec![])
-            }
+            QueryOperator::Exists => (format!("{} IS NOT NULL", safe_field), vec![]),
+            QueryOperator::IsNull => (format!("{} IS NULL", safe_field), vec![]),
+            QueryOperator::IsNotNull => (format!("{} IS NOT NULL", safe_field), vec![]),
         };
 
         Ok((clause, params, new_index))
     }
 
     /// 构建WHERE子句，从指定的参数索引开始
-    pub(crate) fn build_where_clause_with_offset(&self, conditions: &[QueryCondition], start_index: usize, table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>)> {
+    pub(crate) fn build_where_clause_with_offset(
+        &self,
+        conditions: &[QueryCondition],
+        start_index: usize,
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>)> {
         if conditions.is_empty() {
             return Ok((String::new(), Vec::new()));
         }
@@ -661,7 +753,9 @@ impl SqlQueryBuilder {
 
         for condition in conditions {
             let placeholder = self.get_placeholder(param_index);
-            let safe_field = self.security_validator.get_safe_field_identifier(&condition.field)?;
+            let safe_field = self
+                .security_validator
+                .get_safe_field_identifier(&condition.field)?;
 
             match condition.operator {
                 QueryOperator::Eq => {
@@ -676,25 +770,45 @@ impl SqlQueryBuilder {
                 }
                 QueryOperator::Gt => {
                     clauses.push(format!("{} > {}", safe_field, placeholder));
-                    let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    let processed_value = process_range_query_value(
+                        table,
+                        alias,
+                        &condition.field,
+                        &condition.value,
+                    )?;
                     params.push(processed_value);
                     param_index += 1;
                 }
                 QueryOperator::Gte => {
                     clauses.push(format!("{} >= {}", safe_field, placeholder));
-                    let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    let processed_value = process_range_query_value(
+                        table,
+                        alias,
+                        &condition.field,
+                        &condition.value,
+                    )?;
                     params.push(processed_value);
                     param_index += 1;
                 }
                 QueryOperator::Lt => {
                     clauses.push(format!("{} < {}", safe_field, placeholder));
-                    let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    let processed_value = process_range_query_value(
+                        table,
+                        alias,
+                        &condition.field,
+                        &condition.value,
+                    )?;
                     params.push(processed_value);
                     param_index += 1;
                 }
                 QueryOperator::Lte => {
                     clauses.push(format!("{} <= {}", safe_field, placeholder));
-                    let processed_value = process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    let processed_value = process_range_query_value(
+                        table,
+                        alias,
+                        &condition.field,
+                        &condition.value,
+                    )?;
                     params.push(processed_value);
                     param_index += 1;
                 }
@@ -703,12 +817,14 @@ impl SqlQueryBuilder {
                     if let Some(field_type) = get_field_type(table, alias, &condition.field) {
                         if matches!(field_type, crate::model::FieldType::String { .. }) {
                             let value = match &condition.value {
-                            DataValue::String(s) => DataValue::String(format!("%{}%", s)),
-                            _ => return Err(QuickDbError::ValidationError {
-                                field: condition.field.clone(),
-                                message: "Contains操作符需要字符串类型的值".to_string(),
-                            }),
-                        };
+                                DataValue::String(s) => DataValue::String(format!("%{}%", s)),
+                                _ => {
+                                    return Err(QuickDbError::ValidationError {
+                                        field: condition.field.clone(),
+                                        message: "Contains操作符需要字符串类型的值".to_string(),
+                                    });
+                                }
+                            };
                             clauses.push(format!("{} LIKE {}", safe_field, placeholder));
                             params.push(value);
                         } else {
@@ -761,13 +877,19 @@ impl SqlQueryBuilder {
                         // 检查查询值是否为支持的简单类型
                         for value in values {
                             match value {
-                                DataValue::String(_) | DataValue::Int(_) | DataValue::Float(_) | DataValue::Uuid(_) => {
+                                DataValue::String(_)
+                                | DataValue::Int(_)
+                                | DataValue::Float(_)
+                                | DataValue::Uuid(_) => {
                                     // 支持的类型
-                                },
+                                }
                                 _ => {
                                     return Err(QuickDbError::ValidationError {
                                         field: condition.field.clone(),
-                                        message: format!("Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}", value),
+                                        message: format!(
+                                            "Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}",
+                                            value
+                                        ),
                                     });
                                 }
                             }
@@ -782,7 +904,11 @@ impl SqlQueryBuilder {
                                 DataValue::Uuid(uuid) => format!("\"{}\"", uuid),
                                 _ => unreachable!(), // 已经检查过
                             };
-                            clauses.push(format!("{} LIKE {}", condition.field, self.get_placeholder(param_index)));
+                            clauses.push(format!(
+                                "{} LIKE {}",
+                                condition.field,
+                                self.get_placeholder(param_index)
+                            ));
                             params.push(DataValue::String(format!("%{}%", target_value)));
                             param_index += 1;
                         } else {
@@ -795,7 +921,11 @@ impl SqlQueryBuilder {
                                     DataValue::Uuid(uuid) => format!("\"{}\"", uuid),
                                     _ => unreachable!(), // 已经检查过
                                 };
-                                clauses.push(format!("{} LIKE {}", condition.field, self.get_placeholder(param_index)));
+                                clauses.push(format!(
+                                    "{} LIKE {}",
+                                    condition.field,
+                                    self.get_placeholder(param_index)
+                                ));
                                 params.push(DataValue::String(format!("%{}%", target_value)));
                                 param_index += 1;
                             }
@@ -873,7 +1003,9 @@ fn process_range_query_value(
                             return Ok(DataValue::Int(dt.timestamp()));
                         }
                         // 尝试解析本地时间格式
-                        if let Ok(naive_dt) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S") {
+                        if let Ok(naive_dt) =
+                            chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+                        {
                             return Ok(DataValue::Int(naive_dt.and_utc().timestamp()));
                         }
                         // 转换失败，直接报错
@@ -884,18 +1016,18 @@ fn process_range_query_value(
                                 s
                             ),
                         });
-                    },
+                    }
                     DataValue::DateTime(dt) => {
                         // DateTime转换为timestamp
                         return Ok(DataValue::Int(dt.timestamp()));
-                    },
+                    }
                     DataValue::DateTimeUTC(dt) => {
                         // DateTimeUTC转换为timestamp
                         return Ok(DataValue::Int(dt.timestamp()));
-                    },
+                    }
                     _ => Ok(value.clone()),
                 }
-            },
+            }
             // Integer类型处理
             crate::model::FieldType::Integer { .. } | crate::model::FieldType::BigInteger => {
                 match value {
@@ -909,15 +1041,18 @@ fn process_range_query_value(
                             field: field_name.to_string(),
                             message: format!("Integer字段无法将字符串 '{}' 转换为整数", s),
                         });
-                    },
+                    }
                     _ => {
                         return Err(QuickDbError::ValidationError {
                             field: field_name.to_string(),
-                            message: format!("Integer字段不支持的数据类型: {:?}，期望Int或String形式的数字", std::any::type_name_of_val(value)),
+                            message: format!(
+                                "Integer字段不支持的数据类型: {:?}，期望Int或String形式的数字",
+                                std::any::type_name_of_val(value)
+                            ),
                         });
                     }
                 }
-            },
+            }
             // Float类型处理
             crate::model::FieldType::Float { .. } | crate::model::FieldType::Double => {
                 match value {
@@ -932,20 +1067,26 @@ fn process_range_query_value(
                             field: field_name.to_string(),
                             message: format!("Float字段无法将字符串 '{}' 转换为浮点数", s),
                         });
-                    },
+                    }
                     _ => {
                         return Err(QuickDbError::ValidationError {
                             field: field_name.to_string(),
-                            message: format!("Float字段不支持的数据类型: {:?}，期望Float、Int或String形式的数字", std::any::type_name_of_val(value)),
+                            message: format!(
+                                "Float字段不支持的数据类型: {:?}，期望Float、Int或String形式的数字",
+                                std::any::type_name_of_val(value)
+                            ),
                         });
                     }
                 }
-            },
+            }
             // 其他字段类型不支持范围查询操作符
             _ => {
                 return Err(QuickDbError::ValidationError {
                     field: field_name.to_string(),
-                    message: format!("字段类型 {:?} 不支持范围查询操作符 (Gt/Gte/Lt/Lte)", field_type),
+                    message: format!(
+                        "字段类型 {:?} 不支持范围查询操作符 (Gt/Gte/Lt/Lte)",
+                        field_type
+                    ),
                 });
             }
         }

@@ -49,9 +49,7 @@ impl DatabaseSecurityValidator {
             DatabaseType::PostgreSQL | DatabaseType::MySQL | DatabaseType::SQLite => {
                 self.validate_sql_field_name(field_name)
             }
-            DatabaseType::MongoDB => {
-                self.validate_nosql_field_name(field_name)
-            }
+            DatabaseType::MongoDB => self.validate_nosql_field_name(field_name),
         }
     }
 
@@ -87,9 +85,7 @@ impl DatabaseSecurityValidator {
             DatabaseType::PostgreSQL | DatabaseType::MySQL | DatabaseType::SQLite => {
                 self.validate_sql_table_name(table_name)
             }
-            DatabaseType::MongoDB => {
-                self.validate_nosql_collection_name(table_name)
-            }
+            DatabaseType::MongoDB => self.validate_nosql_collection_name(table_name),
         }
     }
 
@@ -164,12 +160,60 @@ impl DatabaseSecurityValidator {
         // 检查是否为SQL关键字
         let upper_name = field_name.to_uppercase();
         let sql_keywords = [
-            "SELECT", "FROM", "WHERE", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP",
-            "ALTER", "TABLE", "INDEX", "AND", "OR", "NOT", "NULL", "IS", "IN", "EXISTS",
-            "BETWEEN", "LIKE", "REGEXP", "UNION", "JOIN", "INNER", "LEFT", "RIGHT", "OUTER",
-            "GROUP", "BY", "HAVING", "ORDER", "LIMIT", "OFFSET", "DISTINCT", "COUNT", "SUM",
-            "AVG", "MIN", "MAX", "AS", "ON", "PRIMARY", "KEY", "FOREIGN", "REFERENCES",
-            "CASE", "WHEN", "THEN", "ELSE", "END", "IF", "COALESCE", "CAST", "CONVERT",
+            "SELECT",
+            "FROM",
+            "WHERE",
+            "INSERT",
+            "UPDATE",
+            "DELETE",
+            "CREATE",
+            "DROP",
+            "ALTER",
+            "TABLE",
+            "INDEX",
+            "AND",
+            "OR",
+            "NOT",
+            "NULL",
+            "IS",
+            "IN",
+            "EXISTS",
+            "BETWEEN",
+            "LIKE",
+            "REGEXP",
+            "UNION",
+            "JOIN",
+            "INNER",
+            "LEFT",
+            "RIGHT",
+            "OUTER",
+            "GROUP",
+            "BY",
+            "HAVING",
+            "ORDER",
+            "LIMIT",
+            "OFFSET",
+            "DISTINCT",
+            "COUNT",
+            "SUM",
+            "AVG",
+            "MIN",
+            "MAX",
+            "AS",
+            "ON",
+            "PRIMARY",
+            "KEY",
+            "FOREIGN",
+            "REFERENCES",
+            "CASE",
+            "WHEN",
+            "THEN",
+            "ELSE",
+            "END",
+            "IF",
+            "COALESCE",
+            "CAST",
+            "CONVERT",
         ];
 
         if sql_keywords.contains(&upper_name.as_str()) {
@@ -206,8 +250,21 @@ impl DatabaseSecurityValidator {
 
         // 检查MongoDB的特殊字段名
         let mongo_reserved_names = [
-            "_id", "id", "ns", "system", "op", "query", "update", "fields", "new",
-            "upsert", "multi", "writeConcern", "collation", "arrayFilters", "hint",
+            "_id",
+            "id",
+            "ns",
+            "system",
+            "op",
+            "query",
+            "update",
+            "fields",
+            "new",
+            "upsert",
+            "multi",
+            "writeConcern",
+            "collation",
+            "arrayFilters",
+            "hint",
         ];
 
         if mongo_reserved_names.contains(&field_name) {
@@ -243,10 +300,35 @@ impl DatabaseSecurityValidator {
         // 检查是否为SQL关键字
         let upper_name = table_name.to_uppercase();
         let sql_keywords = [
-            "SELECT", "FROM", "WHERE", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP",
-            "ALTER", "TABLE", "INDEX", "DATABASE", "SCHEMA", "USER", "ROLE", "GRANT",
-            "REVOKE", "COMMIT", "ROLLBACK", "TRANSACTION", "VIEW", "TRIGGER", "PROCEDURE",
-            "FUNCTION", "SEQUENCE", "CONSTRAINT", "PRIMARY", "FOREIGN", "REFERENCES",
+            "SELECT",
+            "FROM",
+            "WHERE",
+            "INSERT",
+            "UPDATE",
+            "DELETE",
+            "CREATE",
+            "DROP",
+            "ALTER",
+            "TABLE",
+            "INDEX",
+            "DATABASE",
+            "SCHEMA",
+            "USER",
+            "ROLE",
+            "GRANT",
+            "REVOKE",
+            "COMMIT",
+            "ROLLBACK",
+            "TRANSACTION",
+            "VIEW",
+            "TRIGGER",
+            "PROCEDURE",
+            "FUNCTION",
+            "SEQUENCE",
+            "CONSTRAINT",
+            "PRIMARY",
+            "FOREIGN",
+            "REFERENCES",
         ];
 
         if sql_keywords.contains(&upper_name.as_str()) {
@@ -334,11 +416,21 @@ mod tests {
         let pg_validator = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
         let mysql_validator = DatabaseSecurityValidator::new(DatabaseType::MySQL);
 
-        assert_eq!(pg_validator.get_safe_field_identifier("name").unwrap(), "\"name\"");
-        assert_eq!(mysql_validator.get_safe_field_identifier("name").unwrap(), "`name`");
+        assert_eq!(
+            pg_validator.get_safe_field_identifier("name").unwrap(),
+            "\"name\""
+        );
+        assert_eq!(
+            mysql_validator.get_safe_field_identifier("name").unwrap(),
+            "`name`"
+        );
 
         // 测试非法字段名
         assert!(pg_validator.get_safe_field_identifier("select").is_err());
-        assert!(mysql_validator.get_safe_field_identifier("123name").is_err());
+        assert!(
+            mysql_validator
+                .get_safe_field_identifier("123name")
+                .is_err()
+        );
     }
 }

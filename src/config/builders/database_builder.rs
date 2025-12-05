@@ -2,8 +2,8 @@
 //!
 //! 提供数据库配置的构建器实现，支持链式调用和严格验证
 
-use crate::types::*;
 use crate::error::QuickDbError;
+use crate::types::*;
 use rat_logger::info;
 use std::path::PathBuf;
 
@@ -42,9 +42,9 @@ impl DatabaseConfigBuilder {
     }
 
     /// 设置数据库类型
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `db_type` - 数据库类型
     pub fn db_type(mut self, db_type: DatabaseType) -> Self {
         self.db_type = Some(db_type);
@@ -52,9 +52,9 @@ impl DatabaseConfigBuilder {
     }
 
     /// 设置连接配置
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `connection` - 连接配置
     pub fn connection(mut self, connection: ConnectionConfig) -> Self {
         self.connection = Some(connection);
@@ -62,9 +62,9 @@ impl DatabaseConfigBuilder {
     }
 
     /// 设置连接池配置
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `pool` - 连接池配置
     pub fn pool(mut self, pool: PoolConfig) -> Self {
         self.pool = Some(pool);
@@ -72,9 +72,9 @@ impl DatabaseConfigBuilder {
     }
 
     /// 设置数据库别名
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `alias` - 数据库别名
     pub fn alias<S: Into<String>>(mut self, alias: S) -> Self {
         self.alias = Some(alias.into());
@@ -82,9 +82,9 @@ impl DatabaseConfigBuilder {
     }
 
     /// 设置ID生成策略
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `id_strategy` - ID生成策略
     pub fn id_strategy(mut self, id_strategy: IdStrategy) -> Self {
         self.id_strategy = Some(id_strategy);
@@ -129,30 +129,30 @@ impl DatabaseConfigBuilder {
     }
 
     /// 构建数据库配置
-    /// 
+    ///
     /// # 错误
-    /// 
+    ///
     /// 如果任何必需的配置项未设置，将返回错误
     pub fn build(self) -> Result<DatabaseConfig, QuickDbError> {
-        let db_type = self.db_type.ok_or_else(|| {
-            crate::quick_error!(config, "数据库类型必须设置")
-        })?;
-        
-        let connection = self.connection.ok_or_else(|| {
-            crate::quick_error!(config, "连接配置必须设置")
-        })?;
-        
-        let pool = self.pool.ok_or_else(|| {
-            crate::quick_error!(config, "连接池配置必须设置")
-        })?;
-        
-        let alias = self.alias.ok_or_else(|| {
-            crate::quick_error!(config, "数据库别名必须设置")
-        })?;
+        let db_type = self
+            .db_type
+            .ok_or_else(|| crate::quick_error!(config, "数据库类型必须设置"))?;
 
-        let id_strategy = self.id_strategy.ok_or_else(|| {
-            crate::quick_error!(config, "ID生成策略必须设置")
-        })?;
+        let connection = self
+            .connection
+            .ok_or_else(|| crate::quick_error!(config, "连接配置必须设置"))?;
+
+        let pool = self
+            .pool
+            .ok_or_else(|| crate::quick_error!(config, "连接池配置必须设置"))?;
+
+        let alias = self
+            .alias
+            .ok_or_else(|| crate::quick_error!(config, "数据库别名必须设置"))?;
+
+        let id_strategy = self
+            .id_strategy
+            .ok_or_else(|| crate::quick_error!(config, "ID生成策略必须设置"))?;
 
         // 验证配置的一致性
         Self::validate_config(&db_type, &connection)?;
@@ -170,13 +170,17 @@ impl DatabaseConfigBuilder {
     }
 
     /// 验证配置的一致性
-    fn validate_config(db_type: &DatabaseType, connection: &ConnectionConfig) -> Result<(), QuickDbError> {
+    fn validate_config(
+        db_type: &DatabaseType,
+        connection: &ConnectionConfig,
+    ) -> Result<(), QuickDbError> {
         match (db_type, connection) {
             (DatabaseType::SQLite, ConnectionConfig::SQLite { .. }) => Ok(()),
             (DatabaseType::PostgreSQL, ConnectionConfig::PostgreSQL { .. }) => Ok(()),
             (DatabaseType::MySQL, ConnectionConfig::MySQL { .. }) => Ok(()),
             (DatabaseType::MongoDB, ConnectionConfig::MongoDB { .. }) => Ok(()),
-            _ => Err(crate::quick_error!(config, 
+            _ => Err(crate::quick_error!(
+                config,
                 format!("数据库类型 {:?} 与连接配置不匹配", db_type)
             )),
         }

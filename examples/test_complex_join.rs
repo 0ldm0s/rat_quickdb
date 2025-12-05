@@ -1,11 +1,11 @@
 //! 复杂JOIN查询测试示例
 //! 验证多表混合JOIN类型的虚拟表格宏功能
 
-use rat_quickdb::*;
-use rat_quickdb::types::*;
-use rat_quickdb::join_macro::{JoinDefinition, JoinType};
 use rat_quickdb::adapter::OrderClause;
+use rat_quickdb::join_macro::{JoinDefinition, JoinType};
 use rat_quickdb::types::query::SortDirection;
+use rat_quickdb::types::*;
+use rat_quickdb::*;
 
 // 复杂的虚拟表格：电商订单详细信息（用户+订单+商品+分类+供应商+配送）
 define_join_table! {
@@ -243,14 +243,11 @@ fn test_ecommerce_order_detail() {
             field: "category_name".to_string(),
             operator: QueryOperator::Eq,
             value: DataValue::String("电子产品".to_string()),
-        }
+        },
     ];
 
     let options = QueryOptions {
-        pagination: Some(crate::types::query::PaginationConfig {
-            skip: 0,
-            limit: 20,
-        }),
+        pagination: Some(crate::types::query::PaginationConfig { skip: 0, limit: 20 }),
         sort: vec![
             crate::types::query::SortConfig {
                 field: "order_date".to_string(),
@@ -259,7 +256,7 @@ fn test_ecommerce_order_detail() {
             crate::types::query::SortConfig {
                 field: "order_total".to_string(),
                 direction: SortDirection::Desc,
-            }
+            },
         ],
         ..Default::default()
     };
@@ -334,20 +331,15 @@ fn test_social_media_analytics() {
             field: "post_created".to_string(),
             operator: QueryOperator::Gte,
             value: DataValue::String("2023-12-01T00:00:00Z".to_string()),
-        }
+        },
     ];
 
     let options = QueryOptions {
-        pagination: Some(crate::types::query::PaginationConfig {
-            skip: 0,
-            limit: 50,
-        }),
-        sort: vec![
-            crate::types::query::SortConfig {
-                field: "post_created".to_string(),
-                direction: SortDirection::Desc,
-            }
-        ],
+        pagination: Some(crate::types::query::PaginationConfig { skip: 0, limit: 50 }),
+        sort: vec![crate::types::query::SortConfig {
+            field: "post_created".to_string(),
+            direction: SortDirection::Desc,
+        }],
         ..Default::default()
     };
 

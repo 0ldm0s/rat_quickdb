@@ -1,8 +1,8 @@
 //! 存储过程类型定义
 
-use std::collections::HashMap;
 use crate::types::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// JOIN类型
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -68,13 +68,16 @@ pub struct StoredProcedureCreateResult {
 }
 
 /// 存储过程执行结果
-pub type StoredProcedureQueryResult = Vec<std::collections::HashMap<String, crate::types::DataValue>>;
+pub type StoredProcedureQueryResult =
+    Vec<std::collections::HashMap<String, crate::types::DataValue>>;
 
 /// MongoDB聚合管道操作类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MongoAggregationOperation {
     /// 字段投影
-    Project { fields: HashMap<String, MongoFieldExpression> },
+    Project {
+        fields: HashMap<String, MongoFieldExpression>,
+    },
     /// 匹配阶段（类似WHERE）
     Match { conditions: Vec<MongoCondition> },
     /// Lookup连接（类似JOIN）
@@ -92,13 +95,17 @@ pub enum MongoAggregationOperation {
         accumulators: HashMap<String, MongoAccumulator>,
     },
     /// 排序
-    Sort { fields: Vec<(String, SortDirection)> },
+    Sort {
+        fields: Vec<(String, SortDirection)>,
+    },
     /// 限制数量
     Limit { count: i64 },
     /// 跳过数量
     Skip { count: i64 },
     /// 添加字段
-    AddFields { fields: HashMap<String, MongoFieldExpression> },
+    AddFields {
+        fields: HashMap<String, MongoFieldExpression>,
+    },
     /// 计数
     Count { field: String },
     /// 添加占位符（用于动态替换）
@@ -130,7 +137,10 @@ pub enum MongoAggregateExpression {
     /// 最小值
     Min { field: String },
     /// 如果为空则使用默认值
-    IfNull { field: String, default: Box<MongoFieldExpression> },
+    IfNull {
+        field: String,
+        default: Box<MongoFieldExpression>,
+    },
     /// 条件表达式
     Condition {
         if_condition: Box<MongoCondition>,
@@ -185,9 +195,15 @@ pub enum MongoCondition {
     /// 小于等于
     Lte { field: String, value: DataValue },
     /// 包含（在数组中）
-    In { field: String, values: Vec<DataValue> },
+    In {
+        field: String,
+        values: Vec<DataValue>,
+    },
     /// 不包含
-    Nin { field: String, values: Vec<DataValue> },
+    Nin {
+        field: String,
+        values: Vec<DataValue>,
+    },
     /// AND条件
     And { conditions: Vec<MongoCondition> },
     /// OR条件

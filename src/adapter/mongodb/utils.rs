@@ -3,12 +3,12 @@
 //! 包含BSON数据转换和数据库连接相关的工具函数
 
 use crate::adapter::mongodb::MongoAdapter;
-use crate::types::*;
 use crate::error::{QuickDbError, QuickDbResult};
+use crate::types::*;
+use mongodb::bson::{Bson, Document, doc};
 use mongodb::{Collection, Database};
-use mongodb::bson::{doc, Bson, Document};
-use std::collections::HashMap;
 use rat_logger::debug;
+use std::collections::HashMap;
 
 /// 将DataValue转换为BSON值
 pub(crate) fn data_value_to_bson(adapter: &MongoAdapter, value: &DataValue) -> Bson {
@@ -21,11 +21,11 @@ pub(crate) fn data_value_to_bson(adapter: &MongoAdapter, value: &DataValue) -> B
             // 将DateTime<FixedOffset>转换为DateTime<Utc>，然后转换为MongoDB BSON DateTime
             let utc_dt = chrono::DateTime::<chrono::Utc>::from(*dt);
             Bson::DateTime(mongodb::bson::DateTime::from_system_time(utc_dt.into()))
-        },
+        }
         DataValue::DateTimeUTC(dt) => {
             // DateTime<Utc>直接转换为MongoDB BSON DateTime
             Bson::DateTime(mongodb::bson::DateTime::from_system_time(dt.clone().into()))
-        },
+        }
         DataValue::Uuid(uuid) => Bson::String(uuid.to_string()),
         DataValue::Json(json) => {
             // 尝试将JSON转换为BSON文档
@@ -34,13 +34,12 @@ pub(crate) fn data_value_to_bson(adapter: &MongoAdapter, value: &DataValue) -> B
             } else {
                 Bson::String(json.to_string())
             }
-        },
+        }
         DataValue::Array(arr) => {
-            let bson_array: Vec<Bson> = arr.iter()
-                .map(|v| data_value_to_bson(adapter, v))
-                .collect();
+            let bson_array: Vec<Bson> =
+                arr.iter().map(|v| data_value_to_bson(adapter, v)).collect();
             Bson::Array(bson_array)
-        },
+        }
         DataValue::Object(obj) => {
             let mut bson_doc = Document::new();
             for (key, value) in obj {
@@ -48,14 +47,20 @@ pub(crate) fn data_value_to_bson(adapter: &MongoAdapter, value: &DataValue) -> B
                 bson_doc.insert(key, bson_value);
             }
             Bson::Document(bson_doc)
-        },
+        }
         DataValue::Null => Bson::Null,
-        DataValue::Bytes(bytes) => Bson::Binary(mongodb::bson::Binary { bytes: bytes.clone(), subtype: mongodb::bson::spec::BinarySubtype::Generic }),
+        DataValue::Bytes(bytes) => Bson::Binary(mongodb::bson::Binary {
+            bytes: bytes.clone(),
+            subtype: mongodb::bson::spec::BinarySubtype::Generic,
+        }),
     }
 }
 
 /// 将Document转换为HashMap<String, DataValue>
-pub(crate) fn document_to_data_map(adapter: &MongoAdapter, doc: &Document) -> QuickDbResult<HashMap<String, DataValue>> {
+pub(crate) fn document_to_data_map(
+    adapter: &MongoAdapter,
+    doc: &Document,
+) -> QuickDbResult<HashMap<String, DataValue>> {
     let mut result = HashMap::new();
 
     for (key, bson_value) in doc {
@@ -74,43 +79,68 @@ pub(crate) fn document_to_data_map(adapter: &MongoAdapter, doc: &Document) -> Qu
 }
 
 /// 将Document转换为DataValue
-pub(crate) fn document_to_data_value(adapter: &MongoAdapter, doc: &Document) -> QuickDbResult<DataValue> {
+pub(crate) fn document_to_data_value(
+    adapter: &MongoAdapter,
+    doc: &Document,
+) -> QuickDbResult<DataValue> {
     let map = document_to_data_map(adapter, doc)?;
     Ok(DataValue::Object(map))
 }
 
 /// 将BSON转换为JSON Value
-pub(crate) fn bson_to_json_value(adapter: &MongoAdapter, bson: &Bson) -> QuickDbResult<serde_json::Value> {
+pub(crate) fn bson_to_json_value(
+    adapter: &MongoAdapter,
+    bson: &Bson,
+) -> QuickDbResult<serde_json::Value> {
     let json_value = match bson {
         Bson::String(s) => serde_json::Value::String(s.clone()),
         Bson::Int64(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
         Bson::Int32(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
-        Bson::Double(d) => serde_json::Value::Number(serde_json::Number::from_f64(*d).unwrap_or(serde_json::Number::from(0))),
+        Bson::Double(d) => serde_json::Value::Number(
+            serde_json::Number::from_f64(*d).unwrap_or(serde_json::Number::from(0)),
+        ),
         Bson::Boolean(b) => serde_json::Value::Bool(*b),
         Bson::DateTime(dt) => serde_json::Value::String(dt.to_string()),
         Bson::ObjectId(oid) => serde_json::Value::String(oid.to_hex()),
         Bson::Null => serde_json::Value::Null,
         Bson::Array(arr) => {
-            let json_array: Vec<serde_json::Value> = arr.iter()
+            let json_array: Vec<serde_json::Value> = arr
+                .iter()
                 .map(|v| bson_to_json_value(adapter, v))
                 .collect::<Result<Vec<_>, _>>()?;
             serde_json::Value::Array(json_array)
         }
         Bson::Document(doc) => {
-            let json_obj: serde_json::Map<String, serde_json::Value> = doc.iter()
-                .map(|(k, v)| (k.to_string(), bson_to_json_value(adapter, v).ok().unwrap_or(serde_json::Value::Null)))
+            let json_obj: serde_json::Map<String, serde_json::Value> = doc
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        k.to_string(),
+                        bson_to_json_value(adapter, v)
+                            .ok()
+                            .unwrap_or(serde_json::Value::Null),
+                    )
+                })
                 .collect();
             serde_json::Value::Object(json_obj)
         }
         Bson::Binary(bin) => serde_json::Value::String(format!("Binary({})", bin.bytes.len())),
-        Bson::RegularExpression(regex) => serde_json::Value::String(format!("Regex({}, {})", regex.pattern, regex.options)),
+        Bson::RegularExpression(regex) => {
+            serde_json::Value::String(format!("Regex({}, {})", regex.pattern, regex.options))
+        }
         Bson::JavaScriptCode(code) => serde_json::Value::String(format!("Code({})", code)),
-        Bson::JavaScriptCodeWithScope(code_with_scope) => serde_json::Value::String(format!("CodeWithScope({})", code_with_scope.code)),
+        Bson::JavaScriptCodeWithScope(code_with_scope) => {
+            serde_json::Value::String(format!("CodeWithScope({})", code_with_scope.code))
+        }
         Bson::Undefined => serde_json::Value::String("undefined".to_string()),
         Bson::MaxKey => serde_json::Value::String("maxKey".to_string()),
         Bson::MinKey => serde_json::Value::String("minKey".to_string()),
-        Bson::Timestamp(timestamp) => serde_json::Value::String(format!("Timestamp({})", timestamp.time)),
-        Bson::DbPointer(db_pointer) => serde_json::Value::String(format!("DbPointer({:?})", db_pointer)),
+        Bson::Timestamp(timestamp) => {
+            serde_json::Value::String(format!("Timestamp({})", timestamp.time))
+        }
+        Bson::DbPointer(db_pointer) => {
+            serde_json::Value::String(format!("DbPointer({:?})", db_pointer))
+        }
         Bson::Symbol(symbol) => serde_json::Value::String(symbol.to_string()),
         Bson::Decimal128(decimal) => serde_json::Value::String(decimal.to_string()),
     };
@@ -130,11 +160,12 @@ pub(crate) fn bson_to_data_value(adapter: &MongoAdapter, bson: &Bson) -> QuickDb
             let utc_dt = chrono::DateTime::<chrono::Utc>::from(dt.to_system_time());
             let fixed_dt = utc_dt.with_timezone(&chrono::FixedOffset::east(0));
             Ok(DataValue::DateTime(fixed_dt))
-        },
+        }
         Bson::ObjectId(oid) => Ok(DataValue::String(oid.to_hex())),
         Bson::Null => Ok(DataValue::Null),
         Bson::Array(arr) => {
-            let data_array: Vec<DataValue> = arr.iter()
+            let data_array: Vec<DataValue> = arr
+                .iter()
                 .map(|v| bson_to_data_value(adapter, v))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(DataValue::Array(data_array))
@@ -158,14 +189,18 @@ pub(crate) fn bson_to_data_value(adapter: &MongoAdapter, bson: &Bson) -> QuickDb
 }
 
 /// 构建更新文档
-pub(crate) fn build_update_document(adapter: &MongoAdapter, data: &HashMap<String, DataValue>) -> Document {
+pub(crate) fn build_update_document(
+    adapter: &MongoAdapter,
+    data: &HashMap<String, DataValue>,
+) -> Document {
     let mut update_doc = Document::new();
     let mut set_doc = Document::new();
 
     // 映射字段名（id -> _id）
     let mapped_data = map_data_fields(adapter, data);
     for (key, value) in &mapped_data {
-        if key != "_id" { // MongoDB的_id字段不能更新
+        if key != "_id" {
+            // MongoDB的_id字段不能更新
             set_doc.insert(key, data_value_to_bson(adapter, value));
         }
     }
@@ -175,7 +210,11 @@ pub(crate) fn build_update_document(adapter: &MongoAdapter, data: &HashMap<Strin
 }
 
 /// 获取MongoDB集合
-pub(crate) fn get_collection(adapter: &MongoAdapter, db: &mongodb::Database, table: &str) -> Collection<Document> {
+pub(crate) fn get_collection(
+    adapter: &MongoAdapter,
+    db: &mongodb::Database,
+    table: &str,
+) -> Collection<Document> {
     db.collection(table)
 }
 
@@ -186,7 +225,10 @@ pub(crate) fn map_field_name(adapter: &MongoAdapter, field_name: &str) -> String
 }
 
 /// 映射数据字段（适配MongoDB字段命名）
-pub(crate) fn map_data_fields(adapter: &MongoAdapter, data: &HashMap<String, DataValue>) -> HashMap<String, DataValue> {
+pub(crate) fn map_data_fields(
+    adapter: &MongoAdapter,
+    data: &HashMap<String, DataValue>,
+) -> HashMap<String, DataValue> {
     let mut mapped_data = HashMap::new();
 
     for (key, value) in data {

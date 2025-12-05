@@ -1,39 +1,39 @@
 //! 数据库适配器模块
-//! 
+//!
 //! 提供统一的数据库操作接口，屏蔽不同数据库的实现差异
 
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
-use crate::model::{FieldType, FieldDefinition};
+use crate::model::{FieldDefinition, FieldType};
 use crate::pool::DatabaseConnection;
+use crate::types::*;
 use async_trait::async_trait;
 
 use std::collections::HashMap;
 
 // 导入各个数据库适配器 (条件编译)
-#[cfg(feature = "sqlite-support")]
-mod sqlite;
-#[cfg(feature = "postgres-support")]
-mod postgres;
-#[cfg(feature = "mysql-support")]
-mod mysql;
+mod cached;
 #[cfg(feature = "mongodb-support")]
 mod mongodb;
-mod cached;
+#[cfg(feature = "mysql-support")]
+mod mysql;
+#[cfg(feature = "postgres-support")]
+mod postgres;
 mod postgres_utils;
+#[cfg(feature = "sqlite-support")]
+mod sqlite;
 mod utils;
 
 // 条件导出适配器
-#[cfg(feature = "sqlite-support")]
-pub use sqlite::SqliteAdapter;
-#[cfg(feature = "postgres-support")]
-pub use postgres::PostgresAdapter;
-#[cfg(feature = "mysql-support")]
-pub use mysql::MysqlAdapter;
+pub use cached::CachedDatabaseAdapter;
 #[cfg(feature = "mongodb-support")]
 pub use mongodb::MongoAdapter;
-pub use cached::CachedDatabaseAdapter;
+#[cfg(feature = "mysql-support")]
+pub use mysql::MysqlAdapter;
+#[cfg(feature = "postgres-support")]
+pub use postgres::PostgresAdapter;
 pub use postgres_utils::{build_json_query_condition, convert_to_jsonb_value};
+#[cfg(feature = "sqlite-support")]
+pub use sqlite::SqliteAdapter;
 pub use utils::get_field_type;
 
 /// 数据库适配器trait，定义统一的数据库操作接口
@@ -135,7 +135,6 @@ pub trait DatabaseAdapter: Send + Sync {
         alias: &str,
     ) -> QuickDbResult<u64>;
 
-    
     /// 创建表/集合
     async fn create_table(
         &self,
@@ -164,17 +163,10 @@ pub trait DatabaseAdapter: Send + Sync {
     ) -> QuickDbResult<bool>;
 
     /// 删除表/集合
-    async fn drop_table(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-    ) -> QuickDbResult<()>;
+    async fn drop_table(&self, connection: &DatabaseConnection, table: &str) -> QuickDbResult<()>;
 
     /// 获取数据库服务器版本信息
-    async fn get_server_version(
-        &self,
-        connection: &DatabaseConnection,
-    ) -> QuickDbResult<String>;
+    async fn get_server_version(&self, connection: &DatabaseConnection) -> QuickDbResult<String>;
 
     /// 创建存储过程
     async fn create_stored_procedure(
@@ -216,5 +208,8 @@ pub fn create_adapter_with_cache(
     cache_manager: std::sync::Arc<crate::cache::CacheManager>,
 ) -> QuickDbResult<Box<dyn DatabaseAdapter>> {
     let base_adapter = create_adapter(db_type)?;
-    Ok(Box::new(CachedDatabaseAdapter::new(base_adapter, cache_manager)))
+    Ok(Box::new(CachedDatabaseAdapter::new(
+        base_adapter,
+        cache_manager,
+    )))
 }

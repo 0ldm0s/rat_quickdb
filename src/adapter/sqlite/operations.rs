@@ -1,14 +1,13 @@
-
-use crate::adapter::DatabaseAdapter;
 use super::SqlQueryBuilder;
+use crate::adapter::DatabaseAdapter;
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
 use crate::model::{FieldDefinition, FieldType};
 use crate::pool::DatabaseConnection;
-use std::collections::HashMap;
+use crate::types::*;
 use async_trait::async_trait;
 use rat_logger::{debug, info, warn};
-use sqlx::{sqlite::SqliteRow, Row, Column};
+use sqlx::{Column, Row, sqlite::SqliteRow};
+use std::collections::HashMap;
 
 use super::adapter::SqliteAdapter;
 use super::query as sqlite_query;
@@ -26,58 +25,82 @@ impl DatabaseAdapter for SqliteAdapter {
     ) -> QuickDbResult<DataValue> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
-            _ => return Err(QuickDbError::ConnectionError {
-                message: "Invalid connection type for SQLite".to_string(),
-            }),
-        };
-        
-        // 自动建表逻辑：检查表是否存在，如果不存在则创建
-            if !self.table_exists(connection, table).await? {
-                // 获取表创建锁，防止重复创建
-                let _lock = self.acquire_table_lock(table).await;
-                // 再次检查表是否存在（双重检查锁定模式）
-                if !self.table_exists(connection, table).await? {
-                    // 尝试从模型管理器获取预定义的元数据
-                    if let Some(model_meta) = crate::manager::get_model_with_alias(table, alias) {
-                        debug!("表 {} 不存在，使用预定义模型元数据创建", table);
-
-                        // 使用模型元数据创建表
-                        self.create_table(connection, table, &model_meta.fields, id_strategy, alias).await?;
-                        // 等待100ms确保数据库事务完全提交
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                        debug!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
-                    } else {
-                        return Err(QuickDbError::ValidationError {
-                            field: "table_creation".to_string(),
-                            message: format!("表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。", table),
-                        });
-                    }
-                } else {
-                    debug!("表 {} 已存在，跳过创建", table);
-                }
-                // 锁会在这里自动释放（当 _lock 超出作用域时）
+            _ => {
+                return Err(QuickDbError::ConnectionError {
+                    message: "Invalid connection type for SQLite".to_string(),
+                });
             }
-            
-            let (sql, params) = SqlQueryBuilder::new()
-                .insert(data.clone())
-                .build(table, alias)?;
-            
-            // 构建参数化查询，使用正确的参数顺序
-            let mut query = sqlx::query(&sql);
-            for param in &params {
-                match param {
-                    DataValue::String(s) => { query = query.bind(s); },
-                    DataValue::Int(i) => { query = query.bind(i); },
-                    DataValue::Float(f) => { query = query.bind(f); },
-                    DataValue::Bool(b) => { query = query.bind(b); },
-                    DataValue::Bytes(bytes) => { query = query.bind(bytes); },
-                    DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); },
-                    DataValue::DateTimeUTC(dt) => { query = query.bind(dt.timestamp()); },
-                    DataValue::Uuid(uuid) => { query = query.bind(uuid.to_string()); },
-                    DataValue::Json(json) => { query = query.bind(json.to_string()); },
-                    DataValue::Array(arr) => {
-                        // Array字段统一转为字符串数组存储
-                        let string_array: Result<Vec<String>, QuickDbError> = arr.iter().map(|item| {
+        };
+
+        // 自动建表逻辑：检查表是否存在，如果不存在则创建
+        if !self.table_exists(connection, table).await? {
+            // 获取表创建锁，防止重复创建
+            let _lock = self.acquire_table_lock(table).await;
+            // 再次检查表是否存在（双重检查锁定模式）
+            if !self.table_exists(connection, table).await? {
+                // 尝试从模型管理器获取预定义的元数据
+                if let Some(model_meta) = crate::manager::get_model_with_alias(table, alias) {
+                    debug!("表 {} 不存在，使用预定义模型元数据创建", table);
+
+                    // 使用模型元数据创建表
+                    self.create_table(connection, table, &model_meta.fields, id_strategy, alias)
+                        .await?;
+                    // 等待100ms确保数据库事务完全提交
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    debug!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
+                } else {
+                    return Err(QuickDbError::ValidationError {
+                        field: "table_creation".to_string(),
+                        message: format!(
+                            "表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。",
+                            table
+                        ),
+                    });
+                }
+            } else {
+                debug!("表 {} 已存在，跳过创建", table);
+            }
+            // 锁会在这里自动释放（当 _lock 超出作用域时）
+        }
+
+        let (sql, params) = SqlQueryBuilder::new()
+            .insert(data.clone())
+            .build(table, alias)?;
+
+        // 构建参数化查询，使用正确的参数顺序
+        let mut query = sqlx::query(&sql);
+        for param in &params {
+            match param {
+                DataValue::String(s) => {
+                    query = query.bind(s);
+                }
+                DataValue::Int(i) => {
+                    query = query.bind(i);
+                }
+                DataValue::Float(f) => {
+                    query = query.bind(f);
+                }
+                DataValue::Bool(b) => {
+                    query = query.bind(b);
+                }
+                DataValue::Bytes(bytes) => {
+                    query = query.bind(bytes);
+                }
+                DataValue::DateTime(dt) => {
+                    query = query.bind(dt.timestamp());
+                }
+                DataValue::DateTimeUTC(dt) => {
+                    query = query.bind(dt.timestamp());
+                }
+                DataValue::Uuid(uuid) => {
+                    query = query.bind(uuid.to_string());
+                }
+                DataValue::Json(json) => {
+                    query = query.bind(json.to_string());
+                }
+                DataValue::Array(arr) => {
+                    // Array字段统一转为字符串数组存储
+                    let string_array: Result<Vec<String>, QuickDbError> = arr.iter().map(|item| {
                             Ok(match item {
                                 DataValue::String(s) => s.clone(),
                                 DataValue::Int(i) => i.to_string(),
@@ -91,42 +114,49 @@ impl DatabaseAdapter for SqliteAdapter {
                                 }
                             })
                         }).collect();
-                        let string_array = string_array?;
-                        let json = serde_json::to_string(&string_array).unwrap_or_default();
-                        query = query.bind(json);
-                    },
-                    DataValue::Object(_) => {
-                        let json = param.to_json_value().to_string();
-                        query = query.bind(json);
-                    },
-                    DataValue::Null => { query = query.bind(Option::<String>::None); },
+                    let string_array = string_array?;
+                    let json = serde_json::to_string(&string_array).unwrap_or_default();
+                    query = query.bind(json);
+                }
+                DataValue::Object(_) => {
+                    let json = param.to_json_value().to_string();
+                    query = query.bind(json);
+                }
+                DataValue::Null => {
+                    query = query.bind(Option::<String>::None);
                 }
             }
-            
-            let result = query.execute(pool).await
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("执行SQLite插入失败: {}", e),
-                })?;
-            
-            // 根据插入的数据返回相应的ID
-            // 优先返回数据中的ID字段，如果没有则使用SQLite的rowid
-            if let Some(id_value) = data.get("id") {
-                Ok(id_value.clone())
-            } else if let Some(id_value) = data.get("_id") {
-                Ok(id_value.clone())
+        }
+
+        let result = query
+            .execute(pool)
+            .await
+            .map_err(|e| QuickDbError::QueryError {
+                message: format!("执行SQLite插入失败: {}", e),
+            })?;
+
+        // 根据插入的数据返回相应的ID
+        // 优先返回数据中的ID字段，如果没有则使用SQLite的rowid
+        if let Some(id_value) = data.get("id") {
+            Ok(id_value.clone())
+        } else if let Some(id_value) = data.get("_id") {
+            Ok(id_value.clone())
+        } else {
+            // 如果数据中没有ID字段，返回SQLite的自增ID
+            let id = result.last_insert_rowid();
+            if id > 0 {
+                Ok(DataValue::Int(id))
             } else {
-                // 如果数据中没有ID字段，返回SQLite的自增ID
-                let id = result.last_insert_rowid();
-                if id > 0 {
-                    Ok(DataValue::Int(id))
-                } else {
-                    // 如果没有自增ID，返回包含详细信息的对象
-                    let mut result_map = HashMap::new();
-                    result_map.insert("id".to_string(), DataValue::Int(id));
-                    result_map.insert("affected_rows".to_string(), DataValue::Int(result.rows_affected() as i64));
-                    Ok(DataValue::Object(result_map))
-                }
+                // 如果没有自增ID，返回包含详细信息的对象
+                let mut result_map = HashMap::new();
+                result_map.insert("id".to_string(), DataValue::Int(id));
+                result_map.insert(
+                    "affected_rows".to_string(),
+                    DataValue::Int(result.rows_affected() as i64),
+                );
+                Ok(DataValue::Object(result_map))
             }
+        }
     }
 
     async fn find_by_id(
@@ -138,25 +168,35 @@ impl DatabaseAdapter for SqliteAdapter {
     ) -> QuickDbResult<Option<DataValue>> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
-            _ => return Err(QuickDbError::ConnectionError {
-                message: "Invalid connection type for SQLite".to_string(),
-            }),
+            _ => {
+                return Err(QuickDbError::ConnectionError {
+                    message: "Invalid connection type for SQLite".to_string(),
+                });
+            }
         };
         {
             let sql = format!("SELECT * FROM {} WHERE id = ? LIMIT 1", table);
-            
+
             let mut query = sqlx::query(&sql);
             match id {
-                DataValue::String(s) => { query = query.bind(s); },
-                DataValue::Int(i) => { query = query.bind(i); },
-                _ => { query = query.bind(id.to_string()); },
+                DataValue::String(s) => {
+                    query = query.bind(s);
+                }
+                DataValue::Int(i) => {
+                    query = query.bind(i);
+                }
+                _ => {
+                    query = query.bind(id.to_string());
+                }
             }
-            
-            let row = query.fetch_optional(pool).await
+
+            let row = query
+                .fetch_optional(pool)
+                .await
                 .map_err(|e| QuickDbError::QueryError {
                     message: format!("执行SQLite根据ID查询失败: {}", e),
                 })?;
-            
+
             match row {
                 Some(r) => {
                     // 获取字段元数据
@@ -167,9 +207,12 @@ impl DatabaseAdapter for SqliteAdapter {
                         })?;
 
                     // 使用新的元数据转换函数
-                    let data_map = super::data_conversion::row_to_data_map_with_metadata(&r, &model_meta.fields)?;
+                    let data_map = super::data_conversion::row_to_data_map_with_metadata(
+                        &r,
+                        &model_meta.fields,
+                    )?;
                     Ok(Some(DataValue::Object(data_map)))
-                },
+                }
                 None => Ok(None),
             }
         }
@@ -187,7 +230,8 @@ impl DatabaseAdapter for SqliteAdapter {
         let condition_groups = if conditions.is_empty() {
             vec![]
         } else {
-            let group_conditions = conditions.iter()
+            let group_conditions = conditions
+                .iter()
                 .map(|c| QueryConditionGroup::Single(c.clone()))
                 .collect();
             vec![QueryConditionGroup::Group {
@@ -195,9 +239,10 @@ impl DatabaseAdapter for SqliteAdapter {
                 conditions: group_conditions,
             }]
         };
-        
+
         // 统一使用 find_with_groups 实现
-        self.find_with_groups(connection, table, &condition_groups, options, alias).await
+        self.find_with_groups(connection, table, &condition_groups, options, alias)
+            .await
     }
 
     async fn find_with_groups(
@@ -210,9 +255,11 @@ impl DatabaseAdapter for SqliteAdapter {
     ) -> QuickDbResult<Vec<DataValue>> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
-            _ => return Err(QuickDbError::ConnectionError {
-                message: "Invalid connection type for SQLite".to_string(),
-            }),
+            _ => {
+                return Err(QuickDbError::ConnectionError {
+                    message: "Invalid connection type for SQLite".to_string(),
+                });
+            }
         };
         {
             let (sql, params) = SqlQueryBuilder::new()
@@ -227,33 +274,56 @@ impl DatabaseAdapter for SqliteAdapter {
             let mut query = sqlx::query(&sql);
             for param in &params {
                 match param {
-                    DataValue::String(s) => { query = query.bind(s); },
-                    DataValue::Int(i) => { query = query.bind(i); },
-                    DataValue::Float(f) => { query = query.bind(f); },
-                    DataValue::Bool(b) => { query = query.bind(b); },
-                    DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); },
-                    DataValue::DateTimeUTC(dt) => { query = query.bind(dt.timestamp()); }, // DateTime转换为时间戳
-                    DataValue::Null => { query = query.bind(Option::<String>::None); },
-                    _ => { query = query.bind(param.to_string()); },
+                    DataValue::String(s) => {
+                        query = query.bind(s);
+                    }
+                    DataValue::Int(i) => {
+                        query = query.bind(i);
+                    }
+                    DataValue::Float(f) => {
+                        query = query.bind(f);
+                    }
+                    DataValue::Bool(b) => {
+                        query = query.bind(b);
+                    }
+                    DataValue::DateTime(dt) => {
+                        query = query.bind(dt.timestamp());
+                    }
+                    DataValue::DateTimeUTC(dt) => {
+                        query = query.bind(dt.timestamp());
+                    } // DateTime转换为时间戳
+                    DataValue::Null => {
+                        query = query.bind(Option::<String>::None);
+                    }
+                    _ => {
+                        query = query.bind(param.to_string());
+                    }
                 }
             }
 
-            let rows = query.fetch_all(pool).await
+            let rows = query
+                .fetch_all(pool)
+                .await
                 .map_err(|e| QuickDbError::QueryError {
                     message: format!("执行SQLite条件组合查询失败: {}", e),
                 })?;
 
             // 获取字段元数据
-            let model_meta = crate::manager::get_model_with_alias(table, alias)
-                .ok_or_else(|| QuickDbError::ValidationError {
-                    field: "model".to_string(),
-                    message: format!("模型 '{}' 不存在", table),
+            let model_meta =
+                crate::manager::get_model_with_alias(table, alias).ok_or_else(|| {
+                    QuickDbError::ValidationError {
+                        field: "model".to_string(),
+                        message: format!("模型 '{}' 不存在", table),
+                    }
                 })?;
 
             let mut results = Vec::new();
             for row in rows {
                 // 使用新的元数据转换函数
-                let data_map = super::data_conversion::row_to_data_map_with_metadata(&row, &model_meta.fields)?;
+                let data_map = super::data_conversion::row_to_data_map_with_metadata(
+                    &row,
+                    &model_meta.fields,
+                )?;
                 results.push(DataValue::Object(data_map));
             }
 
@@ -271,23 +341,31 @@ impl DatabaseAdapter for SqliteAdapter {
     ) -> QuickDbResult<u64> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
-            _ => return Err(QuickDbError::ConnectionError {
-                message: "Invalid connection type for SQLite".to_string(),
-            }),
+            _ => {
+                return Err(QuickDbError::ConnectionError {
+                    message: "Invalid connection type for SQLite".to_string(),
+                });
+            }
         };
         {
             // 获取字段元数据进行验证和转换
-            let model_meta = crate::manager::get_model_with_alias(table, alias)
-                .ok_or_else(|| QuickDbError::ValidationError {
-                    field: "model".to_string(),
-                    message: format!("模型 '{}' 不存在", table),
+            let model_meta =
+                crate::manager::get_model_with_alias(table, alias).ok_or_else(|| {
+                    QuickDbError::ValidationError {
+                        field: "model".to_string(),
+                        message: format!("模型 '{}' 不存在", table),
+                    }
                 })?;
 
             // 使用timezone模块中的字段元数据处理函数进行验证和转换
-            let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> = model_meta.fields.iter()
-                .map(|(name, f)| (name.clone(), f.clone()))
-                .collect();
-            let validated_data = crate::utils::timezone::process_data_fields_from_metadata(data.clone(), &field_map);
+            let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> =
+                model_meta
+                    .fields
+                    .iter()
+                    .map(|(name, f)| (name.clone(), f.clone()))
+                    .collect();
+            let validated_data =
+                crate::utils::timezone::process_data_fields_from_metadata(data.clone(), &field_map);
 
             let (sql, params) = SqlQueryBuilder::new()
                 .update(validated_data)
@@ -301,7 +379,13 @@ impl DatabaseAdapter for SqliteAdapter {
                     DataValue::String(s) => format!("'{}'", s.replace('\'', "''")),
                     DataValue::Int(i) => i.to_string(),
                     DataValue::Float(f) => f.to_string(),
-                    DataValue::Bool(b) => if *b { "1".to_string() } else { "0".to_string() },
+                    DataValue::Bool(b) => {
+                        if *b {
+                            "1".to_string()
+                        } else {
+                            "0".to_string()
+                        }
+                    }
                     DataValue::DateTime(dt) => dt.timestamp().to_string(),
                     DataValue::DateTimeUTC(dt) => dt.timestamp().to_string(),
                     DataValue::Null => "NULL".to_string(),
@@ -315,21 +399,37 @@ impl DatabaseAdapter for SqliteAdapter {
             let mut query = sqlx::query(&sql);
             for param in &params {
                 match param {
-                    DataValue::String(s) => { query = query.bind(s); },
-                    DataValue::Int(i) => { query = query.bind(i); },
-                    DataValue::Float(f) => { query = query.bind(f); },
-                    DataValue::Bool(b) => { query = query.bind(b); },
-                    DataValue::DateTime(dt) => { query = query.bind(dt.timestamp()); },
-                    DataValue::DateTimeUTC(dt) => { query = query.bind(dt.timestamp()); },
-                    _ => { query = query.bind(param.to_string()); },
+                    DataValue::String(s) => {
+                        query = query.bind(s);
+                    }
+                    DataValue::Int(i) => {
+                        query = query.bind(i);
+                    }
+                    DataValue::Float(f) => {
+                        query = query.bind(f);
+                    }
+                    DataValue::Bool(b) => {
+                        query = query.bind(b);
+                    }
+                    DataValue::DateTime(dt) => {
+                        query = query.bind(dt.timestamp());
+                    }
+                    DataValue::DateTimeUTC(dt) => {
+                        query = query.bind(dt.timestamp());
+                    }
+                    _ => {
+                        query = query.bind(param.to_string());
+                    }
                 }
             }
-            
-            let result = query.execute(pool).await
+
+            let result = query
+                .execute(pool)
+                .await
                 .map_err(|e| QuickDbError::QueryError {
                     message: format!("执行SQLite更新失败: {}", e),
                 })?;
-            
+
             Ok(result.rows_affected())
         }
     }
@@ -347,8 +447,10 @@ impl DatabaseAdapter for SqliteAdapter {
             operator: QueryOperator::Eq,
             value: id.clone(),
         };
-        
-        let affected_rows = self.update(connection, table, &[condition], data, alias).await?;
+
+        let affected_rows = self
+            .update(connection, table, &[condition], data, alias)
+            .await?;
         Ok(affected_rows > 0)
     }
 
@@ -362,20 +464,26 @@ impl DatabaseAdapter for SqliteAdapter {
     ) -> QuickDbResult<u64> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
-            _ => return Err(QuickDbError::ConnectionError {
-                message: "Invalid connection type for SQLite".to_string(),
-            }),
+            _ => {
+                return Err(QuickDbError::ConnectionError {
+                    message: "Invalid connection type for SQLite".to_string(),
+                });
+            }
         };
 
         // 获取字段元数据进行验证和转换
-        let model_meta = crate::manager::get_model_with_alias(table, alias)
-            .ok_or_else(|| QuickDbError::ValidationError {
+        let model_meta = crate::manager::get_model_with_alias(table, alias).ok_or_else(|| {
+            QuickDbError::ValidationError {
                 field: "model".to_string(),
                 message: format!("模型 '{}' 不存在", table),
-            })?;
-        let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> = model_meta.fields.iter()
-            .map(|(name, f)| (name.clone(), f.clone()))
-            .collect();
+            }
+        })?;
+        let field_map: std::collections::HashMap<String, crate::model::FieldDefinition> =
+            model_meta
+                .fields
+                .iter()
+                .map(|(name, f)| (name.clone(), f.clone()))
+                .collect();
 
         let mut set_clauses = Vec::new();
         let mut params = Vec::new();
@@ -388,7 +496,10 @@ impl DatabaseAdapter for SqliteAdapter {
                     // 对字段值进行验证和转换，和普通update方法保持一致
                     let mut operation_data = std::collections::HashMap::new();
                     operation_data.insert(operation.field.clone(), operation.value.clone());
-                    let validated_data = crate::utils::timezone::process_data_fields_from_metadata(operation_data, &field_map);
+                    let validated_data = crate::utils::timezone::process_data_fields_from_metadata(
+                        operation_data,
+                        &field_map,
+                    );
 
                     if let Some(converted_value) = validated_data.get(&operation.field) {
                         params.push(converted_value.clone());
@@ -413,11 +524,17 @@ impl DatabaseAdapter for SqliteAdapter {
                     params.push(operation.value.clone());
                 }
                 crate::types::UpdateOperator::PercentIncrease => {
-                    set_clauses.push(format!("{} = {} * (1.0 + ?/100.0)", operation.field, operation.field));
+                    set_clauses.push(format!(
+                        "{} = {} * (1.0 + ?/100.0)",
+                        operation.field, operation.field
+                    ));
                     params.push(operation.value.clone());
                 }
                 crate::types::UpdateOperator::PercentDecrease => {
-                    set_clauses.push(format!("{} = {} * (1.0 - ?/100.0)", operation.field, operation.field));
+                    set_clauses.push(format!(
+                        "{} = {} * (1.0 - ?/100.0)",
+                        operation.field, operation.field
+                    ));
                     params.push(operation.value.clone());
                 }
             }
@@ -506,18 +623,11 @@ impl DatabaseAdapter for SqliteAdapter {
         sqlite_schema::table_exists(self, connection, table).await
     }
 
-    async fn drop_table(
-        &self,
-        connection: &DatabaseConnection,
-        table: &str,
-    ) -> QuickDbResult<()> {
+    async fn drop_table(&self, connection: &DatabaseConnection, table: &str) -> QuickDbResult<()> {
         sqlite_schema::drop_table(self, connection, table).await
     }
 
-    async fn get_server_version(
-        &self,
-        connection: &DatabaseConnection,
-    ) -> QuickDbResult<String> {
+    async fn get_server_version(&self, connection: &DatabaseConnection) -> QuickDbResult<String> {
         sqlite_schema::get_server_version(self, connection).await
     }
 
@@ -526,12 +636,13 @@ impl DatabaseAdapter for SqliteAdapter {
         connection: &DatabaseConnection,
         config: &crate::stored_procedure::StoredProcedureConfig,
     ) -> QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult> {
-        use crate::stored_procedure::{StoredProcedureCreateResult, JoinType};
+        use crate::stored_procedure::{JoinType, StoredProcedureCreateResult};
 
         debug!("开始创建SQLite存储过程: {}", config.procedure_name);
 
         // 验证配置
-        config.validate()
+        config
+            .validate()
             .map_err(|e| crate::error::QuickDbError::ValidationError {
                 field: "config".to_string(),
                 message: format!("存储过程配置验证失败: {}", e),
@@ -539,9 +650,11 @@ impl DatabaseAdapter for SqliteAdapter {
 
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
-            _ => return Err(crate::error::QuickDbError::ConnectionError {
-                message: "Invalid connection type for SQLite".to_string(),
-            }),
+            _ => {
+                return Err(crate::error::QuickDbError::ConnectionError {
+                    message: "Invalid connection type for SQLite".to_string(),
+                });
+            }
         };
 
         // 1. 确保依赖表存在
@@ -553,7 +666,14 @@ impl DatabaseAdapter for SqliteAdapter {
                 let id_strategy = crate::manager::get_id_strategy(&config.database)
                     .unwrap_or(IdStrategy::AutoIncrement);
 
-                self.create_table(connection, table_name, &model_meta.fields, &id_strategy, &config.database).await?;
+                self.create_table(
+                    connection,
+                    table_name,
+                    &model_meta.fields,
+                    &id_strategy,
+                    &config.database,
+                )
+                .await?;
             }
         }
 
@@ -571,7 +691,10 @@ impl DatabaseAdapter for SqliteAdapter {
 
         let mut procedures = self.stored_procedures.lock().await;
         procedures.insert(config.procedure_name.clone(), procedure_info);
-        debug!("✅ 存储过程 {} 模板已存储到适配器映射表", config.procedure_name);
+        debug!(
+            "✅ 存储过程 {} 模板已存储到适配器映射表",
+            config.procedure_name
+        );
 
         Ok(StoredProcedureCreateResult {
             success: true,
@@ -601,26 +724,34 @@ impl DatabaseAdapter for SqliteAdapter {
         let sql_template = procedure_info.template.clone();
         drop(procedures);
 
-        debug!("执行存储过程查询: {}, 模板: {}", procedure_name, sql_template);
+        debug!(
+            "执行存储过程查询: {}, 模板: {}",
+            procedure_name, sql_template
+        );
 
         // 构建最终的SQL查询
-        let final_sql = self.build_final_query_from_template(&sql_template, params).await?;
+        let final_sql = self
+            .build_final_query_from_template(&sql_template, params)
+            .await?;
 
         // 执行查询
         // 直接执行SQL查询（复用find_with_groups的模式）
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
-            _ => return Err(QuickDbError::ConnectionError {
-                message: "Invalid connection type for SQLite".to_string(),
-            }),
+            _ => {
+                return Err(QuickDbError::ConnectionError {
+                    message: "Invalid connection type for SQLite".to_string(),
+                });
+            }
         };
 
         debug!("执行存储过程查询SQL: {}", final_sql);
 
-        let rows = sqlx::query(&final_sql).fetch_all(pool).await
-            .map_err(|e| QuickDbError::QueryError {
+        let rows = sqlx::query(&final_sql).fetch_all(pool).await.map_err(|e| {
+            QuickDbError::QueryError {
                 message: format!("执行存储过程查询失败: {}", e),
-            })?;
+            }
+        })?;
 
         let mut query_result = Vec::new();
         for row in rows {
@@ -638,7 +769,11 @@ impl DatabaseAdapter for SqliteAdapter {
             result.push(row_map);
         }
 
-        debug!("存储过程 {} 执行完成，返回 {} 条记录", procedure_name, result.len());
+        debug!(
+            "存储过程 {} 执行完成，返回 {} 条记录",
+            procedure_name,
+            result.len()
+        );
         Ok(result)
     }
 }
@@ -749,4 +884,3 @@ impl SqliteAdapter {
         Ok(final_sql)
     }
 }
-

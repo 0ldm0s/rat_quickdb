@@ -2,18 +2,16 @@
 //!
 //! 提供从DataValue映射到模型实例的直接转换功能
 
+use crate::debug_log;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::DataValue;
 use std::collections::HashMap;
-use crate::debug_log;
 
 /// 从DataValue映射直接创建模型实例
 ///
 /// 直接从HashMap<String, DataValue>转换为模型实例，避免JSON中转
 /// 这是高效的数据转换方法，消除了不必要的序列化开销
-pub fn create_model_from_data_map<T>(
-    data_map: &HashMap<String, DataValue>,
-) -> QuickDbResult<T>
+pub fn create_model_from_data_map<T>(data_map: &HashMap<String, DataValue>) -> QuickDbResult<T>
 where
     T: serde::de::DeserializeOwned,
 {
@@ -34,10 +32,8 @@ pub fn create_model_from_data_map_with_debug<T>(
 where
     T: serde::de::DeserializeOwned,
 {
-    
     let result = create_model_from_data_map::<T>(data_map);
 
-    
     result
 }
 
@@ -155,7 +151,10 @@ impl<'a, 'de> serde::de::MapAccess<'de> for DataValueStructDeserializer<'a> {
                 seed.deserialize(deserializer)
             } else {
                 // 字段不存在时返回错误，让调用方处理
-                Err(serde::de::Error::custom(format!("字段 '{}' 不存在", field_name)))
+                Err(serde::de::Error::custom(format!(
+                    "字段 '{}' 不存在",
+                    field_name
+                )))
             }
         } else {
             Err(serde::de::Error::custom("字段访问越界"))
@@ -189,7 +188,7 @@ impl<'a, 'de> serde::de::MapAccess<'de> for DataValueMapDeserializer<'a> {
             Some(key) => {
                 let key_deserializer = serde::de::value::StrDeserializer::new(&key);
                 seed.deserialize(key_deserializer).map(Some)
-            },
+            }
             None => Ok(None),
         }
     }
@@ -248,15 +247,15 @@ impl<'a, 'de> serde::de::Deserializer<'de> for DataValueSingleDeserializer<'a> {
             DataValue::Array(arr) => {
                 let deserializer = DataValueArrayDeserializer::new(arr);
                 visitor.visit_seq(deserializer)
-            },
+            }
             DataValue::Object(obj) => {
                 let deserializer = DataValueMapDeserializer::new(obj);
                 visitor.visit_map(deserializer)
-            },
+            }
             DataValue::Bytes(bytes) => {
                 let base64_str = base64::encode(bytes);
                 visitor.visit_str(&base64_str)
-            },
+            }
             DataValue::DateTime(dt) => visitor.visit_str(&dt.to_rfc3339()),
             DataValue::DateTimeUTC(dt) => visitor.visit_str(&dt.to_rfc3339()),
             DataValue::Uuid(u) => visitor.visit_str(&u.to_string()),
@@ -264,7 +263,7 @@ impl<'a, 'de> serde::de::Deserializer<'de> for DataValueSingleDeserializer<'a> {
                 // 将JSON对象序列化为字符串，让开发者用户自行解析
                 let json_str = serde_json::to_string(json).unwrap_or_else(|_| "{}".to_string());
                 visitor.visit_str(&json_str)
-            },
+            }
         }
     }
 

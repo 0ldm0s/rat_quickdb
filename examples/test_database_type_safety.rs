@@ -1,7 +1,7 @@
 //! 数据库类型安全验证测试
 
+use rat_logger::{LevelFilter, LoggerBuilder, debug, handler::term};
 use rat_quickdb::*;
-use rat_logger::{LoggerBuilder, LevelFilter, handler::term, debug};
 
 #[cfg(feature = "sqlite-support")]
 define_model! {
@@ -54,12 +54,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 测试错误情况：在SQLite中使用MongoDB聚合管道
     let invalid_config = StoredProcedureConfig::builder("test_proc", "sqlite_test")
         .with_dependency::<TestUser>()
-        .with_mongo_aggregation()  // 这个方法不应该在SQLite中使用
-            .project(vec![
-                ("user_id", crate::stored_procedure::types::MongoFieldExpression::field("_id")),
-                ("user_name", crate::stored_procedure::types::MongoFieldExpression::field("name")),
-            ])
-            .build();
+        .with_mongo_aggregation() // 这个方法不应该在SQLite中使用
+        .project(vec![
+            (
+                "user_id",
+                crate::stored_procedure::types::MongoFieldExpression::field("_id"),
+            ),
+            (
+                "user_name",
+                crate::stored_procedure::types::MongoFieldExpression::field("name"),
+            ),
+        ])
+        .build();
 
     match invalid_config.validate() {
         Ok(_) => println!("❌ 错误：应该阻止SQLite使用MongoDB聚合管道"),

@@ -1,9 +1,9 @@
 //! MongoDB虚拟表格宏测试示例
 //! 验证define_join_table宏在MongoDB聚合管道下的功能
 
-use rat_quickdb::*;
 use rat_quickdb::types::*;
-use serde_json::{json, Value as JsonValue};
+use rat_quickdb::*;
+use serde_json::{Value as JsonValue, json};
 
 // MongoDB专用的虚拟表格定义
 // 我们需要增强宏来支持不同的数据库类型输出
@@ -21,10 +21,10 @@ pub struct MongoJoin {
 /// MongoDB JOIN类型（对应SQL的JOIN类型）
 #[derive(Debug, Clone, PartialEq)]
 pub enum MongoJoinType {
-    Left,   // $lookup + $unwind with preserveNullAndEmptyArrays: true
-    Inner,  // $lookup + $unwind with preserveNullAndEmptyArrays: false
-    Right,  // 需要特殊处理，或者交换lookup方向
-    Full,   // 需要union处理，复杂度较高
+    Left,  // $lookup + $unwind with preserveNullAndEmptyArrays: true
+    Inner, // $lookup + $unwind with preserveNullAndEmptyArrays: false
+    Right, // 需要特殊处理，或者交换lookup方向
+    Full,  // 需要union处理，复杂度较高
 }
 
 /// MongoDB虚拟表格宏（POC版本）
@@ -362,20 +362,15 @@ fn test_mongo_user_profile_info() {
             field: "profile_bio".to_string(),
             operator: QueryOperator::Contains,
             value: DataValue::String("工程师".to_string()),
-        }
+        },
     ];
 
     let options = QueryOptions {
-        pagination: Some(crate::types::query::PaginationConfig {
-            skip: 0,
-            limit: 10,
-        }),
-        sort: vec![
-            crate::types::query::SortConfig {
-                field: "user_name".to_string(),
-                direction: crate::types::query::SortDirection::Asc,
-            }
-        ],
+        pagination: Some(crate::types::query::PaginationConfig { skip: 0, limit: 10 }),
+        sort: vec![crate::types::query::SortConfig {
+            field: "user_name".to_string(),
+            direction: crate::types::query::SortDirection::Asc,
+        }],
         ..Default::default()
     };
 
@@ -437,20 +432,15 @@ fn test_mongo_ecommerce_order_detail() {
             field: "category_name".to_string(),
             operator: QueryOperator::Eq,
             value: DataValue::String("电子产品".to_string()),
-        }
+        },
     ];
 
     let options = QueryOptions {
-        pagination: Some(crate::types::query::PaginationConfig {
-            skip: 0,
-            limit: 20,
-        }),
-        sort: vec![
-            crate::types::query::SortConfig {
-                field: "order_date".to_string(),
-                direction: crate::types::query::SortDirection::Desc,
-            }
-        ],
+        pagination: Some(crate::types::query::PaginationConfig { skip: 0, limit: 20 }),
+        sort: vec![crate::types::query::SortConfig {
+            field: "order_date".to_string(),
+            direction: crate::types::query::SortDirection::Desc,
+        }],
         ..Default::default()
     };
 

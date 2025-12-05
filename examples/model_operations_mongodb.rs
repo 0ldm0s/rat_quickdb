@@ -6,15 +6,17 @@
 //! - 并发测试
 //! - 分页查询
 
-use rat_quickdb::*;
+use chrono::Utc;
+use rat_logger::{LevelFilter, LoggerBuilder, handler::term::TermConfig};
 use rat_quickdb::types::*;
-use rat_quickdb::{ModelManager, ModelOperations,
-    string_field, integer_field, float_field, boolean_field, datetime_field, json_field, array_field, uuid_field};
-use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
+use rat_quickdb::*;
+use rat_quickdb::{
+    ModelManager, ModelOperations, array_field, boolean_field, datetime_field, float_field,
+    integer_field, json_field, string_field, uuid_field,
+};
 use std::collections::HashMap;
 use std::time::Instant;
 use tokio::join;
-use chrono::Utc;
 
 // 用户模型
 define_model! {
@@ -231,7 +233,11 @@ async fn demonstrate_concurrency() -> Result<SimpleStats, Box<dyn std::error::Er
             let user = User {
                 id: String::new(),
                 username: format!("concurrent_user_{}_{}", i, uuid::Uuid::new_v4().simple()),
-                email: format!("concurrent_{}_{}@example.com", i, uuid::Uuid::new_v4().simple()),
+                email: format!(
+                    "concurrent_{}_{}@example.com",
+                    i,
+                    uuid::Uuid::new_v4().simple()
+                ),
                 password_hash: "hashed_password".to_string(),
                 full_name: format!("并发用户 {}", i),
                 age: Some(20 + i),
@@ -268,8 +274,11 @@ async fn demonstrate_concurrency() -> Result<SimpleStats, Box<dyn std::error::Er
         }
     }
 
-    println!("并发操作完成 - 成功率: {:.1}%, 平均耗时: {:.1}ms",
-             stats.success_rate(), stats.average_time());
+    println!(
+        "并发操作完成 - 成功率: {:.1}%, 平均耗时: {:.1}ms",
+        stats.success_rate(),
+        stats.average_time()
+    );
 
     Ok(stats)
 }
@@ -325,8 +334,13 @@ async fn demonstrate_pagination() -> Result<SimpleStats, Box<dyn std::error::Err
 
                 // 显示前几条记录
                 for (i, emp) in employees.iter().take(3).enumerate() {
-                    println!("  {}. {} - {} - ${:.0}",
-                             (page as u64 * page_size as u64 + i as u64 + 1), emp.name, emp.department, emp.salary);
+                    println!(
+                        "  {}. {} - {} - ${:.0}",
+                        (page as u64 * page_size as u64 + i as u64 + 1),
+                        emp.name,
+                        emp.department,
+                        emp.salary
+                    );
                 }
                 if employees.len() > 3 {
                     println!("     ... 还有 {} 条", employees.len() - 3);
@@ -347,8 +361,11 @@ async fn demonstrate_pagination() -> Result<SimpleStats, Box<dyn std::error::Err
         }
     }
 
-    println!("分页查询完成 - 成功率: {:.1}%, 平均耗时: {:.1}ms",
-             stats.success_rate(), stats.average_time());
+    println!(
+        "分页查询完成 - 成功率: {:.1}%, 平均耗时: {:.1}ms",
+        stats.success_rate(),
+        stats.average_time()
+    );
 
     Ok(stats)
 }
@@ -381,9 +398,13 @@ async fn performance_benchmark() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let create_time = start.elapsed();
-    println!("创建 {} 条记录: 成功 {} 条, 耗时 {:?}, 平均 {:.1}ms/条",
-             test_count, successful, create_time,
-             create_time.as_millis() as f64 / test_count as f64);
+    println!(
+        "创建 {} 条记录: 成功 {} 条, 耗时 {:?}, 平均 {:.1}ms/条",
+        test_count,
+        successful,
+        create_time,
+        create_time.as_millis() as f64 / test_count as f64
+    );
 
     // 批量查询测试
     let start = Instant::now();
@@ -397,7 +418,10 @@ async fn performance_benchmark() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let query_time = start.elapsed();
-    println!("查询 {} 条记录: 找到 {} 条, 耗时 {:?}", test_count, found, query_time);
+    println!(
+        "查询 {} 条记录: 找到 {} 条, 耗时 {:?}",
+        test_count, found, query_time
+    );
 
     Ok(())
 }
@@ -408,7 +432,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 初始化日志
     LoggerBuilder::new()
-        .with_level(LevelFilter::Warn)  // 减少输出
+        .with_level(LevelFilter::Warn) // 减少输出
         .add_terminal_with_config(TermConfig::default())
         .init()?;
 
@@ -446,17 +470,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tls_config: Some(tls_config),
             zstd_config: Some(zstd_config),
         })
-        .pool(PoolConfig::builder()
-            .max_connections(25)
-            .min_connections(5)
-            .connection_timeout(10)
-            .idle_timeout(30)
-            .max_lifetime(1200)
-            .max_retries(6)
-            .retry_interval_ms(250)
-            .keepalive_interval_sec(20)
-            .health_check_timeout_sec(3)
-            .build()?)
+        .pool(
+            PoolConfig::builder()
+                .max_connections(25)
+                .min_connections(5)
+                .connection_timeout(10)
+                .idle_timeout(30)
+                .max_lifetime(1200)
+                .max_retries(6)
+                .retry_interval_ms(250)
+                .keepalive_interval_sec(20)
+                .health_check_timeout_sec(3)
+                .build()?,
+        )
         .alias("main")
         .id_strategy(IdStrategy::ObjectId)
         .build()?;
@@ -477,12 +503,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 输出统计
     println!("\n=== 操作统计 ===");
-    println!("CRUD操作: {} 次, 成功率 {:.1}%, 平均 {:.1}ms",
-             crud_stats.total_operations, crud_stats.success_rate(), crud_stats.average_time());
-    println!("并发操作: {} 次, 成功率 {:.1}%, 平均 {:.1}ms",
-             concurrent_stats.total_operations, concurrent_stats.success_rate(), concurrent_stats.average_time());
-    println!("分页操作: {} 次, 成功率 {:.1}%, 平均 {:.1}ms",
-             pagination_stats.total_operations, pagination_stats.success_rate(), pagination_stats.average_time());
+    println!(
+        "CRUD操作: {} 次, 成功率 {:.1}%, 平均 {:.1}ms",
+        crud_stats.total_operations,
+        crud_stats.success_rate(),
+        crud_stats.average_time()
+    );
+    println!(
+        "并发操作: {} 次, 成功率 {:.1}%, 平均 {:.1}ms",
+        concurrent_stats.total_operations,
+        concurrent_stats.success_rate(),
+        concurrent_stats.average_time()
+    );
+    println!(
+        "分页操作: {} 次, 成功率 {:.1}%, 平均 {:.1}ms",
+        pagination_stats.total_operations,
+        pagination_stats.success_rate(),
+        pagination_stats.average_time()
+    );
 
     // 健康检查
     println!("\n=== 健康检查 ===");

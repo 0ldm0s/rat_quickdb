@@ -4,9 +4,9 @@
 
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::DataValue;
+use rat_logger::debug;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use rat_logger::debug;
 
 /// 字段类型枚举
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -39,7 +39,7 @@ pub enum FieldType {
     DateTime,
     /// 带时区的日期时间类型（存储为Unix时间戳）
     DateTimeWithTz {
-        timezone_offset: String,  // 格式："+00:00", "+08:00", "-05:00"
+        timezone_offset: String, // 格式："+00:00", "+08:00", "-05:00"
     },
     /// 日期类型
     Date,
@@ -52,10 +52,7 @@ pub enum FieldType {
     /// 二进制类型
     Binary,
     /// 十进制类型
-    Decimal {
-        precision: u8,
-        scale: u8,
-    },
+    Decimal { precision: u8, scale: u8 },
     /// 数组类型
     Array {
         item_type: Box<FieldType>,
@@ -67,9 +64,7 @@ pub enum FieldType {
         fields: HashMap<String, FieldDefinition>,
     },
     /// 引用类型（外键）
-    Reference {
-        target_collection: String,
-    },
+    Reference { target_collection: String },
 }
 
 /// 字段定义
@@ -161,10 +156,17 @@ impl FieldDefinition {
         self.validate_with_field_name(value, "unknown")
     }
 
-    pub fn validate_with_field_name(&self, value: &DataValue, field_name: &str) -> QuickDbResult<()> {
+    pub fn validate_with_field_name(
+        &self,
+        value: &DataValue,
+        field_name: &str,
+    ) -> QuickDbResult<()> {
         // 检查必填字段
         if self.required && matches!(value, DataValue::Null) {
-            return Err(QuickDbError::ValidationError { field: field_name.to_string(), message: "必填字段不能为空".to_string() });
+            return Err(QuickDbError::ValidationError {
+                field: field_name.to_string(),
+                message: "必填字段不能为空".to_string(),
+            });
         }
 
         // 如果值为空且不是必填字段，则跳过验证
@@ -174,13 +176,17 @@ impl FieldDefinition {
 
         // 根据字段类型进行验证
         match &self.field_type {
-            FieldType::String { max_length, min_length, regex } => {
+            FieldType::String {
+                max_length,
+                min_length,
+                regex,
+            } => {
                 if let DataValue::String(s) = value {
                     if let Some(max_len) = max_length {
                         if s.len() > *max_len {
                             return Err(QuickDbError::ValidationError {
                                 field: "string_length".to_string(),
-                                message: format!("字符串长度不能超过{}", max_len)
+                                message: format!("字符串长度不能超过{}", max_len),
                             });
                         }
                     }
@@ -188,37 +194,41 @@ impl FieldDefinition {
                         if s.len() < *min_len {
                             return Err(QuickDbError::ValidationError {
                                 field: "string_length".to_string(),
-                                message: format!("字符串长度不能少于{}", min_len)
+                                message: format!("字符串长度不能少于{}", min_len),
                             });
                         }
                     }
                     if let Some(pattern) = regex {
-                        let regex = regex::Regex::new(pattern)
-                            .map_err(|e| QuickDbError::ValidationError {
+                        let regex = regex::Regex::new(pattern).map_err(|e| {
+                            QuickDbError::ValidationError {
                                 field: "regex".to_string(),
-                                message: format!("正则表达式无效: {}", e)
-                            })?;
+                                message: format!("正则表达式无效: {}", e),
+                            }
+                        })?;
                         if !regex.is_match(s) {
                             return Err(QuickDbError::ValidationError {
                                 field: "regex_match".to_string(),
-                                message: "字符串不匹配正则表达式".to_string()
+                                message: "字符串不匹配正则表达式".to_string(),
                             });
                         }
                     }
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望字符串类型".to_string()
+                        message: "字段类型不匹配，期望字符串类型".to_string(),
                     });
                 }
             }
-            FieldType::Integer { min_value, max_value } => {
+            FieldType::Integer {
+                min_value,
+                max_value,
+            } => {
                 if let DataValue::Int(i) = value {
                     if let Some(min_val) = min_value {
                         if *i < *min_val {
                             return Err(QuickDbError::ValidationError {
                                 field: "integer_range".to_string(),
-                                message: format!("整数值不能小于{}", min_val)
+                                message: format!("整数值不能小于{}", min_val),
                             });
                         }
                     }
@@ -226,24 +236,27 @@ impl FieldDefinition {
                         if *i > *max_val {
                             return Err(QuickDbError::ValidationError {
                                 field: "integer_range".to_string(),
-                                message: format!("整数值不能大于{}", max_val)
+                                message: format!("整数值不能大于{}", max_val),
                             });
                         }
                     }
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望整数类型".to_string()
+                        message: "字段类型不匹配，期望整数类型".to_string(),
                     });
                 }
             }
-            FieldType::Float { min_value, max_value } => {
+            FieldType::Float {
+                min_value,
+                max_value,
+            } => {
                 if let DataValue::Float(f) = value {
                     if let Some(min_val) = min_value {
                         if *f < *min_val {
                             return Err(QuickDbError::ValidationError {
                                 field: "float_range".to_string(),
-                                message: format!("浮点数值不能小于{}", min_val)
+                                message: format!("浮点数值不能小于{}", min_val),
                             });
                         }
                     }
@@ -251,14 +264,14 @@ impl FieldDefinition {
                         if *f > *max_val {
                             return Err(QuickDbError::ValidationError {
                                 field: "float_range".to_string(),
-                                message: format!("浮点数值不能大于{}", max_val)
+                                message: format!("浮点数值不能大于{}", max_val),
                             });
                         }
                     }
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望浮点数类型".to_string()
+                        message: "字段类型不匹配，期望浮点数类型".to_string(),
                     });
                 }
             }
@@ -266,7 +279,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::Bool(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望布尔类型".to_string()
+                        message: "字段类型不匹配，期望布尔类型".to_string(),
                     });
                 }
             }
@@ -274,7 +287,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::DateTime(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望日期时间类型".to_string()
+                        message: "字段类型不匹配，期望日期时间类型".to_string(),
                     });
                 }
             }
@@ -282,44 +295,72 @@ impl FieldDefinition {
                 match value {
                     DataValue::DateTime(_) => {
                         // DateTime类型可以直接接受
-                        debug!("✅ DateTimeWithTz字段验证通过 - DateTime类型 (字段: {}, 时区: {})", field_name, timezone_offset);
-                    },
+                        debug!(
+                            "✅ DateTimeWithTz字段验证通过 - DateTime类型 (字段: {}, 时区: {})",
+                            field_name, timezone_offset
+                        );
+                    }
                     DataValue::String(s) => {
                         // 验证字符串格式的日期时间（RFC3339或本地时间格式）
                         if s.is_empty() {
-                            debug!("✅ DateTimeWithTz字段验证通过 - 空字符串（将自动生成当前时间） (字段: {}, 时区: {})", field_name, timezone_offset);
+                            debug!(
+                                "✅ DateTimeWithTz字段验证通过 - 空字符串（将自动生成当前时间） (字段: {}, 时区: {})",
+                                field_name, timezone_offset
+                            );
                         } else {
                             // 尝试解析RFC3339格式
-                            if s.contains('T') && (s.contains('+') || s.contains('Z') || s.contains('-')) {
+                            if s.contains('T')
+                                && (s.contains('+') || s.contains('Z') || s.contains('-'))
+                            {
                                 if chrono::DateTime::parse_from_rfc3339(s).is_ok() {
-                                    debug!("✅ DateTimeWithTz字段验证通过 - RFC3339格式: '{}' (字段: {}, 时区: {})", s, field_name, timezone_offset);
+                                    debug!(
+                                        "✅ DateTimeWithTz字段验证通过 - RFC3339格式: '{}' (字段: {}, 时区: {})",
+                                        s, field_name, timezone_offset
+                                    );
                                 } else {
                                     return Err(QuickDbError::ValidationError {
                                         field: "datetime_format".to_string(),
-                                        message: format!("无效的RFC3339日期时间格式: '{}' (字段: {})", s, field_name)
+                                        message: format!(
+                                            "无效的RFC3339日期时间格式: '{}' (字段: {})",
+                                            s, field_name
+                                        ),
                                     });
                                 }
                             } else {
                                 // 尝试解析本地时间格式（如 "2024-06-15 12:00:00"）
-                                if chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").is_ok() {
-                                    debug!("✅ DateTimeWithTz字段验证通过 - 本地时间格式: '{}' (字段: {}, 时区: {})", s, field_name, timezone_offset);
+                                if chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+                                    .is_ok()
+                                {
+                                    debug!(
+                                        "✅ DateTimeWithTz字段验证通过 - 本地时间格式: '{}' (字段: {}, 时区: {})",
+                                        s, field_name, timezone_offset
+                                    );
                                 } else {
                                     return Err(QuickDbError::ValidationError {
                                         field: "datetime_format".to_string(),
-                                        message: format!("无效的日期时间格式，期望RFC3339或YYYY-MM-DD HH:MM:SS格式: '{}' (字段: {})", s, field_name)
+                                        message: format!(
+                                            "无效的日期时间格式，期望RFC3339或YYYY-MM-DD HH:MM:SS格式: '{}' (字段: {})",
+                                            s, field_name
+                                        ),
                                     });
                                 }
                             }
                         }
-                    },
+                    }
                     DataValue::Int(_) => {
                         // Unix时间戳也可以接受
-                        debug!("✅ DateTimeWithTz字段验证通过 - Unix时间戳 (字段: {}, 时区: {})", field_name, timezone_offset);
-                    },
+                        debug!(
+                            "✅ DateTimeWithTz字段验证通过 - Unix时间戳 (字段: {}, 时区: {})",
+                            field_name, timezone_offset
+                        );
+                    }
                     _ => {
                         return Err(QuickDbError::ValidationError {
                             field: "type_mismatch".to_string(),
-                            message: format!("字段类型不匹配，期望日期时间类型或字符串或整数 (字段: {})", field_name)
+                            message: format!(
+                                "字段类型不匹配，期望日期时间类型或字符串或整数 (字段: {})",
+                                field_name
+                            ),
                         });
                     }
                 }
@@ -328,7 +369,10 @@ impl FieldDefinition {
                 if !is_valid_timezone_offset(timezone_offset) {
                     return Err(QuickDbError::ValidationError {
                         field: "timezone_offset".to_string(),
-                        message: format!("无效的时区偏移格式: '{}', 期望格式: +00:00, +08:00, -05:00", timezone_offset)
+                        message: format!(
+                            "无效的时区偏移格式: '{}', 期望格式: +00:00, +08:00, -05:00",
+                            timezone_offset
+                        ),
                     });
                 }
             }
@@ -336,29 +380,50 @@ impl FieldDefinition {
                 match value {
                     DataValue::String(s) => {
                         // 验证字符串格式的UUID
-                        debug!("🔍 UUID字段验证 - 字符串格式: '{}' (字段: {})", s, field_name);
+                        debug!(
+                            "🔍 UUID字段验证 - 字符串格式: '{}' (字段: {})",
+                            s, field_name
+                        );
                         // 空字符串表示需要自动生成UUID，允许通过
                         if s.is_empty() {
-                            debug!("✅ UUID字段验证通过 - 空字符串（将自动生成UUID） (字段: {})", field_name);
+                            debug!(
+                                "✅ UUID字段验证通过 - 空字符串（将自动生成UUID） (字段: {})",
+                                field_name
+                            );
                         } else if uuid::Uuid::parse_str(s).is_err() {
-                            debug!("❌ UUID字段验证失败 - 无效的UUID格式: '{}' (字段: {})", s, field_name);
+                            debug!(
+                                "❌ UUID字段验证失败 - 无效的UUID格式: '{}' (字段: {})",
+                                s, field_name
+                            );
                             return Err(QuickDbError::ValidationError {
                                 field: "uuid_format".to_string(),
-                                message: format!("无效的UUID格式: '{}' (字段: {})", s, field_name)
+                                message: format!("无效的UUID格式: '{}' (字段: {})", s, field_name),
                             });
                         } else {
-                            debug!("✅ UUID字段验证通过 - 字符串格式: '{}' (字段: {})", s, field_name);
+                            debug!(
+                                "✅ UUID字段验证通过 - 字符串格式: '{}' (字段: {})",
+                                s, field_name
+                            );
                         }
-                    },
+                    }
                     DataValue::Uuid(u) => {
                         // DataValue::Uuid类型本身就是有效的，无需验证
-                        debug!("✅ UUID字段验证通过 - UUID类型: {} (字段: {})", u, field_name);
-                    },
+                        debug!(
+                            "✅ UUID字段验证通过 - UUID类型: {} (字段: {})",
+                            u, field_name
+                        );
+                    }
                     _ => {
-                        debug!("❌ UUID字段验证失败 - 类型不匹配: {:?} (字段: {})", value, field_name);
+                        debug!(
+                            "❌ UUID字段验证失败 - 类型不匹配: {:?} (字段: {})",
+                            value, field_name
+                        );
                         return Err(QuickDbError::ValidationError {
                             field: "type_mismatch".to_string(),
-                            message: format!("字段类型不匹配，期望UUID字符串或UUID类型，实际收到: {:?} (字段: {})", value, field_name)
+                            message: format!(
+                                "字段类型不匹配，期望UUID字符串或UUID类型，实际收到: {:?} (字段: {})",
+                                value, field_name
+                            ),
                         });
                     }
                 }
@@ -366,7 +431,11 @@ impl FieldDefinition {
             FieldType::Json => {
                 // JSON类型可以接受任何值
             }
-            FieldType::Array { item_type, max_items, min_items } => {
+            FieldType::Array {
+                item_type,
+                max_items,
+                min_items,
+            } => {
                 match value {
                     DataValue::Array(arr) => {
                         // 处理DataValue::Array格式
@@ -374,7 +443,7 @@ impl FieldDefinition {
                             if arr.len() > *max_items {
                                 return Err(QuickDbError::ValidationError {
                                     field: "array_size".to_string(),
-                                    message: format!("数组元素数量不能超过{}", max_items)
+                                    message: format!("数组元素数量不能超过{}", max_items),
                                 });
                             }
                         }
@@ -382,7 +451,7 @@ impl FieldDefinition {
                             if arr.len() < *min_items {
                                 return Err(QuickDbError::ValidationError {
                                     field: "array_size".to_string(),
-                                    message: format!("数组元素数量不能少于{}", min_items)
+                                    message: format!("数组元素数量不能少于{}", min_items),
                                 });
                             }
                         }
@@ -391,16 +460,17 @@ impl FieldDefinition {
                         for item in arr {
                             item_field.validate(item)?;
                         }
-                    },
+                    }
                     DataValue::String(json_str) => {
                         // 处理JSON字符串格式的数组
-                        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(json_str) {
+                        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(json_str)
+                        {
                             if let Some(arr) = json_value.as_array() {
                                 if let Some(max_items) = max_items {
                                     if arr.len() > *max_items {
                                         return Err(QuickDbError::ValidationError {
                                             field: "array_size".to_string(),
-                                            message: format!("数组元素数量不能超过{}", max_items)
+                                            message: format!("数组元素数量不能超过{}", max_items),
                                         });
                                     }
                                 }
@@ -408,7 +478,7 @@ impl FieldDefinition {
                                     if arr.len() < *min_items {
                                         return Err(QuickDbError::ValidationError {
                                             field: "array_size".to_string(),
-                                            message: format!("数组元素数量不能少于{}", min_items)
+                                            message: format!("数组元素数量不能少于{}", min_items),
                                         });
                                     }
                                 }
@@ -421,20 +491,20 @@ impl FieldDefinition {
                             } else {
                                 return Err(QuickDbError::ValidationError {
                                     field: "type_mismatch".to_string(),
-                                    message: "JSON字符串不是有效的数组格式".to_string()
+                                    message: "JSON字符串不是有效的数组格式".to_string(),
                                 });
                             }
                         } else {
                             return Err(QuickDbError::ValidationError {
                                 field: "type_mismatch".to_string(),
-                                message: "无法解析JSON字符串".to_string()
+                                message: "无法解析JSON字符串".to_string(),
                             });
                         }
-                    },
+                    }
                     _ => {
                         return Err(QuickDbError::ValidationError {
                             field: "type_mismatch".to_string(),
-                            message: "字段类型不匹配，期望数组类型或JSON字符串".to_string()
+                            message: "字段类型不匹配，期望数组类型或JSON字符串".to_string(),
                         });
                     }
                 }
@@ -449,16 +519,18 @@ impl FieldDefinition {
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望对象类型".to_string()
+                        message: "字段类型不匹配，期望对象类型".to_string(),
                     });
                 }
             }
-            FieldType::Reference { target_collection: _ } => {
+            FieldType::Reference {
+                target_collection: _,
+            } => {
                 // 引用类型通常是字符串ID
                 if !matches!(value, DataValue::String(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "reference_type".to_string(),
-                        message: "引用字段必须是字符串ID".to_string()
+                        message: "引用字段必须是字符串ID".to_string(),
                     });
                 }
             }
@@ -466,7 +538,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::Int(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望大整数类型".to_string()
+                        message: "字段类型不匹配，期望大整数类型".to_string(),
                     });
                 }
             }
@@ -474,7 +546,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::Float(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望双精度浮点数类型".to_string()
+                        message: "字段类型不匹配，期望双精度浮点数类型".to_string(),
                     });
                 }
             }
@@ -482,7 +554,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::String(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望文本类型".to_string()
+                        message: "字段类型不匹配，期望文本类型".to_string(),
                     });
                 }
             }
@@ -490,7 +562,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::DateTime(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望日期类型".to_string()
+                        message: "字段类型不匹配，期望日期类型".to_string(),
                     });
                 }
             }
@@ -498,7 +570,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::DateTime(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望时间类型".to_string()
+                        message: "字段类型不匹配，期望时间类型".to_string(),
                     });
                 }
             }
@@ -506,15 +578,18 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::String(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望二进制数据（Base64字符串）".to_string()
+                        message: "字段类型不匹配，期望二进制数据（Base64字符串）".to_string(),
                     });
                 }
             }
-            FieldType::Decimal { precision: _, scale: _ } => {
+            FieldType::Decimal {
+                precision: _,
+                scale: _,
+            } => {
                 if !matches!(value, DataValue::Float(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望十进制数类型".to_string()
+                        message: "字段类型不匹配，期望十进制数类型".to_string(),
                     });
                 }
             }

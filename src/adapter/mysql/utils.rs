@@ -1,21 +1,24 @@
-    //! MySQL适配器辅助工具方法
+
+//! MySQL适配器辅助工具方法
 
 use crate::adapter::MysqlAdapter;
-use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::{DataValue, QueryCondition, QueryConditionGroup, LogicalOperator, QueryOperator};
 use crate::adapter::mysql::query_builder::SqlQueryBuilder;
+use crate::error::{QuickDbError, QuickDbResult};
+use crate::types::{
+    DataValue, LogicalOperator, QueryCondition, QueryConditionGroup, QueryOperator,
+};
 use async_trait::async_trait;
-use rat_logger::{debug, warn, error};
-use std::collections::HashMap;
-use sqlx::{MySql, Pool, Row, Column, TypeInfo};
-use sqlx::mysql::MySqlRow;
+use rat_logger::{debug, error, warn};
 use serde_json::Value as JsonValue;
+use sqlx::mysql::MySqlRow;
+use sqlx::{Column, MySql, Pool, Row, TypeInfo};
+use std::collections::HashMap;
 
 impl MysqlAdapter {
     /// 安全地读取整数字段，防止 byteorder 错误
     pub fn safe_read_integer(row: &MySqlRow, column_name: &str) -> QuickDbResult<DataValue> {
         // 尝试多种整数类型读取，按照从最常见到最不常见的顺序
-        
+
         // 1. 尝试读取为 Option<i64>
         if let Ok(val) = row.try_get::<Option<i64>, _>(column_name) {
             return Ok(match val {
@@ -26,11 +29,11 @@ impl MysqlAdapter {
                     } else {
                         DataValue::Int(i)
                     }
-                },
+                }
                 None => DataValue::Null,
             });
         }
-        
+
         // 2. 尝试读取为 Option<i32>
         if let Ok(val) = row.try_get::<Option<i32>, _>(column_name) {
             return Ok(match val {
@@ -38,7 +41,7 @@ impl MysqlAdapter {
                 None => DataValue::Null,
             });
         }
-        
+
         // 3. 尝试读取为 Option<u64>
         if let Ok(val) = row.try_get::<Option<u64>, _>(column_name) {
             return Ok(match val {
@@ -49,11 +52,11 @@ impl MysqlAdapter {
                         // 如果超出 i64 范围，转为字符串
                         DataValue::String(i.to_string())
                     }
-                },
+                }
                 None => DataValue::Null,
             });
         }
-        
+
         // 4. 尝试读取为 Option<u32>
         if let Ok(val) = row.try_get::<Option<u32>, _>(column_name) {
             return Ok(match val {
@@ -61,7 +64,7 @@ impl MysqlAdapter {
                 None => DataValue::Null,
             });
         }
-        
+
         // 5. 最后尝试读取为字符串
         if let Ok(val) = row.try_get::<Option<String>, _>(column_name) {
             return Ok(match val {
@@ -72,14 +75,17 @@ impl MysqlAdapter {
                     } else {
                         DataValue::String(s)
                     }
-                },
+                }
                 None => DataValue::Null,
             });
         }
-        
+
         // 如果所有尝试都失败，返回错误
         Err(QuickDbError::SerializationError {
-            message: format!("无法读取整数字段 '{}' 的值，所有类型转换都失败", column_name),
+            message: format!(
+                "无法读取整数字段 '{}' 的值，所有类型转换都失败",
+                column_name
+            ),
         })
     }
 
@@ -92,7 +98,7 @@ impl MysqlAdapter {
                 None => DataValue::Null,
             });
         }
-        
+
         // 然后尝试读取 f64 (MySQL DOUBLE 是 8 字节)
         if let Ok(val) = row.try_get::<Option<f64>, _>(column_name) {
             return Ok(match val {
@@ -100,7 +106,7 @@ impl MysqlAdapter {
                 None => DataValue::Null,
             });
         }
-        
+
         // 尝试以字符串读取并解析
         if let Ok(val) = row.try_get::<Option<String>, _>(column_name) {
             return Ok(match val {
@@ -110,13 +116,15 @@ impl MysqlAdapter {
                     } else {
                         DataValue::String(s)
                     }
-                },
+                }
                 None => DataValue::Null,
             });
         }
-        
+
         // 所有尝试都失败，返回错误
-        Err(QuickDbError::SerializationError { message: format!("无法读取浮点数字段 '{}'", column_name) })
+        Err(QuickDbError::SerializationError {
+            message: format!("无法读取浮点数字段 '{}'", column_name),
+        })
     }
 
     /// 安全读取JSON字段，处理MySQL中JSON的多种存储格式
@@ -142,7 +150,11 @@ impl MysqlAdapter {
         if let Ok(value) = string_result {
             match value {
                 Some(s) => {
-                    debug!("获取到字符串值，长度: {}, 前50字符: {}", s.len(), &s[..s.len().min(50)]);
+                    debug!(
+                        "获取到字符串值，长度: {}, 前50字符: {}",
+                        s.len(),
+                        &s[..s.len().min(50)]
+                    );
                     // 检查是否是JSON字符串格式（以{或[开头）
                     if s.starts_with('{') || s.starts_with('[') {
                         debug!("检测到JSON格式字符串，尝试解析");
@@ -157,22 +169,35 @@ impl MysqlAdapter {
                                         let data_object: HashMap<String, DataValue> = obj.into_iter()
                                             .map(|(k, v)| (k, crate::types::data_value::json_value_to_data_value(v)))
                                             .collect();
-                                        debug!("转换为DataValue::Object，包含{}个字段", data_object.len());
+                                        debug!(
+                                            "转换为DataValue::Object，包含{}个字段",
+                                            data_object.len()
+                                        );
                                         Ok(DataValue::Object(data_object))
-                                    },
+                                    }
                                     JsonValue::Array(arr) => {
-                                        let data_array: Vec<DataValue> = arr.into_iter()
-                                            .map(|v| crate::types::data_value::json_value_to_data_value(v))
+                                        let data_array: Vec<DataValue> = arr
+                                            .into_iter()
+                                            .map(|v| {
+                                                crate::types::data_value::json_value_to_data_value(
+                                                    v,
+                                                )
+                                            })
                                             .collect();
-                                        debug!("转换为DataValue::Array，包含{}个元素", data_array.len());
+                                        debug!(
+                                            "转换为DataValue::Array，包含{}个元素",
+                                            data_array.len()
+                                        );
                                         Ok(DataValue::Array(data_array))
-                                    },
+                                    }
                                     _ => {
                                         debug!("转换为其他DataValue类型");
-                                        Ok(crate::types::data_value::json_value_to_data_value(json_value))
-                                    },
+                                        Ok(crate::types::data_value::json_value_to_data_value(
+                                            json_value,
+                                        ))
+                                    }
                                 }
-                            },
+                            }
                             Err(e) => {
                                 warn!("JSON字符串解析失败: {}，错误: {}", s, e);
                                 // 解析失败，作为普通字符串处理
@@ -184,16 +209,19 @@ impl MysqlAdapter {
                         // 不是JSON格式，作为普通字符串处理
                         Ok(DataValue::String(s))
                     }
-                },
+                }
                 None => {
                     debug!("字符串值为None，返回DataValue::Null");
                     Ok(DataValue::Null)
-                },
+                }
             }
         } else {
             error!("所有读取方式都失败");
             Err(QuickDbError::SerializationError {
-                message: format!("无法读取JSON字段 '{}' 的值，所有类型转换都失败", column_name)
+                message: format!(
+                    "无法读取JSON字段 '{}' 的值，所有类型转换都失败",
+                    column_name
+                ),
             })
         }
     }
@@ -207,7 +235,7 @@ impl MysqlAdapter {
                 None => DataValue::Null,
             });
         }
-        
+
         // 尝试以整数读取（MySQL 中 BOOLEAN 通常存储为 TINYINT）
         if let Ok(val) = row.try_get::<Option<i8>, _>(column_name) {
             return Ok(match val {
@@ -215,23 +243,23 @@ impl MysqlAdapter {
                 None => DataValue::Null,
             });
         }
-        
+
         // 尝试以字符串读取并解析
         if let Ok(val) = row.try_get::<Option<String>, _>(column_name) {
             return Ok(match val {
-                Some(s) => {
-                    match s.to_lowercase().as_str() {
-                        "true" | "1" | "yes" | "on" => DataValue::Bool(true),
-                        "false" | "0" | "no" | "off" => DataValue::Bool(false),
-                        _ => DataValue::String(s),
-                    }
+                Some(s) => match s.to_lowercase().as_str() {
+                    "true" | "1" | "yes" | "on" => DataValue::Bool(true),
+                    "false" | "0" | "no" | "off" => DataValue::Bool(false),
+                    _ => DataValue::String(s),
                 },
                 None => DataValue::Null,
             });
         }
-        
+
         // 所有尝试都失败，返回错误
-        Err(QuickDbError::SerializationError { message: format!("无法读取布尔字段 '{}'", column_name) })
+        Err(QuickDbError::SerializationError {
+            message: format!("无法读取布尔字段 '{}'", column_name),
+        })
     }
 
     /// 将MySQL行转换为DataValue映射
@@ -241,10 +269,13 @@ impl MysqlAdapter {
         for column in row.columns() {
             let column_name = column.name();
             let column_type = column.type_info().name();
-            
+
             // 调试：输出列类型信息
-            debug!("开始处理MySQL列 '{}' 的类型: '{}'", column_name, column_type);
-              
+            debug!(
+                "开始处理MySQL列 '{}' 的类型: '{}'",
+                column_name, column_type
+            );
+
             // 根据MySQL类型转换值
             let data_value = match column_type {
                 "INT" | "BIGINT" | "SMALLINT" | "TINYINT" => {
@@ -254,18 +285,18 @@ impl MysqlAdapter {
                         Ok(value) => {
                             debug!("成功读取整数字段 {}: {:?}", column_name, value);
                             value
-                        },
+                        }
                         Err(e) => {
                             error!("读取整数字段 {} 时发生错误: {}", column_name, e);
                             DataValue::Null
                         }
                     }
-                },
+                }
                 // 处理UNSIGNED整数类型
                 "INT UNSIGNED" | "BIGINT UNSIGNED" | "SMALLINT UNSIGNED" | "TINYINT UNSIGNED" => {
                     // 对于LAST_INSERT_ID()，MySQL返回的是unsigned long long，但sqlx可能会将其作为i64处理
                     // 我们应该优先尝试i64，因为MySQL的LAST_INSERT_ID()通常在合理范围内
-                    
+
                     // 1. 首先尝试i64，因为MySQL的自增ID通常不会超过i64::MAX
                     if let Ok(val) = row.try_get::<Option<i64>, _>(column_name) {
                         match val {
@@ -284,7 +315,7 @@ impl MysqlAdapter {
                                 } else {
                                     DataValue::Int(i)
                                 }
-                            },
+                            }
                             None => DataValue::Null,
                         }
                     }
@@ -297,7 +328,7 @@ impl MysqlAdapter {
                                 } else {
                                     DataValue::String(u.to_string())
                                 }
-                            },
+                            }
                             None => DataValue::Null,
                         }
                     }
@@ -316,40 +347,43 @@ impl MysqlAdapter {
                                 } else {
                                     DataValue::String(s)
                                 }
-                            },
+                            }
                             None => DataValue::Null,
                         }
                     } else {
-                        warn!("无法读取无符号整数字段 '{}' 的值，类型: {}", column_name, column_type);
+                        warn!(
+                            "无法读取无符号整数字段 '{}' 的值，类型: {}",
+                            column_name, column_type
+                        );
                         DataValue::Null
                     }
-                },
+                }
                 "FLOAT" | "DOUBLE" => {
                     debug!("准备读取浮点数字段: {}", column_name);
                     match Self::safe_read_float(row, column_name) {
                         Ok(value) => {
                             debug!("成功读取浮点数字段 {}: {:?}", column_name, value);
                             value
-                        },
+                        }
                         Err(e) => {
                             error!("读取浮点数字段 {} 时发生错误: {}", column_name, e);
                             DataValue::Null
                         }
                     }
-                },
+                }
                 "BOOLEAN" | "BOOL" => {
                     debug!("准备读取布尔字段: {}", column_name);
                     match Self::safe_read_bool(row, column_name) {
                         Ok(value) => {
                             debug!("成功读取布尔字段 {}: {:?}", column_name, value);
                             value
-                        },
+                        }
                         Err(e) => {
                             error!("读取布尔字段 {} 时发生错误: {}", column_name, e);
                             DataValue::Null
                         }
                     }
-                },
+                }
                 "CHAR" => {
                     debug!("准备读取字符串字段: {}", column_name);
                     if let Ok(value) = row.try_get::<Option<String>, _>(column_name) {
@@ -363,7 +397,7 @@ impl MysqlAdapter {
                         error!("无法读取字符串字段: {}", column_name);
                         DataValue::Null
                     }
-                },
+                }
                 "JSON" | "LONGTEXT" | "TEXT" | "VARCHAR" => {
                     // 简化处理：所有文本类型都作为字符串读取
                     debug!("读取文本字段: {} (类型: {})", column_name, column_type);
@@ -378,7 +412,7 @@ impl MysqlAdapter {
                         error!("无法读取文本字段: {}", column_name);
                         DataValue::Null
                     }
-                },
+                }
                 "BLOB" => {
                     // BLOB类型可能存储JSON数据，需要作为字节数组读取然后转换为字符串
                     debug!("读取BLOB字段: {} (类型: {})", column_name, column_type);
@@ -393,7 +427,7 @@ impl MysqlAdapter {
                                         DataValue::String(base64::encode(&bytes))
                                     }
                                 }
-                            },
+                            }
                             None => DataValue::Null,
                         };
                         debug!("读取BLOB字段 {}: {:?}", column_name, result);
@@ -402,12 +436,16 @@ impl MysqlAdapter {
                         error!("无法读取BLOB字段: {}", column_name);
                         DataValue::Null
                     }
-                },
+                }
                 "DATETIME" | "TIMESTAMP" => {
                     debug!("准备读取日期时间字段: {}", column_name);
-                    if let Ok(value) = row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>(column_name) {
+                    if let Ok(value) =
+                        row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>(column_name)
+                    {
                         let result = match value {
-                            Some(dt) => DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0))),
+                            Some(dt) => {
+                                DataValue::DateTime(dt.with_timezone(&chrono::FixedOffset::east(0)))
+                            }
                             None => DataValue::Null,
                         };
                         debug!("成功读取日期时间字段 {}: {:?}", column_name, result);
@@ -416,31 +454,34 @@ impl MysqlAdapter {
                         error!("无法读取日期时间字段: {}", column_name);
                         DataValue::Null
                     }
-                },
-                _ => {
-                debug!("处理未知类型字段: {} (类型: '{}', 长度: {})", column_name, column_type, column_type.len());
-                // 对于未知类型，尝试作为字符串处理
-                if let Ok(value) = row.try_get::<Option<String>, _>(column_name) {
-                    let result = match value {
-                        Some(s) => DataValue::String(s),
-                        None => DataValue::Null,
-                    };
-                    debug!("成功读取未知类型字段 {}: {:?}", column_name, result);
-                    result
-                } else {
-                    error!("无法读取未知类型字段: {}", column_name);
-                    DataValue::Null
                 }
-            }
+                _ => {
+                    debug!(
+                        "处理未知类型字段: {} (类型: '{}', 长度: {})",
+                        column_name,
+                        column_type,
+                        column_type.len()
+                    );
+                    // 对于未知类型，尝试作为字符串处理
+                    if let Ok(value) = row.try_get::<Option<String>, _>(column_name) {
+                        let result = match value {
+                            Some(s) => DataValue::String(s),
+                            None => DataValue::Null,
+                        };
+                        debug!("成功读取未知类型字段 {}: {:?}", column_name, result);
+                        result
+                    } else {
+                        error!("无法读取未知类型字段: {}", column_name);
+                        DataValue::Null
+                    }
+                }
             };
-            
+
             data_map.insert(column_name.to_string(), data_value);
         }
-        
+
         Ok(data_map)
     }
-
-
 
     /// 执行查询并返回结果
     pub async fn execute_query(
@@ -450,20 +491,21 @@ impl MysqlAdapter {
         params: &[DataValue],
     ) -> QuickDbResult<Vec<DataValue>> {
         let mut query = sqlx::query::<sqlx::MySql>(sql);
-        
+
         // 绑定参数
         for param in params {
             query = match param {
                 DataValue::String(s) => {
                     // 检查是否为JSON字符串，如果是则转换为对应的DataValue类型
-                    let converted_value = crate::types::data_value::parse_json_string_to_data_value(s.clone());
+                    let converted_value =
+                        crate::types::data_value::parse_json_string_to_data_value(s.clone());
                     match converted_value {
                         DataValue::Json(json_val) => {
                             query.bind(serde_json::to_string(&json_val).unwrap_or_default())
-                        },
-                        _ => query.bind(s)
+                        }
+                        _ => query.bind(s),
                     }
-                },
+                }
                 DataValue::Int(i) => query.bind(*i),
                 DataValue::Float(f) => query.bind(*f),
                 DataValue::Bool(b) => query.bind(*b),
@@ -475,26 +517,28 @@ impl MysqlAdapter {
                 DataValue::Null => query.bind(Option::<String>::None),
                 DataValue::Array(arr) => {
                     // 将DataValue数组转换为原始JSON数组
-                    let json_values: Vec<serde_json::Value> = arr.iter()
-                        .map(|v| v.to_json_value())
-                        .collect();
+                    let json_values: Vec<serde_json::Value> =
+                        arr.iter().map(|v| v.to_json_value()).collect();
                     query.bind(serde_json::to_string(&json_values).unwrap_or_default())
-                },
+                }
                 DataValue::Object(obj) => {
                     // 将DataValue对象转换为原始JSON对象
-                    let json_map: serde_json::Map<String, serde_json::Value> = obj.iter()
+                    let json_map: serde_json::Map<String, serde_json::Value> = obj
+                        .iter()
                         .map(|(k, v)| (k.clone(), v.to_json_value()))
                         .collect();
                     query.bind(serde_json::to_string(&json_map).unwrap_or_default())
-                },
+                }
             };
         }
 
-        let rows = query.fetch_all(pool).await
+        let rows = query
+            .fetch_all(pool)
+            .await
             .map_err(|e| QuickDbError::QueryError {
                 message: format!("执行MySQL查询失败: {}", e),
             })?;
-        
+
         let mut results = Vec::new();
         for row in rows {
             // 使用 catch_unwind 捕获可能的 panic，防止连接池崩溃
@@ -503,24 +547,30 @@ impl MysqlAdapter {
             })) {
                 Ok(Ok(data_map)) => {
                     results.push(DataValue::Object(data_map));
-                },
+                }
                 Ok(Err(e)) => {
                     error!("行数据转换失败: {}", e);
                     // 创建一个包含错误信息的对象，而不是跳过这一行
                     let mut error_map = HashMap::new();
-                    error_map.insert("error".to_string(), DataValue::String(format!("数据转换失败: {}", e)));
+                    error_map.insert(
+                        "error".to_string(),
+                        DataValue::String(format!("数据转换失败: {}", e)),
+                    );
                     results.push(DataValue::Object(error_map));
-                },
+                }
                 Err(panic_info) => {
                     error!("行数据转换时发生 panic: {:?}", panic_info);
                     // 创建一个包含 panic 信息的对象
                     let mut error_map = HashMap::new();
-                    error_map.insert("error".to_string(), DataValue::String("数据转换时发生内部错误".to_string()));
+                    error_map.insert(
+                        "error".to_string(),
+                        DataValue::String("数据转换时发生内部错误".to_string()),
+                    );
                     results.push(DataValue::Object(error_map));
                 }
             }
         }
-        
+
         Ok(results)
     }
 
@@ -532,20 +582,21 @@ impl MysqlAdapter {
         params: &[DataValue],
     ) -> QuickDbResult<u64> {
         let mut query = sqlx::query(sql);
-        
+
         // 绑定参数
         for param in params {
             query = match param {
                 DataValue::String(s) => {
                     // 检查是否为JSON字符串，如果是则转换为对应的DataValue类型
-                    let converted_value = crate::types::data_value::parse_json_string_to_data_value(s.clone());
+                    let converted_value =
+                        crate::types::data_value::parse_json_string_to_data_value(s.clone());
                     match converted_value {
                         DataValue::Json(json_val) => {
                             query.bind(serde_json::to_string(&json_val).unwrap_or_default())
-                        },
-                        _ => query.bind(s)
+                        }
+                        _ => query.bind(s),
                     }
-                },
+                }
                 DataValue::Int(i) => query.bind(*i),
                 DataValue::Float(f) => query.bind(*f),
                 DataValue::Bool(b) => query.bind(*b),
@@ -557,26 +608,28 @@ impl MysqlAdapter {
                 DataValue::Null => query.bind(Option::<String>::None),
                 DataValue::Array(arr) => {
                     // 将DataValue数组转换为原始JSON数组
-                    let json_values: Vec<serde_json::Value> = arr.iter()
-                        .map(|v| v.to_json_value())
-                        .collect();
+                    let json_values: Vec<serde_json::Value> =
+                        arr.iter().map(|v| v.to_json_value()).collect();
                     query.bind(serde_json::to_string(&json_values).unwrap_or_default())
-                },
+                }
                 DataValue::Object(obj) => {
                     // 将DataValue对象转换为原始JSON对象
-                    let json_map: serde_json::Map<String, serde_json::Value> = obj.iter()
+                    let json_map: serde_json::Map<String, serde_json::Value> = obj
+                        .iter()
                         .map(|(k, v)| (k.clone(), v.to_json_value()))
                         .collect();
                     query.bind(serde_json::to_string(&json_map).unwrap_or_default())
-                },
+                }
             };
         }
 
-        let result = query.execute(pool).await
+        let result = query
+            .execute(pool)
+            .await
             .map_err(|e| QuickDbError::QueryError {
                 message: format!("执行MySQL更新失败: {}", e),
             })?;
-        
+
         Ok(result.rows_affected())
     }
 }

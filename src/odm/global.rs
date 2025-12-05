@@ -1,17 +1,14 @@
-
 //! # 全局ODM管理器和便捷函数
 
 use crate::error::QuickDbResult;
-use crate::types::*;
 use crate::odm::manager_core::AsyncOdmManager;
 use crate::odm::traits::OdmOperations;
+use crate::types::*;
 use std::collections::HashMap;
 
 /// 全局异步ODM管理器实例
-static ASYNC_ODM_MANAGER: once_cell::sync::Lazy<tokio::sync::RwLock<AsyncOdmManager>> = 
-    once_cell::sync::Lazy::new(|| {
-        tokio::sync::RwLock::new(AsyncOdmManager::new())
-    });
+static ASYNC_ODM_MANAGER: once_cell::sync::Lazy<tokio::sync::RwLock<AsyncOdmManager>> =
+    once_cell::sync::Lazy::new(|| tokio::sync::RwLock::new(AsyncOdmManager::new()));
 
 /// 获取全局ODM管理器
 pub async fn get_odm_manager() -> tokio::sync::RwLockReadGuard<'static, AsyncOdmManager> {
@@ -39,7 +36,6 @@ pub async fn create(
     let manager = get_odm_manager().await;
     manager.create(collection, data, alias).await
 }
-
 
 /// 便捷函数：根据ID查询记录
 ///
@@ -91,7 +87,9 @@ pub async fn find_with_groups(
     crate::lock_global_operations();
 
     let manager = get_odm_manager().await;
-    manager.find_with_groups(collection, condition_groups, options, alias).await
+    manager
+        .find_with_groups(collection, condition_groups, options, alias)
+        .await
 }
 
 /// 便捷函数：更新记录
@@ -145,7 +143,9 @@ pub async fn update_with_operations(
     crate::lock_global_operations();
 
     let manager = get_odm_manager().await;
-    manager.update_with_operations(collection, conditions, operations, alias).await
+    manager
+        .update_with_operations(collection, conditions, operations, alias)
+        .await
 }
 
 /// 便捷函数：删除记录
@@ -170,11 +170,7 @@ pub async fn delete(
 /// 【注意】这是一个内部函数，建议通过ModelManager或模型的delete方法进行操作
 /// 除非您明确知道自己在做什么，否则不要直接调用此函数
 #[doc(hidden)]
-pub async fn delete_by_id(
-    collection: &str,
-    id: &str,
-    alias: Option<&str>,
-) -> QuickDbResult<bool> {
+pub async fn delete_by_id(collection: &str, id: &str, alias: Option<&str>) -> QuickDbResult<bool> {
     // 锁定全局操作
     crate::lock_global_operations();
 
@@ -198,7 +194,6 @@ pub async fn count(
     let manager = get_odm_manager().await;
     manager.count(collection, conditions, alias).await
 }
-
 
 /// 获取数据库服务器版本信息
 pub async fn get_server_version(alias: Option<&str>) -> QuickDbResult<String> {
@@ -224,5 +219,7 @@ pub async fn execute_stored_procedure(
     params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
 ) -> QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult> {
     let manager = get_odm_manager().await;
-    manager.execute_stored_procedure(procedure_name, database_alias, params).await
+    manager
+        .execute_stored_procedure(procedure_name, database_alias, params)
+        .await
 }

@@ -1,14 +1,14 @@
 //! JSON序列化层
-//! 
+//!
 //! 提供灵活的序列化选项，支持返回JSON字符串或对象
 //! 兼容PyO3调用，可根据调用者需求选择返回格式
 
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::DataValue;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value as JsonValue, Map as JsonMap};
-use std::collections::HashMap;
 use rat_logger::{debug, error, info, warn};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map as JsonMap, Value as JsonValue};
+use std::collections::HashMap;
 
 /// 序列化输出格式
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -141,13 +141,15 @@ impl SerializationResult {
         match self {
             SerializationResult::JsonString(s) => Ok(s.clone()),
             SerializationResult::JsonObject(obj) => {
-                serde_json::to_string(obj)
-                    .map_err(|e| QuickDbError::SerializationError { message: format!("序列化为JSON字符串失败: {}", e) })
+                serde_json::to_string(obj).map_err(|e| QuickDbError::SerializationError {
+                    message: format!("序列化为JSON字符串失败: {}", e),
+                })
             }
             SerializationResult::RawData(data) => {
                 let json_obj = data_map_to_json_value(data)?;
-                serde_json::to_string(&json_obj)
-                    .map_err(|e| QuickDbError::SerializationError { message: format!("序列化为JSON字符串失败: {}", e) })
+                serde_json::to_string(&json_obj).map_err(|e| QuickDbError::SerializationError {
+                    message: format!("序列化为JSON字符串失败: {}", e),
+                })
             }
         }
     }
@@ -156,13 +158,12 @@ impl SerializationResult {
     pub fn to_json_object(&self) -> QuickDbResult<JsonValue> {
         match self {
             SerializationResult::JsonString(s) => {
-                serde_json::from_str(s)
-                    .map_err(|e| QuickDbError::SerializationError { message: format!("解析JSON字符串失败: {}", e) })
+                serde_json::from_str(s).map_err(|e| QuickDbError::SerializationError {
+                    message: format!("解析JSON字符串失败: {}", e),
+                })
             }
             SerializationResult::JsonObject(obj) => Ok(obj.clone()),
-            SerializationResult::RawData(data) => {
-                data_map_to_json_value(data)
-            }
+            SerializationResult::RawData(data) => data_map_to_json_value(data),
         }
     }
 
@@ -170,13 +171,13 @@ impl SerializationResult {
     pub fn to_raw_data(&self) -> QuickDbResult<HashMap<String, DataValue>> {
         match self {
             SerializationResult::JsonString(s) => {
-                let json_obj: JsonValue = serde_json::from_str(s)
-                    .map_err(|e| QuickDbError::SerializationError { message: format!("解析JSON字符串失败: {}", e) })?;
+                let json_obj: JsonValue =
+                    serde_json::from_str(s).map_err(|e| QuickDbError::SerializationError {
+                        message: format!("解析JSON字符串失败: {}", e),
+                    })?;
                 json_value_to_data_map(&json_obj)
             }
-            SerializationResult::JsonObject(obj) => {
-                json_value_to_data_map(obj)
-            }
+            SerializationResult::JsonObject(obj) => json_value_to_data_map(obj),
             SerializationResult::RawData(data) => Ok(data.clone()),
         }
     }
@@ -209,11 +210,14 @@ impl DataSerializer {
     }
 
     /// 序列化单个数据记录
-    pub fn serialize_record(&self, data: HashMap<String, DataValue>) -> QuickDbResult<SerializationResult> {
+    pub fn serialize_record(
+        &self,
+        data: HashMap<String, DataValue>,
+    ) -> QuickDbResult<SerializationResult> {
         debug!("序列化单个记录: {} 个字段", data.len());
-        
+
         let processed_data = self.process_data(data)?;
-        
+
         match self.config.format {
             OutputFormat::JsonString => {
                 let json_obj = data_map_to_json_value(&processed_data)?;
@@ -221,30 +225,34 @@ impl DataSerializer {
                     serde_json::to_string_pretty(&json_obj)
                 } else {
                     serde_json::to_string(&json_obj)
-                }.map_err(|e| QuickDbError::SerializationError { message: format!("序列化失败: {}", e) })?;
-                
+                }
+                .map_err(|e| QuickDbError::SerializationError {
+                    message: format!("序列化失败: {}", e),
+                })?;
+
                 Ok(SerializationResult::JsonString(json_str))
             }
             OutputFormat::JsonObject => {
                 let json_obj = data_map_to_json_value(&processed_data)?;
                 Ok(SerializationResult::JsonObject(json_obj))
             }
-            OutputFormat::RawData => {
-                Ok(SerializationResult::RawData(processed_data))
-            }
+            OutputFormat::RawData => Ok(SerializationResult::RawData(processed_data)),
         }
     }
 
     /// 序列化多个数据记录
-    pub fn serialize_records(&self, records: Vec<HashMap<String, DataValue>>) -> QuickDbResult<SerializationResult> {
+    pub fn serialize_records(
+        &self,
+        records: Vec<HashMap<String, DataValue>>,
+    ) -> QuickDbResult<SerializationResult> {
         debug!("序列化多个记录: {} 条记录", records.len());
-        
+
         let mut processed_records = Vec::new();
         for record in records {
             let processed_data = self.process_data(record)?;
             processed_records.push(processed_data);
         }
-        
+
         match self.config.format {
             OutputFormat::JsonString => {
                 let mut json_array = Vec::new();
@@ -252,13 +260,16 @@ impl DataSerializer {
                     let json_obj = data_map_to_json_value(&record)?;
                     json_array.push(json_obj);
                 }
-                
+
                 let json_str = if self.config.pretty {
                     serde_json::to_string_pretty(&json_array)
                 } else {
                     serde_json::to_string(&json_array)
-                }.map_err(|e| QuickDbError::SerializationError { message: format!("序列化失败: {}", e) })?;
-                
+                }
+                .map_err(|e| QuickDbError::SerializationError {
+                    message: format!("序列化失败: {}", e),
+                })?;
+
                 Ok(SerializationResult::JsonString(json_str))
             }
             OutputFormat::JsonObject => {
@@ -267,16 +278,22 @@ impl DataSerializer {
                     let json_obj = data_map_to_json_value(&record)?;
                     json_array.push(json_obj);
                 }
-                Ok(SerializationResult::JsonObject(JsonValue::Array(json_array)))
+                Ok(SerializationResult::JsonObject(JsonValue::Array(
+                    json_array,
+                )))
             }
             OutputFormat::RawData => {
                 // 对于原始数据格式，我们返回一个特殊的数据结构
                 let mut result_data = HashMap::new();
-                result_data.insert("records".to_string(), DataValue::Array(
-                    processed_records.into_iter()
-                        .map(|record| DataValue::Object(record))
-                        .collect()
-                ));
+                result_data.insert(
+                    "records".to_string(),
+                    DataValue::Array(
+                        processed_records
+                            .into_iter()
+                            .map(|record| DataValue::Object(record))
+                            .collect(),
+                    ),
+                );
                 Ok(SerializationResult::RawData(result_data))
             }
         }
@@ -290,18 +307,17 @@ impl DataSerializer {
         has_more: Option<bool>,
     ) -> QuickDbResult<SerializationResult> {
         debug!("序列化查询结果: {} 条记录", records.len());
-        
+
         let mut result_data = HashMap::new();
-        
+
         // 序列化记录
         let records_result = self.serialize_records(records)?;
         match records_result {
             SerializationResult::JsonObject(JsonValue::Array(arr)) => {
-                result_data.insert("data".to_string(), DataValue::Array(
-                    arr.into_iter()
-                        .map(|v| DataValue::from_json(v))
-                        .collect()
-                ));
+                result_data.insert(
+                    "data".to_string(),
+                    DataValue::Array(arr.into_iter().map(|v| DataValue::from_json(v)).collect()),
+                );
             }
             SerializationResult::RawData(raw) => {
                 if let Some(DataValue::Array(records)) = raw.get("records") {
@@ -310,28 +326,31 @@ impl DataSerializer {
             }
             _ => {
                 return Err(QuickDbError::SerializationError {
-                    message: "无法处理记录序列化结果".to_string()
+                    message: "无法处理记录序列化结果".to_string(),
                 });
             }
         }
-        
+
         // 添加元数据
         if let Some(count) = total_count {
             result_data.insert("total_count".to_string(), DataValue::Int(count as i64));
         }
-        
+
         if let Some(more) = has_more {
             result_data.insert("has_more".to_string(), DataValue::Bool(more));
         }
-        
-        result_data.insert("count".to_string(), DataValue::Int(
-            if let Some(DataValue::Array(data)) = result_data.get("data") {
-                data.len() as i64
-            } else {
-                0
-            }
-        ));
-        
+
+        result_data.insert(
+            "count".to_string(),
+            DataValue::Int(
+                if let Some(DataValue::Array(data)) = result_data.get("data") {
+                    data.len() as i64
+                } else {
+                    0
+                },
+            ),
+        );
+
         // 根据配置格式返回结果
         match self.config.format {
             OutputFormat::JsonString => {
@@ -340,27 +359,31 @@ impl DataSerializer {
                     serde_json::to_string_pretty(&json_obj)
                 } else {
                     serde_json::to_string(&json_obj)
-                }.map_err(|e| QuickDbError::SerializationError { message: format!("序列化失败: {}", e) })?;
-                
+                }
+                .map_err(|e| QuickDbError::SerializationError {
+                    message: format!("序列化失败: {}", e),
+                })?;
+
                 Ok(SerializationResult::JsonString(json_str))
             }
             OutputFormat::JsonObject => {
                 let json_obj = data_map_to_json_value(&result_data)?;
                 Ok(SerializationResult::JsonObject(json_obj))
             }
-            OutputFormat::RawData => {
-                Ok(SerializationResult::RawData(result_data))
-            }
+            OutputFormat::RawData => Ok(SerializationResult::RawData(result_data)),
         }
     }
 
     /// 处理数据（应用配置选项）
-    fn process_data(&self, mut data: HashMap<String, DataValue>) -> QuickDbResult<HashMap<String, DataValue>> {
+    fn process_data(
+        &self,
+        mut data: HashMap<String, DataValue>,
+    ) -> QuickDbResult<HashMap<String, DataValue>> {
         // 移除空值字段（如果配置要求）
         if !self.config.include_null {
             data.retain(|_, v| !matches!(v, DataValue::Null));
         }
-        
+
         // 处理日期时间格式
         if let Some(ref format) = self.config.datetime_format {
             for (_, value) in data.iter_mut() {
@@ -370,7 +393,7 @@ impl DataSerializer {
                 }
             }
         }
-        
+
         // 处理浮点数精度
         if let Some(precision) = self.config.float_precision {
             for (_, value) in data.iter_mut() {
@@ -380,7 +403,7 @@ impl DataSerializer {
                 }
             }
         }
-        
+
         Ok(data)
     }
 }
@@ -388,42 +411,37 @@ impl DataSerializer {
 /// 将DataValue映射转换为JsonValue
 fn data_map_to_json_value(data: &HashMap<String, DataValue>) -> QuickDbResult<JsonValue> {
     let mut json_map = JsonMap::new();
-    
+
     for (key, value) in data {
         json_map.insert(key.clone(), value.to_json_value());
     }
-    
+
     Ok(JsonValue::Object(json_map))
 }
 
 /// 将JsonValue转换为DataValue映射
 fn json_value_to_data_map(json: &JsonValue) -> QuickDbResult<HashMap<String, DataValue>> {
     let mut data_map = HashMap::new();
-    
+
     if let JsonValue::Object(obj) = json {
         for (key, value) in obj {
             data_map.insert(key.clone(), DataValue::from_json_value(value.clone()));
         }
     } else {
         return Err(QuickDbError::SerializationError {
-            message: "JSON值不是对象类型".to_string()
+            message: "JSON值不是对象类型".to_string(),
         });
     }
-    
+
     Ok(data_map)
 }
 
 /// 全局序列化器实例
-static DEFAULT_SERIALIZER: once_cell::sync::Lazy<DataSerializer> = 
-    once_cell::sync::Lazy::new(|| {
-        DataSerializer::default()
-    });
+static DEFAULT_SERIALIZER: once_cell::sync::Lazy<DataSerializer> =
+    once_cell::sync::Lazy::new(|| DataSerializer::default());
 
-
-static RUST_SERIALIZER: once_cell::sync::Lazy<DataSerializer> = 
-    once_cell::sync::Lazy::new(|| {
-        DataSerializer::new(SerializerConfig::for_rust())
-    });
+static RUST_SERIALIZER: once_cell::sync::Lazy<DataSerializer> =
+    once_cell::sync::Lazy::new(|| DataSerializer::new(SerializerConfig::for_rust()));
 
 /// 便捷函数：使用默认配置序列化记录
 pub fn serialize_record(data: HashMap<String, DataValue>) -> QuickDbResult<String> {
@@ -437,7 +455,6 @@ pub fn serialize_records(records: Vec<HashMap<String, DataValue>>) -> QuickDbRes
     result.to_json_string()
 }
 
-
 /// 便捷函数：使用Rust原生配置序列化记录
 pub fn serialize_record_for_rust(data: HashMap<String, DataValue>) -> QuickDbResult<JsonValue> {
     let result = RUST_SERIALIZER.serialize_record(data)?;
@@ -445,7 +462,9 @@ pub fn serialize_record_for_rust(data: HashMap<String, DataValue>) -> QuickDbRes
 }
 
 /// 便捷函数：使用Rust原生配置序列化多个记录
-pub fn serialize_records_for_rust(records: Vec<HashMap<String, DataValue>>) -> QuickDbResult<JsonValue> {
+pub fn serialize_records_for_rust(
+    records: Vec<HashMap<String, DataValue>>,
+) -> QuickDbResult<JsonValue> {
     let result = RUST_SERIALIZER.serialize_records(records)?;
     result.to_json_object()
 }
@@ -460,7 +479,6 @@ pub fn serialize_query_result(
     result.to_json_string()
 }
 
-
 /// 便捷函数：为Rust序列化查询结果
 pub fn serialize_query_result_for_rust(
     records: Vec<HashMap<String, DataValue>>,
@@ -470,4 +488,3 @@ pub fn serialize_query_result_for_rust(
     let result = RUST_SERIALIZER.serialize_query_result(records, total_count, has_more)?;
     result.to_json_object()
 }
-

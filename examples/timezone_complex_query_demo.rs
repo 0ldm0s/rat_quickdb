@@ -2,14 +2,19 @@
 //!
 //! 展示如何使用SQLite的datetime字段进行时区相关的复杂查询
 
-use rat_quickdb::*;
-use rat_quickdb::types::{QueryCondition, QueryConditionGroup, LogicalOperator, QueryOperator, DataValue, QueryOptions, SortConfig, SortDirection, PaginationConfig};
-use rat_quickdb::manager::shutdown;
-use rat_quickdb::{ModelOperations, string_field, integer_field, float_field, datetime_field, boolean_field};
-use std::collections::HashMap;
-use chrono::{Utc, DateTime, Duration, TimeZone};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use rand::Rng;
-use rat_logger::{LoggerBuilder, handler::term::TermConfig, debug};
+use rat_logger::{LoggerBuilder, debug, handler::term::TermConfig};
+use rat_quickdb::manager::shutdown;
+use rat_quickdb::types::{
+    DataValue, LogicalOperator, PaginationConfig, QueryCondition, QueryConditionGroup,
+    QueryOperator, QueryOptions, SortConfig, SortDirection,
+};
+use rat_quickdb::*;
+use rat_quickdb::{
+    ModelOperations, boolean_field, datetime_field, float_field, integer_field, string_field,
+};
+use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> QuickDbResult<()> {
@@ -29,17 +34,19 @@ async fn main() -> QuickDbResult<()> {
             path: "/tmp/timezone_complex_query_example.db".to_string(),
             create_if_missing: true,
         })
-        .pool(PoolConfig::builder()
-            .min_connections(2)
-            .max_connections(10)
-            .connection_timeout(30)
-            .idle_timeout(300)
-            .max_lifetime(1800)
-            .max_retries(3)
-            .retry_interval_ms(1000)
-            .keepalive_interval_sec(60)
-            .health_check_timeout_sec(10)
-            .build()?)
+        .pool(
+            PoolConfig::builder()
+                .min_connections(2)
+                .max_connections(10)
+                .connection_timeout(30)
+                .idle_timeout(300)
+                .max_lifetime(1800)
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()?,
+        )
         .alias("default".to_string())
         .id_strategy(IdStrategy::Uuid)
         .build()?;
@@ -67,35 +74,32 @@ async fn main() -> QuickDbResult<()> {
 
     let utc_condition = QueryConditionGroup::Group {
         operator: LogicalOperator::And,
-        conditions: vec![
-            QueryConditionGroup::Single(QueryCondition {
-                field: "timezone".to_string(),
-                operator: QueryOperator::Eq,
-                value: DataValue::String("UTC".to_string()),
-            }),
-        ],
+        conditions: vec![QueryConditionGroup::Single(QueryCondition {
+            field: "timezone".to_string(),
+            operator: QueryOperator::Eq,
+            value: DataValue::String("UTC".to_string()),
+        })],
     };
 
-    let utc_result = ModelManager::<TimeZoneEvent>::find_with_groups(
-        vec![utc_condition],
-        None,
-    ).await;
+    let utc_result =
+        ModelManager::<TimeZoneEvent>::find_with_groups(vec![utc_condition], None).await;
 
     match utc_result {
         Ok(events) => {
             if events.is_empty() {
-                println!("   ❌ 查询结果为空：预期应该找到UTC时区事件（全球技术峰会），但查询返回0个结果");
+                println!(
+                    "   ❌ 查询结果为空：预期应该找到UTC时区事件（全球技术峰会），但查询返回0个结果"
+                );
             } else {
                 println!("   ✅ 找到 {} 个UTC时区事件", events.len());
                 for event in &events {
-                    println!("   - {} ({}) - {} ({})",
-                        event.event_name,
-                        event.event_type,
-                        event.location,
-                        event.timezone);
+                    println!(
+                        "   - {} ({}) - {} ({})",
+                        event.event_name, event.event_type, event.location, event.timezone
+                    );
                 }
             }
-        },
+        }
         Err(e) => println!("   ❌ 查询失败: {}", e),
     }
 
@@ -149,27 +153,30 @@ async fn main() -> QuickDbResult<()> {
         ],
     };
 
-    let asian_result = ModelManager::<TimeZoneEvent>::find_with_groups(
-        vec![asian_timezones_condition],
-        None,
-    ).await;
+    let asian_result =
+        ModelManager::<TimeZoneEvent>::find_with_groups(vec![asian_timezones_condition], None)
+            .await;
 
     match asian_result {
         Ok(events) => {
             if events.is_empty() {
-                println!("   ❌ 查询结果为空：预期应该找到亚洲高优先级活跃事件（亚洲开发者聚会、印度市场活动），但查询返回0个结果");
+                println!(
+                    "   ❌ 查询结果为空：预期应该找到亚洲高优先级活跃事件（亚洲开发者聚会、印度市场活动），但查询返回0个结果"
+                );
             } else {
                 println!("   ✅ 找到 {} 个亚洲高优先级活跃事件", events.len());
                 for event in &events {
-                    println!("   - {} ({}) - {} (优先级: {}, 时区: {})",
+                    println!(
+                        "   - {} ({}) - {} (优先级: {}, 时区: {})",
                         event.event_name,
                         event.event_type,
                         event.location,
                         event.priority,
-                        event.timezone);
+                        event.timezone
+                    );
                 }
             }
-        },
+        }
         Err(e) => println!("   ❌ 查询失败: {}", e),
     }
 
@@ -228,32 +235,36 @@ async fn main() -> QuickDbResult<()> {
         ],
     };
 
-    let time_window_result = ModelManager::<TimeZoneEvent>::find_with_groups(
-        vec![time_window_condition],
-        None,
-    ).await;
+    let time_window_result =
+        ModelManager::<TimeZoneEvent>::find_with_groups(vec![time_window_condition], None).await;
 
     match time_window_result {
         Ok(events) => {
             if events.is_empty() {
-                println!("   ✅ 查询成功，但没有找到正在进行或即将开始的事件（符合预期：测试数据设置的时间窗口不匹配当前时间）");
+                println!(
+                    "   ✅ 查询成功，但没有找到正在进行或即将开始的事件（符合预期：测试数据设置的时间窗口不匹配当前时间）"
+                );
             } else {
                 println!("   找到 {} 个正在进行或即将开始的事件", events.len());
                 for event in &events {
                     let time_until_start = if event.start_time > current_time {
-                        format!("将在 {} 分钟后开始",
-                            (event.start_time - current_time).num_minutes())
+                        format!(
+                            "将在 {} 分钟后开始",
+                            (event.start_time - current_time).num_minutes()
+                        )
                     } else {
-                        format!("已开始 {} 分钟",
-                            (current_time - event.start_time).num_minutes())
+                        format!(
+                            "已开始 {} 分钟",
+                            (current_time - event.start_time).num_minutes()
+                        )
                     };
-                    println!("   - {} - {} ({})",
-                        event.event_name,
-                        event.location,
-                        time_until_start);
+                    println!(
+                        "   - {} - {} ({})",
+                        event.event_name, event.location, time_until_start
+                    );
                 }
             }
-        },
+        }
         Err(e) => println!("   ❌ 查询失败: {}", e),
     }
 
@@ -290,13 +301,11 @@ async fn main() -> QuickDbResult<()> {
             // 非UTC时区（跨时区活动）
             QueryConditionGroup::Group {
                 operator: LogicalOperator::And,
-                conditions: vec![
-                    QueryConditionGroup::Single(QueryCondition {
-                        field: "timezone".to_string(),
-                        operator: QueryOperator::Ne,
-                        value: DataValue::String("UTC".to_string()),
-                    }),
-                ],
+                conditions: vec![QueryConditionGroup::Single(QueryCondition {
+                    field: "timezone".to_string(),
+                    operator: QueryOperator::Ne,
+                    value: DataValue::String("UTC".to_string()),
+                })],
             },
         ],
     };
@@ -313,34 +322,36 @@ async fn main() -> QuickDbResult<()> {
                 direction: SortDirection::Desc,
             },
         ],
-        pagination: Some(PaginationConfig {
-            limit: 5,
-            skip: 0,
-        }),
+        pagination: Some(PaginationConfig { limit: 5, skip: 0 }),
         fields: vec![],
     };
 
     let large_event_result = ModelManager::<TimeZoneEvent>::find_with_groups(
         vec![large_event_condition],
         Some(large_event_options),
-    ).await;
+    )
+    .await;
 
     match large_event_result {
         Ok(events) => {
             if events.is_empty() {
-                println!("   ❌ 查询结果为空：预期应该找到跨时区大型活动（美洲用户大会、欧洲产品发布会等），但查询返回0个结果");
+                println!(
+                    "   ❌ 查询结果为空：预期应该找到跨时区大型活动（美洲用户大会、欧洲产品发布会等），但查询返回0个结果"
+                );
             } else {
                 println!("   ✅ 找到 {} 个大型跨时区活动", events.len());
                 for (i, event) in events.iter().enumerate() {
-                    println!("   {}. {} ({} 人参与, 优先级: {}, 时区: {})",
+                    println!(
+                        "   {}. {} ({} 人参与, 优先级: {}, 时区: {})",
                         i + 1,
                         event.event_name,
                         event.participant_count,
                         event.priority,
-                        event.timezone);
+                        event.timezone
+                    );
                 }
             }
-        },
+        }
         Err(e) => println!("   ❌ 查询失败: {}", e),
     }
 
@@ -417,32 +428,36 @@ async fn main() -> QuickDbResult<()> {
         ],
     };
 
-    let complex_nested_result = ModelManager::<TimeZoneEvent>::find_with_groups(
-        vec![complex_nested_condition],
-        None,
-    ).await;
+    let complex_nested_result =
+        ModelManager::<TimeZoneEvent>::find_with_groups(vec![complex_nested_condition], None).await;
 
     match complex_nested_result {
         Ok(events) => {
             if events.is_empty() {
-                println!("   ❌ 查询结果为空：预期应该找到技术类高优先级事件或欧美时区大型活动，但查询返回0个结果");
+                println!(
+                    "   ❌ 查询结果为空：预期应该找到技术类高优先级事件或欧美时区大型活动，但查询返回0个结果"
+                );
             } else {
                 println!("   ✅ 找到 {} 个匹配条件的事件", events.len());
                 for event in &events {
-                    let category = if event.event_type.contains("技术") || event.event_type.contains("开发") {
+                    let category = if event.event_type.contains("技术")
+                        || event.event_type.contains("开发")
+                    {
                         "技术类高优先级"
                     } else {
                         "欧美时区大型活动"
                     };
-                    println!("   - [{}] {} - {} ({}, {} 人)",
+                    println!(
+                        "   - [{}] {} - {} ({}, {} 人)",
                         category,
                         event.event_name,
                         event.location,
                         event.timezone,
-                        event.participant_count);
+                        event.participant_count
+                    );
                 }
             }
-        },
+        }
         Err(e) => println!("   ❌ 查询失败: {}", e),
     }
 
@@ -469,26 +484,24 @@ async fn main() -> QuickDbResult<()> {
             // 持续时间至少1小时的事件（结束时间 > 开始时间 + 1小时）
             QueryConditionGroup::Group {
                 operator: LogicalOperator::And,
-                conditions: vec![
-                    QueryConditionGroup::Single(QueryCondition {
-                        field: "end_time".to_string(),
-                        operator: QueryOperator::Gt,
-                        value: DataValue::DateTime(Utc::now() - Duration::days(1)), // 确保结束时间有意义
-                    }),
-                ],
+                conditions: vec![QueryConditionGroup::Single(QueryCondition {
+                    field: "end_time".to_string(),
+                    operator: QueryOperator::Gt,
+                    value: DataValue::DateTime(Utc::now() - Duration::days(1)), // 确保结束时间有意义
+                })],
             },
         ],
     };
 
-    let has_end_time_result = ModelManager::<TimeZoneEvent>::find_with_groups(
-        vec![has_end_time_condition],
-        None,
-    ).await;
+    let has_end_time_result =
+        ModelManager::<TimeZoneEvent>::find_with_groups(vec![has_end_time_condition], None).await;
 
     match has_end_time_result {
         Ok(events) => {
             if events.is_empty() {
-                println!("   ❌ 查询结果为空：预期应该找到有明确结束时间的活跃事件，但查询返回0个结果");
+                println!(
+                    "   ❌ 查询结果为空：预期应该找到有明确结束时间的活跃事件，但查询返回0个结果"
+                );
             } else {
                 println!("   ✅ 找到 {} 个有明确结束时间的活跃事件", events.len());
                 for event in &events {
@@ -497,20 +510,28 @@ async fn main() -> QuickDbResult<()> {
                         let duration_hours = duration.num_hours();
                         let duration_minutes = duration.num_minutes() % 60;
 
-                        println!("   - {} ({}) - {} (持续时间: {}小时{}分钟)",
+                        println!(
+                            "   - {} ({}) - {} (持续时间: {}小时{}分钟)",
                             event.event_name,
                             event.event_type,
                             event.location,
                             duration_hours,
-                            duration_minutes);
+                            duration_minutes
+                        );
 
                         // 显示具体的时间信息
-                        println!("     开始时间: {} UTC", event.start_time.format("%Y-%m-%d %H:%M:%S"));
-                        println!("     结束时间: {} UTC", end_time.format("%Y-%m-%d %H:%M:%S"));
+                        println!(
+                            "     开始时间: {} UTC",
+                            event.start_time.format("%Y-%m-%d %H:%M:%S")
+                        );
+                        println!(
+                            "     结束时间: {} UTC",
+                            end_time.format("%Y-%m-%d %H:%M:%S")
+                        );
                     }
                 }
             }
-        },
+        }
         Err(e) => println!("   ❌ 查询失败: {}", e),
     }
 
@@ -537,26 +558,28 @@ async fn main() -> QuickDbResult<()> {
         ],
     };
 
-    let no_end_time_result = ModelManager::<TimeZoneEvent>::find_with_groups(
-        vec![no_end_time_condition],
-        None,
-    ).await;
+    let no_end_time_result =
+        ModelManager::<TimeZoneEvent>::find_with_groups(vec![no_end_time_condition], None).await;
 
     match no_end_time_result {
         Ok(events) => {
             if events.is_empty() {
-                println!("   ✅ 查询成功，但没有找到没有结束时间的活跃事件（说明所有活跃事件都设置了结束时间）");
+                println!(
+                    "   ✅ 查询成功，但没有找到没有结束时间的活跃事件（说明所有活跃事件都设置了结束时间）"
+                );
             } else {
                 println!("   ✅ 找到 {} 个没有设置结束时间的活跃事件", events.len());
                 for event in &events {
-                    println!("   - {} ({}) - {} (开始时间: {} UTC, 结束时间: 未设置)",
+                    println!(
+                        "   - {} ({}) - {} (开始时间: {} UTC, 结束时间: 未设置)",
                         event.event_name,
                         event.event_type,
                         event.location,
-                        event.start_time.format("%Y-%m-%d %H:%M:%S"));
+                        event.start_time.format("%Y-%m-%d %H:%M:%S")
+                    );
                 }
             }
-        },
+        }
         Err(e) => println!("   ❌ 查询失败: {}", e),
     }
 
@@ -699,7 +722,7 @@ async fn insert_test_data() -> QuickDbResult<()> {
             base_time + Duration::hours(12),
             Duration::hours(3), // 3小时基础持续时间
             60,
-            false,  // 已结束的活动
+            false, // 已结束的活动
             5,
         ),
         create_timezone_event(
@@ -770,7 +793,9 @@ async fn insert_test_data() -> QuickDbResult<()> {
             } else {
                 None
             },
-            participant_count: if let Some(DataValue::Int(count)) = event_data.get("participant_count") {
+            participant_count: if let Some(DataValue::Int(count)) =
+                event_data.get("participant_count")
+            {
                 *count as i32
             } else {
                 0
@@ -794,12 +819,16 @@ async fn insert_test_data() -> QuickDbResult<()> {
         };
 
         let result = event.save().await?;
-        println!("   创建事件 {}: {} ({})", i + 1, result,
+        println!(
+            "   创建事件 {}: {} ({})",
+            i + 1,
+            result,
             if let Some(DataValue::String(tz)) = event_data.get("timezone") {
                 tz
             } else {
                 "Unknown"
-            });
+            }
+        );
     }
 
     println!("✅ 时区事件测试数据插入完成");
@@ -834,22 +863,41 @@ fn create_timezone_event(
     };
 
     let mut event_data = HashMap::new();
-    event_data.insert("event_name".to_string(), DataValue::String(name.to_string()));
-    event_data.insert("event_type".to_string(), DataValue::String(event_type.to_string()));
-    event_data.insert("location".to_string(), DataValue::String(location.to_string()));
-    event_data.insert("timezone".to_string(), DataValue::String(timezone.to_string()));
+    event_data.insert(
+        "event_name".to_string(),
+        DataValue::String(name.to_string()),
+    );
+    event_data.insert(
+        "event_type".to_string(),
+        DataValue::String(event_type.to_string()),
+    );
+    event_data.insert(
+        "location".to_string(),
+        DataValue::String(location.to_string()),
+    );
+    event_data.insert(
+        "timezone".to_string(),
+        DataValue::String(timezone.to_string()),
+    );
     event_data.insert("event_time".to_string(), DataValue::DateTime(event_time));
     event_data.insert("start_time".to_string(), DataValue::DateTime(start_time));
 
     // 只有在有结束时间时才设置end_time字段
     if let Some(end_time) = end_time {
         event_data.insert("end_time".to_string(), DataValue::DateTime(end_time));
-        debug!("事件 '{}' 设置了结束时间: {}", name, end_time.format("%Y-%m-%d %H:%M:%S UTC"));
+        debug!(
+            "事件 '{}' 设置了结束时间: {}",
+            name,
+            end_time.format("%Y-%m-%d %H:%M:%S UTC")
+        );
     } else {
         debug!("事件 '{}' 没有设置结束时间", name);
     }
 
-    event_data.insert("participant_count".to_string(), DataValue::Int(participant_count as i64));
+    event_data.insert(
+        "participant_count".to_string(),
+        DataValue::Int(participant_count as i64),
+    );
     event_data.insert("is_active".to_string(), DataValue::Bool(is_active));
     event_data.insert("priority".to_string(), DataValue::Int(priority as i64));
     event_data.insert("created_at".to_string(), DataValue::DateTime(Utc::now()));

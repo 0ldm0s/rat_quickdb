@@ -1,16 +1,16 @@
 //! SQLite工作器模块
 
+use rat_logger::{debug, error, info, warn};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::timeout;
-use rat_logger::{debug, info, warn, error};
 
-use crate::types::*;
-use crate::error::{QuickDbError, QuickDbResult};
-use crate::adapter::DatabaseAdapter;
 use super::{DatabaseConnection, DatabaseOperation, ExtendedPoolConfig};
+use crate::adapter::DatabaseAdapter;
+use crate::error::{QuickDbError, QuickDbResult};
+use crate::types::*;
 
 /// SQLite 单线程工作器
 #[cfg(feature = "sqlite-support")]
@@ -61,10 +61,10 @@ impl SqliteWorker {
     /// 运行SQLite工作器
     pub async fn run(mut self) {
         info!("SQLite工作器开始运行: 别名={}", self.db_config.alias);
-        
+
         // 启动健康检查任务
         let health_check_handle = self.start_health_check_task().await;
-        
+
         while let Some(operation) = self.operation_receiver.recv().await {
             // 检查连接健康状态
             if !self.is_healthy {
@@ -74,24 +74,26 @@ impl SqliteWorker {
                     continue;
                 }
             }
-            
+
             match self.handle_operation(operation).await {
                 Ok(_) => {
                     self.retry_count = 0; // 重置重试计数
                     self.is_healthy = true; // 标记连接健康
-                },
+                }
                 Err(e) => {
                     error!("SQLite操作处理失败: {}", e);
                     self.is_healthy = false; // 标记连接不健康
-                    
+
                     // 智能重试逻辑
                     if self.retry_count < self.max_retries {
                         self.retry_count += 1;
                         let backoff_delay = self.calculate_backoff_delay();
-                        warn!("SQLite操作重试 {}/{}, 延迟{}ms", 
-                              self.retry_count, self.max_retries, backoff_delay);
+                        warn!(
+                            "SQLite操作重试 {}/{}, 延迟{}ms",
+                            self.retry_count, self.max_retries, backoff_delay
+                        );
                         tokio::time::sleep(Duration::from_millis(backoff_delay)).await;
-                        
+
                         // 尝试重新连接
                         if let Err(reconnect_err) = self.reconnect().await {
                             error!("SQLite重新连接失败: {}", reconnect_err);
@@ -104,20 +106,20 @@ impl SqliteWorker {
                 }
             }
         }
-        
+
         // 清理健康检查任务
         health_check_handle.abort();
         info!("SQLite工作器停止运行");
     }
-    
+
     /// 启动健康检查任务
     async fn start_health_check_task(&self) -> tokio::task::JoinHandle<()> {
         let health_check_interval = Duration::from_secs(self.health_check_interval_sec);
         let db_config = self.db_config.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(health_check_interval);
-            
+
             loop {
                 interval.tick().await;
                 debug!("执行SQLite连接健康检查: 别名={}", db_config.alias);
@@ -125,7 +127,7 @@ impl SqliteWorker {
             }
         })
     }
-    
+
     /// 重新连接数据库
     async fn reconnect(&mut self) -> QuickDbResult<()> {
         info!("正在重新连接SQLite数据库: 别名={}", self.db_config.alias);
@@ -138,27 +140,30 @@ impl SqliteWorker {
         info!("SQLite数据库重新连接成功: 别名={}", self.db_config.alias);
         Ok(())
     }
-    
+
     /// 创建SQLite连接
     #[cfg(feature = "sqlite-support")]
     async fn create_sqlite_connection(&self) -> QuickDbResult<DatabaseConnection> {
         let (path, create_if_missing) = match &self.db_config.connection {
-            crate::types::ConnectionConfig::SQLite { path, create_if_missing } => {
-                (path.clone(), *create_if_missing)
+            crate::types::ConnectionConfig::SQLite {
+                path,
+                create_if_missing,
+            } => (path.clone(), *create_if_missing),
+            _ => {
+                return Err(QuickDbError::ConfigError {
+                    message: "SQLite连接配置类型不匹配".to_string(),
+                });
             }
-            _ => return Err(QuickDbError::ConfigError {
-                message: "SQLite连接配置类型不匹配".to_string(),
-            }),
         };
 
         // 特殊处理内存数据库：直接连接，不创建文件
         if path == ":memory:" {
             info!("连接SQLite内存数据库: 别名={}", self.db_config.alias);
-            let pool = sqlx::SqlitePool::connect(&path)
-                .await
-                .map_err(|e| QuickDbError::ConnectionError {
+            let pool = sqlx::SqlitePool::connect(&path).await.map_err(|e| {
+                QuickDbError::ConnectionError {
                     message: format!("SQLite内存数据库连接失败: {}", e),
-                })?;
+                }
+            })?;
             return Ok(DatabaseConnection::SQLite(pool));
         }
 
@@ -175,27 +180,30 @@ impl SqliteWorker {
         // 如果需要创建文件且文件不存在，则创建父目录
         if create_if_missing && !file_exists {
             if let Some(parent) = std::path::Path::new(&path).parent() {
-                tokio::fs::create_dir_all(parent).await
-                    .map_err(|e| QuickDbError::ConnectionError {
+                tokio::fs::create_dir_all(parent).await.map_err(|e| {
+                    QuickDbError::ConnectionError {
                         message: format!("创建SQLite数据库目录失败: {}", e),
-                    })?;
+                    }
+                })?;
             }
 
             // 创建空的数据库文件
-            tokio::fs::File::create(&path).await
+            tokio::fs::File::create(&path)
+                .await
                 .map_err(|e| QuickDbError::ConnectionError {
                     message: format!("创建SQLite数据库文件失败: {}", e),
                 })?;
         }
 
-        let pool = sqlx::SqlitePool::connect(&path)
-            .await
-            .map_err(|e| QuickDbError::ConnectionError {
-                message: format!("SQLite连接失败: {}", e),
-            })?;
+        let pool =
+            sqlx::SqlitePool::connect(&path)
+                .await
+                .map_err(|e| QuickDbError::ConnectionError {
+                    message: format!("SQLite连接失败: {}", e),
+                })?;
         Ok(DatabaseConnection::SQLite(pool))
     }
-    
+
     /// 计算退避延迟（指数退避）
     fn calculate_backoff_delay(&self) -> u64 {
         let base_delay = self.retry_interval_ms;
@@ -203,134 +211,257 @@ impl SqliteWorker {
         let max_delay = 30000; // 最大延迟30秒
         exponential_delay.min(max_delay)
     }
-    
+
     /// 执行连接健康检查
     async fn perform_health_check(&mut self) -> bool {
         if self.last_health_check.elapsed() < Duration::from_secs(self.health_check_interval_sec) {
             return self.is_healthy;
         }
-        
+
         debug!("执行SQLite连接健康检查: 别名={}", self.db_config.alias);
-        
+
         // 执行简单的查询来检查连接健康状态
         let health_check_result = match &self.connection {
             #[cfg(feature = "sqlite-support")]
             DatabaseConnection::SQLite(pool) => {
-                sqlx::query("SELECT 1")
-                    .fetch_optional(pool)
-                    .await
-                    .is_ok()
-            },
+                sqlx::query("SELECT 1").fetch_optional(pool).await.is_ok()
+            }
             _ => false,
         };
-        
+
         self.last_health_check = Instant::now();
         self.is_healthy = health_check_result;
-        
+
         if !self.is_healthy {
             warn!("SQLite连接健康检查失败: 别名={}", self.db_config.alias);
         } else {
             debug!("SQLite连接健康检查通过: 别名={}", self.db_config.alias);
         }
-        
+
         self.is_healthy
     }
-    
+
     /// 处理数据库操作（带 panic 捕获）
     async fn handle_operation(&mut self, operation: DatabaseOperation) -> QuickDbResult<()> {
         // 执行健康检查
         self.perform_health_check().await;
-        
+
         // 执行数据库操作，使用 Result 来处理错误而不是 panic 捕获
         let operation_result = match operation {
-            DatabaseOperation::Create { table, data, id_strategy, alias, response } => {
-                let result = self.adapter.create(&self.connection, &table, &data, &id_strategy, &alias).await;
+            DatabaseOperation::Create {
+                table,
+                data,
+                id_strategy,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .create(&self.connection, &table, &data, &id_strategy, &alias)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::FindById { table, id, alias, response } => {
-                let result = self.adapter.find_by_id(&self.connection, &table, &id, &alias).await;
+            }
+            DatabaseOperation::FindById {
+                table,
+                id,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .find_by_id(&self.connection, &table, &id, &alias)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::Find { table, conditions, options, alias, response } => {
-                let result = self.adapter.find(&self.connection, &table, &conditions, &options, &alias).await;
+            }
+            DatabaseOperation::Find {
+                table,
+                conditions,
+                options,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .find(&self.connection, &table, &conditions, &options, &alias)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::FindWithGroups { table, condition_groups, options, alias, response } => {
-                let result = self.adapter.find_with_groups(&self.connection, &table, &condition_groups, &options, &alias).await;
+            }
+            DatabaseOperation::FindWithGroups {
+                table,
+                condition_groups,
+                options,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .find_with_groups(
+                        &self.connection,
+                        &table,
+                        &condition_groups,
+                        &options,
+                        &alias,
+                    )
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::Update { table, conditions, data, alias, response } => {
-                let result = self.adapter.update(&self.connection, &table, &conditions, &data, &alias).await;
+            }
+            DatabaseOperation::Update {
+                table,
+                conditions,
+                data,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .update(&self.connection, &table, &conditions, &data, &alias)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::UpdateWithOperations { table, conditions, operations, alias, response } => {
-                let result = self.adapter.update_with_operations(&self.connection, &table, &conditions, &operations, &alias).await;
+            }
+            DatabaseOperation::UpdateWithOperations {
+                table,
+                conditions,
+                operations,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .update_with_operations(
+                        &self.connection,
+                        &table,
+                        &conditions,
+                        &operations,
+                        &alias,
+                    )
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::UpdateById { table, id, data, alias, response } => {
-                let result = self.adapter.update_by_id(&self.connection, &table, &id, &data, &alias).await;
+            }
+            DatabaseOperation::UpdateById {
+                table,
+                id,
+                data,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .update_by_id(&self.connection, &table, &id, &data, &alias)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::Delete { table, conditions, alias, response } => {
-                let result = self.adapter.delete(&self.connection, &table, &conditions, &alias).await;
+            }
+            DatabaseOperation::Delete {
+                table,
+                conditions,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .delete(&self.connection, &table, &conditions, &alias)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::DeleteById { table, id, alias, response } => {
-                let result = self.adapter.delete_by_id(&self.connection, &table, &id, &alias).await;
+            }
+            DatabaseOperation::DeleteById {
+                table,
+                id,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .delete_by_id(&self.connection, &table, &id, &alias)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::Count { table, conditions, alias, response } => {
-                let result = self.adapter.count(&self.connection, &table, &conditions, &alias).await;
+            }
+            DatabaseOperation::Count {
+                table,
+                conditions,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .count(&self.connection, &table, &conditions, &alias)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::CreateTable { table, fields, id_strategy, alias, response } => {
-                let result = self.adapter.create_table(&self.connection, &table, &fields, &id_strategy, &alias).await;
+            }
+            DatabaseOperation::CreateTable {
+                table,
+                fields,
+                id_strategy,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .create_table(&self.connection, &table, &fields, &id_strategy, &alias)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::CreateIndex { table, index_name, fields, unique, response } => {
-                let result = self.adapter.create_index(&self.connection, &table, &index_name, &fields, unique).await;
+            }
+            DatabaseOperation::CreateIndex {
+                table,
+                index_name,
+                fields,
+                unique,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .create_index(&self.connection, &table, &index_name, &fields, unique)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
+            }
             DatabaseOperation::TableExists { table, response } => {
                 let result = self.adapter.table_exists(&self.connection, &table).await;
                 let _ = response.send(result);
                 Ok(())
-            },
+            }
             DatabaseOperation::DropTable { table, response } => {
                 let result = self.adapter.drop_table(&self.connection, &table).await;
                 let _ = response.send(result);
                 Ok(())
-            },
+            }
             DatabaseOperation::GetServerVersion { response } => {
                 let result = self.adapter.get_server_version(&self.connection).await;
                 let _ = response.send(result);
                 Ok(())
-            },
+            }
             DatabaseOperation::CreateStoredProcedure { config, response } => {
-                let result = self.adapter.create_stored_procedure(&self.connection, &config).await;
+                let result = self
+                    .adapter
+                    .create_stored_procedure(&self.connection, &config)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
-            DatabaseOperation::ExecuteStoredProcedure { procedure_name, database, params, response } => {
-                let result = self.adapter.execute_stored_procedure(&self.connection, &procedure_name, &database, params).await;
+            }
+            DatabaseOperation::ExecuteStoredProcedure {
+                procedure_name,
+                database,
+                params,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .execute_stored_procedure(&self.connection, &procedure_name, &database, params)
+                    .await;
                 let _ = response.send(result);
                 Ok(())
-            },
+            }
         };
-        
+
         operation_result
     }
 }
-

@@ -2,8 +2,8 @@
 //!
 //! 为 String、数值类型、布尔类型等基础类型实现 ToDataValue
 
-use crate::types::DataValue;
 use crate::model::conversion::ToDataValue;
+use crate::types::DataValue;
 
 // 字符串类型实现
 impl ToDataValue for String {
@@ -55,13 +55,13 @@ impl ToDataValue for bool {
 impl ToDataValue for chrono::DateTime<chrono::Utc> {
     fn to_data_value(&self) -> DataValue {
         let fixed_dt = self.with_timezone(&chrono::FixedOffset::east(0));
-               DataValue::DateTime(fixed_dt)
+        DataValue::DateTime(fixed_dt)
     }
 }
 
 impl ToDataValue for chrono::DateTime<chrono::FixedOffset> {
     fn to_data_value(&self) -> DataValue {
-             DataValue::DateTime(*self)
+        DataValue::DateTime(*self)
     }
 }
 

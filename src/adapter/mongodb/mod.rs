@@ -9,10 +9,10 @@
 
 pub mod adapter;
 pub mod operations;
-pub mod utils;
 pub mod query;
 pub mod query_builder;
 pub mod schema;
+pub mod utils;
 
 // 重新导出核心类型
 pub use adapter::MongoAdapter;

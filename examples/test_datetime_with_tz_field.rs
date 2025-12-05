@@ -2,12 +2,12 @@
 //!
 //! 验证 datetime_with_tz_field 函数的功能
 
-use rat_quickdb::*;
-use rat_quickdb::types::{DatabaseType, ConnectionConfig, PoolConfig};
+use chrono::{DateTime, Timelike, Utc};
+use rat_logger::{LevelFilter, LoggerBuilder, handler::term::TermConfig};
 use rat_quickdb::manager::health_check;
+use rat_quickdb::types::{ConnectionConfig, DatabaseType, PoolConfig};
+use rat_quickdb::*;
 use rat_quickdb::{ModelManager, ModelOperations, datetime_with_tz_field};
-use rat_logger::{LoggerBuilder, LevelFilter, handler::term::TermConfig};
-use chrono::{Utc, DateTime, Timelike};
 use std::collections::HashMap;
 
 // 定义测试模型
@@ -55,17 +55,17 @@ async fn main() -> QuickDbResult<()> {
             create_if_missing: true,
         },
         pool: PoolConfig::builder()
-                .max_connections(10)
-                .min_connections(1)
-                .connection_timeout(10)
-                .idle_timeout(300)
-                .max_lifetime(1800)
-                .max_retries(3)
-                .retry_interval_ms(1000)
-                .keepalive_interval_sec(60)
-                .health_check_timeout_sec(10)
-                .build()
-                .unwrap(),
+            .max_connections(10)
+            .min_connections(1)
+            .connection_timeout(10)
+            .idle_timeout(300)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(10)
+            .build()
+            .unwrap(),
         id_strategy: IdStrategy::Uuid,
         cache: None,
     };
@@ -98,13 +98,22 @@ async fn main() -> QuickDbResult<()> {
     println!("==================");
 
     // 测试新的字段类型
-    let utc_field = datetime_field();  // 默认UTC
-    let cst_field = datetime_with_tz_field("+08:00");  // 北京时间
-    let est_field = datetime_with_tz_field("-05:00");  // 美东时间
+    let utc_field = datetime_field(); // 默认UTC
+    let cst_field = datetime_with_tz_field("+08:00"); // 北京时间
+    let est_field = datetime_with_tz_field("-05:00"); // 美东时间
 
-    println!("✅ datetime_field() - 默认UTC时区: {:?}", utc_field.field_type);
-    println!("✅ datetime_with_tz_field(+08:00) - 北京时间: {:?}", cst_field.field_type);
-    println!("✅ datetime_with_tz_field(-05:00) - 美东时间: {:?}", est_field.field_type);
+    println!(
+        "✅ datetime_field() - 默认UTC时区: {:?}",
+        utc_field.field_type
+    );
+    println!(
+        "✅ datetime_with_tz_field(+08:00) - 北京时间: {:?}",
+        cst_field.field_type
+    );
+    println!(
+        "✅ datetime_with_tz_field(-05:00) - 美东时间: {:?}",
+        est_field.field_type
+    );
     println!();
 
     // 4. 测试字段验证
@@ -143,14 +152,14 @@ async fn main() -> QuickDbResult<()> {
         id: String::new(), // 框架会自动生成UUID
         name: "时区测试".to_string(),
         created_at_utc: now,
-        local_time_cst: now.into(),  // 转换为FixedOffset
-        local_time_est: now.to_rfc3339(),  // 传入RFC3339字符串，框架应该根据-05:00时区设置处理
+        local_time_cst: now.into(),       // 转换为FixedOffset
+        local_time_est: now.to_rfc3339(), // 传入RFC3339字符串，框架应该根据-05:00时区设置处理
     };
 
     match test_model.save().await {
         Ok(id) => {
             println!("✅ 成功创建测试模型，ID: {}", id);
-        },
+        }
         Err(e) => {
             println!("❌ 创建测试模型失败: {}", e);
             return Err(e);
@@ -169,22 +178,44 @@ async fn main() -> QuickDbResult<()> {
                 println!("📋 第{}条记录:", index + 1);
 
                 // 动态判断字段类型
-                println!("  name: {} (实际类型: {})", model.name, std::any::type_name_of_val(&model.name));
-                println!("  created_at_utc: {} (实际类型: {})", model.created_at_utc, std::any::type_name_of_val(&model.created_at_utc));
-                println!("  local_time_cst: {} (实际类型: {})", model.local_time_cst, std::any::type_name_of_val(&model.local_time_cst));
-                println!("  local_time_est: {} (实际类型: {})", model.local_time_est, std::any::type_name_of_val(&model.local_time_est));
+                println!(
+                    "  name: {} (实际类型: {})",
+                    model.name,
+                    std::any::type_name_of_val(&model.name)
+                );
+                println!(
+                    "  created_at_utc: {} (实际类型: {})",
+                    model.created_at_utc,
+                    std::any::type_name_of_val(&model.created_at_utc)
+                );
+                println!(
+                    "  local_time_cst: {} (实际类型: {})",
+                    model.local_time_cst,
+                    std::any::type_name_of_val(&model.local_time_cst)
+                );
+                println!(
+                    "  local_time_est: {} (实际类型: {})",
+                    model.local_time_est,
+                    std::any::type_name_of_val(&model.local_time_est)
+                );
 
                 println!("  ---");
 
                 // 尝试调用format方法（如果是DateTime类型才会成功）
                 if std::any::type_name_of_val(&model.created_at_utc).contains("DateTime") {
-                    println!("  created_at_utc.format(): {}", model.created_at_utc.format("%Y-%m-%d %H:%M:%S UTC"));
+                    println!(
+                        "  created_at_utc.format(): {}",
+                        model.created_at_utc.format("%Y-%m-%d %H:%M:%S UTC")
+                    );
                 } else {
                     println!("  created_at_utc (直接输出): {}", model.created_at_utc);
                 }
 
                 if std::any::type_name_of_val(&model.local_time_cst).contains("DateTime") {
-                    println!("  local_time_cst.format(): {}", model.local_time_cst.format("%Y-%m-%d %H:%M:%S"));
+                    println!(
+                        "  local_time_cst.format(): {}",
+                        model.local_time_cst.format("%Y-%m-%d %H:%M:%S")
+                    );
                 } else {
                     println!("  local_time_cst (直接输出): {}", model.local_time_cst);
                 }
@@ -194,7 +225,7 @@ async fn main() -> QuickDbResult<()> {
 
                 println!();
             }
-        },
+        }
         Err(e) => println!("❌ 查询失败: {}", e),
     }
     println!();
@@ -205,8 +236,10 @@ async fn main() -> QuickDbResult<()> {
 
     // 准备更新数据 - 测试三种不同的DateTime类型
     let update_time = Utc::now() + chrono::Duration::hours(1);
-    let update_cst_time = rat_quickdb::utils::timezone::utc_to_timezone(update_time, "+08:00").unwrap();
-    let update_est_time = rat_quickdb::utils::timezone::utc_to_timezone(update_time, "-05:00").unwrap();
+    let update_cst_time =
+        rat_quickdb::utils::timezone::utc_to_timezone(update_time, "+08:00").unwrap();
+    let update_est_time =
+        rat_quickdb::utils::timezone::utc_to_timezone(update_time, "-05:00").unwrap();
 
     println!("更新数据准备:");
     println!("  UTC时间: {}", update_time.to_rfc3339());
@@ -215,19 +248,31 @@ async fn main() -> QuickDbResult<()> {
 
     // 构造更新数据
     let mut update_data = HashMap::new();
-    update_data.insert("name".to_string(), DataValue::String("更新后的时区测试".to_string()));
+    update_data.insert(
+        "name".to_string(),
+        DataValue::String("更新后的时区测试".to_string()),
+    );
 
     // 测试三种DateTime类型的更新
-    update_data.insert("created_at_utc".to_string(), DataValue::DateTimeUTC(update_time));
-    update_data.insert("local_time_cst".to_string(), DataValue::DateTime(update_cst_time));
-    update_data.insert("local_time_est".to_string(), DataValue::String(update_est_time.to_rfc3339()));
+    update_data.insert(
+        "created_at_utc".to_string(),
+        DataValue::DateTimeUTC(update_time),
+    );
+    update_data.insert(
+        "local_time_cst".to_string(),
+        DataValue::DateTime(update_cst_time),
+    );
+    update_data.insert(
+        "local_time_est".to_string(),
+        DataValue::String(update_est_time.to_rfc3339()),
+    );
 
     println!("\n开始执行更新操作...");
 
     match ModelManager::<TimeZoneTestModel>::update_many(vec![], update_data).await {
         Ok(affected_rows) => {
             println!("✅ 更新成功，影响了 {} 行", affected_rows);
-        },
+        }
         Err(e) => {
             println!("❌ 更新失败: {}", e);
             println!("错误详情: {:?}", e);
@@ -244,10 +289,26 @@ async fn main() -> QuickDbResult<()> {
             println!("✅ 查询到 {} 条记录", models.len());
             for (index, model) in models.iter().enumerate() {
                 println!("📋 更新后第{}条记录:", index + 1);
-                println!("  name: {} (类型: {})", model.name, std::any::type_name_of_val(&model.name));
-                println!("  created_at_utc: {} (类型: {})", model.created_at_utc, std::any::type_name_of_val(&model.created_at_utc));
-                println!("  local_time_cst: {} (类型: {})", model.local_time_cst, std::any::type_name_of_val(&model.local_time_cst));
-                println!("  local_time_est: {} (类型: {})", model.local_time_est, std::any::type_name_of_val(&model.local_time_est));
+                println!(
+                    "  name: {} (类型: {})",
+                    model.name,
+                    std::any::type_name_of_val(&model.name)
+                );
+                println!(
+                    "  created_at_utc: {} (类型: {})",
+                    model.created_at_utc,
+                    std::any::type_name_of_val(&model.created_at_utc)
+                );
+                println!(
+                    "  local_time_cst: {} (类型: {})",
+                    model.local_time_cst,
+                    std::any::type_name_of_val(&model.local_time_cst)
+                );
+                println!(
+                    "  local_time_est: {} (类型: {})",
+                    model.local_time_est,
+                    std::any::type_name_of_val(&model.local_time_est)
+                );
 
                 // 验证时间是否正确更新
                 if std::any::type_name_of_val(&model.created_at_utc).contains("DateTime") {
@@ -259,7 +320,7 @@ async fn main() -> QuickDbResult<()> {
 
                 println!();
             }
-        },
+        }
         Err(e) => println!("❌ 查询更新后数据失败: {}", e),
     }
 

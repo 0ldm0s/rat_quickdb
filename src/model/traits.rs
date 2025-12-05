@@ -3,16 +3,16 @@
 //! 定义模型的核心接口和操作特征
 
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
-use crate::model::field_types::{ModelMeta, FieldDefinition, FieldType};
 use crate::model::conversion::ToDataValue;
+use crate::model::field_types::{FieldDefinition, FieldType, ModelMeta};
+use crate::types::*;
 use async_trait::async_trait;
+use base64;
+use rat_logger::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use rat_logger::{debug, error, info, warn};
-use base64;
 
 /// 模型特征
 ///
@@ -59,12 +59,16 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
     /// 转换为数据映射（传统 JSON 序列化方式）
     /// 保留此方法用于向后兼容和调试
     fn to_data_map_legacy(&self) -> QuickDbResult<HashMap<String, DataValue>> {
-        let json_str = serde_json::to_string(self)
-            .map_err(|e| QuickDbError::SerializationError { message: format!("序列化失败: {}", e) })?;
+        let json_str =
+            serde_json::to_string(self).map_err(|e| QuickDbError::SerializationError {
+                message: format!("序列化失败: {}", e),
+            })?;
         debug!("🔍 序列化后的JSON字符串: {}", json_str);
 
-        let json_value: JsonValue = serde_json::from_str(&json_str)
-            .map_err(|e| QuickDbError::SerializationError { message: format!("解析JSON失败: {}", e) })?;
+        let json_value: JsonValue =
+            serde_json::from_str(&json_str).map_err(|e| QuickDbError::SerializationError {
+                message: format!("解析JSON失败: {}", e),
+            })?;
         debug!("🔍 解析后的JsonValue: {:?}", json_value);
 
         let mut data_map = HashMap::new();
@@ -104,15 +108,22 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
         let mut data_map = HashMap::new();
 
         // 遍历模型的所有字段
-        let json_str = serde_json::to_string(self)
-            .map_err(|e| QuickDbError::SerializationError { message: format!("序列化失败: {}", e) })?;
+        let json_str =
+            serde_json::to_string(self).map_err(|e| QuickDbError::SerializationError {
+                message: format!("序列化失败: {}", e),
+            })?;
 
         debug!("🔍 to_data_map_with_types_json 序列化的JSON: {}", json_str);
 
-        let json_value: JsonValue = serde_json::from_str(&json_str)
-            .map_err(|e| QuickDbError::SerializationError { message: format!("解析JSON失败: {}", e) })?;
+        let json_value: JsonValue =
+            serde_json::from_str(&json_str).map_err(|e| QuickDbError::SerializationError {
+                message: format!("解析JSON失败: {}", e),
+            })?;
 
-        debug!("🔍 to_data_map_with_types_json 解析后的JSON: {:?}", json_value);
+        debug!(
+            "🔍 to_data_map_with_types_json 解析后的JSON: {:?}",
+            json_value
+        );
 
         if let JsonValue::Object(obj) = json_value {
             for (key, value) in obj {
@@ -147,25 +158,25 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                             let mut type_obj = serde_json::Map::new();
                             type_obj.insert(type_name.to_string(), JsonValue::Null);
                             JsonValue::Object(type_obj)
-                        },
+                        }
                         JsonValue::String(s) => {
                             // 对于字符串值，创建 {类型名: "value"}
                             let mut type_obj = serde_json::Map::new();
                             type_obj.insert(type_name.to_string(), JsonValue::String(s));
                             JsonValue::Object(type_obj)
-                        },
+                        }
                         JsonValue::Number(n) => {
                             // 对于数字值，根据类型包装
                             let mut type_obj = serde_json::Map::new();
                             type_obj.insert(type_name.to_string(), JsonValue::Number(n));
                             JsonValue::Object(type_obj)
-                        },
+                        }
                         JsonValue::Bool(b) => {
                             // 对于布尔值，创建 {类型名: boolean}
                             let mut type_obj = serde_json::Map::new();
                             type_obj.insert(type_name.to_string(), JsonValue::Bool(b));
                             JsonValue::Object(type_obj)
-                        },
+                        }
                         JsonValue::Array(arr) => {
                             // 对于数组，需要根据字段类型为每个元素添加类型标记
                             if let FieldType::Array { item_type, .. } = &field_def.field_type {
@@ -190,41 +201,64 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                                     FieldType::Reference { .. } => "String",
                                 };
 
-                                let processed_array: Vec<JsonValue> = arr.into_iter()
+                                let processed_array: Vec<JsonValue> = arr
+                                    .into_iter()
                                     .map(|v| {
                                         // 为每个数组元素添加类型标记
                                         let mut item_type_obj = serde_json::Map::new();
                                         match v {
                                             JsonValue::String(s) => {
-                                                item_type_obj.insert(item_type_name.to_string(), JsonValue::String(s));
-                                            },
+                                                item_type_obj.insert(
+                                                    item_type_name.to_string(),
+                                                    JsonValue::String(s),
+                                                );
+                                            }
                                             JsonValue::Number(n) => {
-                                                item_type_obj.insert(item_type_name.to_string(), JsonValue::Number(n));
-                                            },
+                                                item_type_obj.insert(
+                                                    item_type_name.to_string(),
+                                                    JsonValue::Number(n),
+                                                );
+                                            }
                                             JsonValue::Bool(b) => {
-                                                item_type_obj.insert(item_type_name.to_string(), JsonValue::Bool(b));
-                                            },
+                                                item_type_obj.insert(
+                                                    item_type_name.to_string(),
+                                                    JsonValue::Bool(b),
+                                                );
+                                            }
                                             JsonValue::Null => {
-                                                item_type_obj.insert(item_type_name.to_string(), JsonValue::Null);
-                                            },
+                                                item_type_obj.insert(
+                                                    item_type_name.to_string(),
+                                                    JsonValue::Null,
+                                                );
+                                            }
                                             JsonValue::Array(nested_arr) => {
                                                 // 嵌套数组暂时保持原样，实际使用中应该递归处理
-                                                item_type_obj.insert(item_type_name.to_string(), JsonValue::Array(nested_arr));
-                                            },
+                                                item_type_obj.insert(
+                                                    item_type_name.to_string(),
+                                                    JsonValue::Array(nested_arr),
+                                                );
+                                            }
                                             JsonValue::Object(nested_obj) => {
                                                 // 嵌套对象暂时保持原样，实际使用中应该递归处理
-                                                item_type_obj.insert(item_type_name.to_string(), JsonValue::Object(nested_obj));
-                                            },
+                                                item_type_obj.insert(
+                                                    item_type_name.to_string(),
+                                                    JsonValue::Object(nested_obj),
+                                                );
+                                            }
                                         }
                                         JsonValue::Object(item_type_obj)
                                     })
                                     .collect();
                                 let mut type_obj = serde_json::Map::new();
-                                type_obj.insert(type_name.to_string(), JsonValue::Array(processed_array));
+                                type_obj.insert(
+                                    type_name.to_string(),
+                                    JsonValue::Array(processed_array),
+                                );
                                 JsonValue::Object(type_obj)
                             } else {
                                 // 如果不是数组类型，保持原有逻辑
-                                let processed_array: Vec<JsonValue> = arr.into_iter()
+                                let processed_array: Vec<JsonValue> = arr
+                                    .into_iter()
                                     .map(|v| match v {
                                         JsonValue::String(s) => JsonValue::String(s),
                                         JsonValue::Number(n) => JsonValue::Number(n),
@@ -235,13 +269,17 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                                     })
                                     .collect();
                                 let mut type_obj = serde_json::Map::new();
-                                type_obj.insert(type_name.to_string(), JsonValue::Array(processed_array));
+                                type_obj.insert(
+                                    type_name.to_string(),
+                                    JsonValue::Array(processed_array),
+                                );
                                 JsonValue::Object(type_obj)
                             }
-                        },
+                        }
                         JsonValue::Object(obj) => {
                             // 对于对象，递归处理每个字段，然后包装类型
-                            let processed_obj: serde_json::Map<String, JsonValue> = obj.into_iter()
+                            let processed_obj: serde_json::Map<String, JsonValue> = obj
+                                .into_iter()
                                 .map(|(k, v)| {
                                     let processed_value = match v {
                                         JsonValue::String(s) => JsonValue::String(s),
@@ -255,9 +293,10 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                                 })
                                 .collect();
                             let mut type_obj = serde_json::Map::new();
-                            type_obj.insert(type_name.to_string(), JsonValue::Object(processed_obj));
+                            type_obj
+                                .insert(type_name.to_string(), JsonValue::Object(processed_obj));
                             JsonValue::Object(type_obj)
-                        },
+                        }
                     };
 
                     data_map.insert(key, typed_json);
@@ -265,7 +304,10 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                     // 字段不在元数据中 - 这在 v0.3.0 中不应该发生，报错退出
                     return Err(QuickDbError::ValidationError {
                         field: key.clone(),
-                        message: format!("字段 '{}' 未在模型元数据中定义，这在 v0.3.0 中是不允许的", key),
+                        message: format!(
+                            "字段 '{}' 未在模型元数据中定义，这在 v0.3.0 中是不允许的",
+                            key
+                        ),
                     });
                 }
             }
@@ -280,7 +322,6 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
         let meta = Self::meta();
         let processed_data = crate::process_data_fields_from_metadata(data, &meta.fields);
 
-        
         // 直接从HashMap<String, DataValue>转换为模型实例，避免JSON中转
         crate::model::data_conversion::create_model_from_data_map::<Self>(&processed_data)
     }
@@ -298,7 +339,10 @@ pub trait ModelOperations<T: Model> {
     async fn find_by_id(id: &str) -> QuickDbResult<Option<T>>;
 
     /// 查找多条记录
-    async fn find(conditions: Vec<QueryCondition>, options: Option<QueryOptions>) -> QuickDbResult<Vec<T>>;
+    async fn find(
+        conditions: Vec<QueryCondition>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>>;
 
     /// 更新记录
     async fn update(&self, updates: HashMap<String, DataValue>) -> QuickDbResult<bool>;
@@ -309,19 +353,27 @@ pub trait ModelOperations<T: Model> {
     /// 统计记录数量
     async fn count(conditions: Vec<QueryCondition>) -> QuickDbResult<u64>;
 
-    
     /// 使用条件组查找多条记录（支持复杂的AND/OR逻辑组合）
-    async fn find_with_groups(condition_groups: Vec<QueryConditionGroup>, options: Option<QueryOptions>) -> QuickDbResult<Vec<T>>;
+    async fn find_with_groups(
+        condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>>;
 
     /// 批量更新记录
     ///
     /// 根据条件批量更新多条记录，返回受影响的行数
-    async fn update_many(conditions: Vec<QueryCondition>, updates: HashMap<String, DataValue>) -> QuickDbResult<u64>;
+    async fn update_many(
+        conditions: Vec<QueryCondition>,
+        updates: HashMap<String, DataValue>,
+    ) -> QuickDbResult<u64>;
 
     /// 使用操作数组批量更新模型
     ///
     /// 根据条件使用操作数组批量更新多条记录，支持原子性增减操作，返回受影响的行数
-    async fn update_many_with_operations(conditions: Vec<QueryCondition>, operations: Vec<crate::types::UpdateOperation>) -> QuickDbResult<u64>;
+    async fn update_many_with_operations(
+        conditions: Vec<QueryCondition>,
+        operations: Vec<crate::types::UpdateOperation>,
+    ) -> QuickDbResult<u64>;
 
     /// 批量删除模型
     ///

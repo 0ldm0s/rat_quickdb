@@ -1,11 +1,11 @@
 //! join宏数据库别名功能演示
 //! 展示如何为虚拟表指定数据库别名
 
-use rat_quickdb::*;
-use rat_quickdb::join_macro::*;
-use rat_quickdb::join_macro::{JoinDefinition, JoinType};
 #[cfg(debug_assertions)]
 use rat_logger::debug;
+use rat_quickdb::join_macro::*;
+use rat_quickdb::join_macro::{JoinDefinition, JoinType};
+use rat_quickdb::*;
 
 // 定义用户模型（用于创建users表）
 define_model! {
@@ -136,13 +136,11 @@ fn test_sql_generation() {
     };
 
     // 创建查询条件（使用UUID格式的ID）
-    let conditions = vec![
-        QueryCondition {
-            field: "users.id".to_string(),
-            operator: QueryOperator::Eq,
-            value: DataValue::String("550e8400-e29b-41d4-a716-446655440001".to_string()),
-        }
-    ];
+    let conditions = vec![QueryCondition {
+        field: "users.id".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("550e8400-e29b-41d4-a716-446655440001".to_string()),
+    }];
 
     let options = QueryOptions::default();
 

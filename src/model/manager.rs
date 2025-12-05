@@ -3,13 +3,13 @@
 //! 提供模型的通用操作实现
 
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::types::*;
-use crate::odm::{self, OdmOperations};
 use crate::model::traits::{Model, ModelOperations};
+use crate::odm::{self, OdmOperations};
+use crate::types::*;
 use async_trait::async_trait;
+use rat_logger::debug;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use rat_logger::debug;
 
 /// 模型管理器
 ///
@@ -73,7 +73,7 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         // 这个方法需要模型实例，应该在具体的模型实现中调用
         Err(QuickDbError::ValidationError {
             field: "save".to_string(),
-            message: "save方法需要在模型实例上调用".to_string()
+            message: "save方法需要在模型实例上调用".to_string(),
         })
     }
 
@@ -83,11 +83,7 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
 
         debug!("根据ID查找模型: collection={}, id={}", collection_name, id);
 
-        let result = odm::find_by_id(
-            &collection_name,
-            id,
-            database_alias.as_deref(),
-        ).await?;
+        let result = odm::find_by_id(&collection_name, id, database_alias.as_deref()).await?;
 
         if let Some(data_value) = result {
             // 处理 DataValue::Object 格式的数据
@@ -102,7 +98,7 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
                         }
                     };
                     Ok(Some(model))
-                },
+                }
                 _ => {
                     // 兼容其他格式，使用直接反序列化
                     debug!("收到非Object格式数据: {:?}", data_value);
@@ -115,7 +111,10 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         }
     }
 
-    async fn find(conditions: Vec<QueryCondition>, options: Option<QueryOptions>) -> QuickDbResult<Vec<T>> {
+    async fn find(
+        conditions: Vec<QueryCondition>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
         let collection_name = T::collection_name();
         let database_alias = T::database_alias();
 
@@ -126,7 +125,8 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
             conditions,
             options,
             database_alias.as_deref(),
-        ).await?;
+        )
+        .await?;
 
         // result 已经是 Vec<DataValue>，直接处理
         let mut models = Vec::new();
@@ -143,7 +143,7 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
                         }
                     };
                     models.push(model);
-                },
+                }
                 _ => {
                     // 兼容其他格式，使用直接反序列化
                     debug!("查询收到非Object格式数据: {:?}", data_value);
@@ -159,7 +159,7 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         // 这个方法需要模型实例，应该在具体的模型实现中调用
         Err(QuickDbError::ValidationError {
             field: "update".to_string(),
-            message: "update方法需要在模型实例上调用".to_string()
+            message: "update方法需要在模型实例上调用".to_string(),
         })
     }
 
@@ -167,7 +167,7 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         // 这个方法需要模型实例，应该在具体的模型实现中调用
         Err(QuickDbError::ValidationError {
             field: "delete".to_string(),
-            message: "delete方法需要在模型实例上调用".to_string()
+            message: "delete方法需要在模型实例上调用".to_string(),
         })
     }
 
@@ -177,15 +177,13 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
 
         debug!("统计模型数量: collection={}", collection_name);
 
-        odm::count(
-            &collection_name,
-            conditions,
-            database_alias.as_deref(),
-        ).await
+        odm::count(&collection_name, conditions, database_alias.as_deref()).await
     }
 
-    
-    async fn find_with_groups(condition_groups: Vec<QueryConditionGroup>, options: Option<QueryOptions>) -> QuickDbResult<Vec<T>> {
+    async fn find_with_groups(
+        condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
         let collection_name = T::collection_name();
         let database_alias = T::database_alias();
 
@@ -196,7 +194,8 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
             condition_groups,
             options,
             database_alias.as_deref(),
-        ).await?;
+        )
+        .await?;
 
         // 处理返回的 DataValue 数据
         let mut models = Vec::new();
@@ -210,36 +209,52 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
     /// 批量更新模型
     ///
     /// 根据条件批量更新多条记录，返回受影响的行数
-    async fn update_many(conditions: Vec<QueryCondition>, updates: HashMap<String, DataValue>) -> QuickDbResult<u64> {
+    async fn update_many(
+        conditions: Vec<QueryCondition>,
+        updates: HashMap<String, DataValue>,
+    ) -> QuickDbResult<u64> {
         let collection_name = T::collection_name();
         let database_alias = T::database_alias();
 
-        debug!("批量更新模型: collection={}, 条件数量={}", collection_name, conditions.len());
+        debug!(
+            "批量更新模型: collection={}, 条件数量={}",
+            collection_name,
+            conditions.len()
+        );
 
         odm::update(
             &collection_name,
             conditions,
             updates,
             database_alias.as_deref(),
-        ).await
+        )
+        .await
     }
 
     /// 使用操作数组批量更新模型
     ///
     /// 根据条件使用操作数组批量更新多条记录，支持原子性增减操作，返回受影响的行数
-    async fn update_many_with_operations(conditions: Vec<QueryCondition>, operations: Vec<crate::types::UpdateOperation>) -> QuickDbResult<u64> {
+    async fn update_many_with_operations(
+        conditions: Vec<QueryCondition>,
+        operations: Vec<crate::types::UpdateOperation>,
+    ) -> QuickDbResult<u64> {
         let collection_name = T::collection_name();
         let database_alias = T::database_alias();
 
-        debug!("使用操作数组批量更新模型: collection={}, 条件数量={}, 操作数量={}",
-               collection_name, conditions.len(), operations.len());
+        debug!(
+            "使用操作数组批量更新模型: collection={}, 条件数量={}, 操作数量={}",
+            collection_name,
+            conditions.len(),
+            operations.len()
+        );
 
         odm::update_with_operations(
             &collection_name,
             conditions,
             operations,
             database_alias.as_deref(),
-        ).await
+        )
+        .await
     }
 
     /// 批量删除模型
@@ -249,13 +264,13 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         let collection_name = T::collection_name();
         let database_alias = T::database_alias();
 
-        debug!("批量删除模型: collection={}, 条件数量={}", collection_name, conditions.len());
+        debug!(
+            "批量删除模型: collection={}, 条件数量={}",
+            collection_name,
+            conditions.len()
+        );
 
-        odm::delete(
-            &collection_name,
-            conditions,
-            database_alias.as_deref(),
-        ).await
+        odm::delete(&collection_name, conditions, database_alias.as_deref()).await
     }
 
     /// 创建表
@@ -298,6 +313,8 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         let odm_manager = odm::get_odm_manager().await;
         // 使用模型的数据库别名，如果没有则使用默认
         let database_alias = T::database_alias().or_else(|| Some("default".to_string()));
-        odm_manager.execute_stored_procedure(procedure_name, database_alias.as_deref(), params).await
+        odm_manager
+            .execute_stored_procedure(procedure_name, database_alias.as_deref(), params)
+            .await
     }
 }

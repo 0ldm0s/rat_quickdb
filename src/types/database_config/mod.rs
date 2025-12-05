@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use crate::types::cache_config::CacheConfig;
 use crate::types::id_types::IdStrategy;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// 支持的数据库类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -177,7 +177,11 @@ impl TlsConfig {
     }
 
     /// 设置客户端证书和私钥路径
-    pub fn with_client_cert<P1: Into<String>, P2: Into<String>>(mut self, cert_path: P1, key_path: P2) -> Self {
+    pub fn with_client_cert<P1: Into<String>, P2: Into<String>>(
+        mut self,
+        cert_path: P1,
+        key_path: P2,
+    ) -> Self {
         self.client_cert_path = Some(cert_path.into());
         self.client_key_path = Some(key_path.into());
         self

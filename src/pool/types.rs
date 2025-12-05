@@ -1,14 +1,14 @@
 //! 连接池类型定义模块
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-use std::collections::HashMap;
 use tokio::sync::oneshot;
 
-use crate::types::*;
-use crate::error::{QuickDbError, QuickDbResult};
-use crate::model::{FieldType, FieldDefinition};
 use super::ExtendedPoolConfig;
+use crate::error::{QuickDbError, QuickDbResult};
+use crate::model::{FieldDefinition, FieldType};
+use crate::types::*;
 
 /// 池化连接 - 用于兼容旧接口
 #[derive(Debug, Clone)]
@@ -100,7 +100,7 @@ pub enum DatabaseOperation {
         alias: String,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
-        /// 创建表
+    /// 创建表
     CreateTable {
         table: String,
         fields: HashMap<String, FieldDefinition>,
@@ -133,14 +133,16 @@ pub enum DatabaseOperation {
     /// 创建存储过程
     CreateStoredProcedure {
         config: crate::stored_procedure::StoredProcedureConfig,
-        response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>>,
+        response:
+            oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureCreateResult>>,
     },
     /// 执行存储过程
     ExecuteStoredProcedure {
         procedure_name: String,
         database: String,
         params: Option<std::collections::HashMap<String, crate::types::DataValue>>,
-        response: oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult>>,
+        response:
+            oneshot::Sender<QuickDbResult<crate::stored_procedure::StoredProcedureQueryResult>>,
     },
 }
 

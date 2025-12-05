@@ -2,17 +2,18 @@
 //!
 //! 提供SQLite适配器的核心结构定义和基础功能
 
+use rat_logger::{debug, info};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use rat_logger::{debug, info};
 
 /// SQLite适配器
 pub struct SqliteAdapter {
     /// 表创建锁，防止重复创建表
     creation_locks: Arc<Mutex<HashMap<String, ()>>>,
     /// 存储过程映射表，存储已创建的存储过程信息
-    pub(crate) stored_procedures: Arc<Mutex<HashMap<String, crate::stored_procedure::StoredProcedureInfo>>>,
+    pub(crate) stored_procedures:
+        Arc<Mutex<HashMap<String, crate::stored_procedure::StoredProcedureInfo>>>,
 }
 
 impl SqliteAdapter {
@@ -25,7 +26,10 @@ impl SqliteAdapter {
     }
 
     /// 获取表创建锁
-    pub(crate) async fn acquire_table_lock(&self, table: &str) -> tokio::sync::MutexGuard<'_, HashMap<String, ()>> {
+    pub(crate) async fn acquire_table_lock(
+        &self,
+        table: &str,
+    ) -> tokio::sync::MutexGuard<'_, HashMap<String, ()>> {
         let mut locks = self.creation_locks.lock().await;
         if !locks.contains_key(table) {
             locks.insert(table.to_string(), ());
@@ -35,7 +39,11 @@ impl SqliteAdapter {
     }
 
     /// 释放表创建锁
-    pub(crate) async fn release_table_lock(&self, table: &str, mut locks: tokio::sync::MutexGuard<'_, HashMap<String, ()>>) {
+    pub(crate) async fn release_table_lock(
+        &self,
+        table: &str,
+        mut locks: tokio::sync::MutexGuard<'_, HashMap<String, ()>>,
+    ) {
         locks.remove(table);
         debug!("🔓 释放表 {} 的创建锁", table);
     }
@@ -48,7 +56,8 @@ impl SqliteAdapter {
         use crate::stored_procedure::JoinType;
 
         // 1. 构建SELECT字段列表
-        let fields: Vec<String> = config.fields
+        let fields: Vec<String> = config
+            .fields
             .iter()
             .map(|(alias, expr)| {
                 if alias == expr {
@@ -60,7 +69,9 @@ impl SqliteAdapter {
             .collect();
 
         // 2. 构建FROM子句（主表）
-        let base_table = config.dependencies.first()
+        let base_table = config
+            .dependencies
+            .first()
             .map(|model_meta| &model_meta.collection_name)
             .ok_or_else(|| crate::error::QuickDbError::ValidationError {
                 field: "dependencies".to_string(),
@@ -80,10 +91,7 @@ impl SqliteAdapter {
             // 直接使用local_field和foreign_field，因为它们已经包含了表名
             joins.push(format!(
                 " {} {} ON {} = {}",
-                join_str,
-                join.table,
-                join.local_field,
-                join.foreign_field
+                join_str, join.table, join.local_field, join.foreign_field
             ));
         }
 
@@ -92,13 +100,17 @@ impl SqliteAdapter {
             "SELECT {SELECT_FIELDS} FROM {BASE_TABLE}{JOINS}{WHERE}{GROUP_BY}{HAVING}{ORDER_BY}{LIMIT}{OFFSET}",
             SELECT_FIELDS = fields.join(", "),
             BASE_TABLE = base_table,
-            JOINS = if joins.is_empty() { "".to_string() } else { format!(" {}", joins.join(" ")) },
-            WHERE = "{WHERE}", // WHERE条件占位符
+            JOINS = if joins.is_empty() {
+                "".to_string()
+            } else {
+                format!(" {}", joins.join(" "))
+            },
+            WHERE = "{WHERE}",       // WHERE条件占位符
             GROUP_BY = "{GROUP_BY}", // GROUP BY占位符
-            HAVING = "{HAVING}", // HAVING占位符
+            HAVING = "{HAVING}",     // HAVING占位符
             ORDER_BY = "{ORDER_BY}", // ORDER BY占位符
-            LIMIT = "{LIMIT}", // LIMIT占位符
-            OFFSET = "{OFFSET}" // OFFSET占位符
+            LIMIT = "{LIMIT}",       // LIMIT占位符
+            OFFSET = "{OFFSET}"      // OFFSET占位符
         );
 
         info!("生成的存储过程SQL模板: {}", sql_template);

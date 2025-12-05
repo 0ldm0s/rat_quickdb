@@ -1,7 +1,7 @@
 //! 测试DateTime字段是否能接受String输入
 
+use rat_quickdb::types::{ConnectionConfig, DatabaseType};
 use rat_quickdb::*;
-use rat_quickdb::types::{DatabaseType, ConnectionConfig};
 use rat_quickdb::{ModelManager, ModelOperations};
 
 // 定义测试模型
@@ -42,7 +42,7 @@ async fn main() -> QuickDbResult<()> {
     let model = StringInputTestModel {
         id: String::new(),
         name: "测试String输入".to_string(),
-        event_time: "2025-11-28T12:00:00Z".to_string(),  // 这里传入String而不是DateTime<Utc>
+        event_time: "2025-11-28T12:00:00Z".to_string(), // 这里传入String而不是DateTime<Utc>
     };
 
     match model.save().await {

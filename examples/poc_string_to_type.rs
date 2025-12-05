@@ -90,7 +90,6 @@ macro_rules! generate_model_registry {
 // 使用宏生成注册表
 generate_model_registry!(User, Order, Product);
 
-
 // 测试函数
 async fn test_scheme_1() {
     println!("\n=== 方案1: 手动匹配分发 ===");

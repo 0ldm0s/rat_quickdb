@@ -4,9 +4,9 @@
 //! 按职责分离的细粒度模块组织
 
 // 核心模块
+pub mod manager_core;
 pub mod traits;
 pub mod types;
-pub mod manager_core;
 
 // 请求处理器模块
 pub mod handlers;
@@ -18,9 +18,9 @@ pub mod operations;
 pub mod global;
 
 // 重新导出所有公共类型以保持API兼容性
-pub use traits::{OdmOperations};
-pub use types::{OdmRequest};
-pub use manager_core::{AsyncOdmManager};
-pub use handlers::*;
-pub use operations::*;
 pub use global::*;
+pub use handlers::*;
+pub use manager_core::AsyncOdmManager;
+pub use operations::*;
+pub use traits::OdmOperations;
+pub use types::OdmRequest;

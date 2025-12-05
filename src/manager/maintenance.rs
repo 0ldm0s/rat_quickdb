@@ -1,18 +1,19 @@
-    //! 维护操作相关方法
 
-use crate::error::{QuickDbError, QuickDbResult};
-use crate::pool::{ConnectionPool, PooledConnection, ExtendedPoolConfig};
-use crate::types::{DatabaseConfig, DatabaseType, IdType};
-use crate::id_generator::{IdGenerator, MongoAutoIncrementGenerator};
+//! 维护操作相关方法
+
 use crate::cache::{CacheManager, CacheStats};
+use crate::error::{QuickDbError, QuickDbResult};
+use crate::id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 use crate::model::ModelMeta;
+use crate::pool::{ConnectionPool, ExtendedPoolConfig, PooledConnection};
+use crate::types::{DatabaseConfig, DatabaseType, IdType};
 use dashmap::DashMap;
+use rat_logger::{debug, error, info, warn};
+use serde_json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tokio::time::{interval, Duration};
-use rat_logger::{info, warn, error, debug};
-use serde_json;
+use tokio::time::{Duration, interval};
 
 use super::PoolManager;
 
@@ -20,11 +21,11 @@ impl PoolManager {
     /// 检查连接池健康状态
     pub async fn health_check(&self) -> std::collections::HashMap<String, bool> {
         let mut health_status = std::collections::HashMap::new();
-        
+
         for entry in self.pools.iter() {
             let alias = entry.key().clone();
             let pool = entry.value();
-            
+
             // 尝试获取连接来检查健康状态
             let is_healthy = match pool.get_connection().await {
                 Ok(conn) => {
@@ -34,34 +35,36 @@ impl PoolManager {
                 }
                 Err(_) => false,
             };
-            
+
             health_status.insert(alias, is_healthy);
         }
-        
+
         health_status
     }
 
     /// 获取所有活跃连接池的详细状态信息
-    /// 
+    ///
     /// 返回包含每个连接池状态的详细信息，包括：
     /// - 数据库别名
     /// - 数据库类型
     /// - 连接池配置信息
     /// - 健康状态
     /// - 缓存状态（如果启用）
-    pub async fn get_active_pools_status(&self) -> std::collections::HashMap<String, serde_json::Value> {
+    pub async fn get_active_pools_status(
+        &self,
+    ) -> std::collections::HashMap<String, serde_json::Value> {
         use serde_json::json;
         let mut pools_status = std::collections::HashMap::new();
-        
+
         info!("获取所有活跃连接池状态，当前池数量: {}", self.pools.len());
-        
+
         for entry in self.pools.iter() {
             let alias = entry.key().clone();
             let pool = entry.value();
-            
+
             // 获取数据库类型
             let db_type = pool.get_database_type();
-            
+
             // 检查健康状态
             let is_healthy = match pool.get_connection().await {
                 Ok(conn) => {
@@ -73,7 +76,7 @@ impl PoolManager {
                     false
                 }
             };
-            
+
             // 获取缓存状态（如果存在）
             let cache_info = if let Some(cache_manager) = self.cache_managers.get(&alias) {
                 match cache_manager.get_stats().await {
@@ -89,14 +92,14 @@ impl PoolManager {
                     Err(_) => json!({
                         "enabled": true,
                         "error": "无法获取缓存统计信息"
-                    })
+                    }),
                 }
             } else {
                 json!({
                     "enabled": false
                 })
             };
-            
+
             // 构建连接池状态信息
             let pool_status = json!({
                 "alias": alias,
@@ -117,11 +120,11 @@ impl PoolManager {
                 "has_id_generator": self.id_generators.contains_key(&alias),
                 "has_mongo_auto_increment": self.mongo_auto_increment_generators.contains_key(&alias)
             });
-            
+
             pools_status.insert(alias.clone(), pool_status);
             debug!("连接池 {} 状态已收集", alias);
         }
-        
+
         // 获取默认别名信息
         let default_alias = self.default_alias.read().await.clone();
         if let Some(default) = &default_alias {
@@ -129,7 +132,7 @@ impl PoolManager {
         } else {
             info!("未设置默认数据库别名");
         }
-        
+
         info!("活跃连接池状态收集完成，共 {} 个连接池", pools_status.len());
         pools_status
     }

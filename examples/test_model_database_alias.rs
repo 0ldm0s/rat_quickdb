@@ -1,12 +1,12 @@
 //! 测试模型宏的数据库别名功能
 //! 验证跨库操作的正确性
 
-use rat_quickdb::*;
-use rat_quickdb::types::*;
-use rat_quickdb::{ModelOperations, ModelManager, set_default_alias, add_database};
+use chrono::{DateTime, Utc};
 #[cfg(debug_assertions)]
 use rat_logger::debug;
-use chrono::{DateTime, Utc};
+use rat_quickdb::types::*;
+use rat_quickdb::*;
+use rat_quickdb::{ModelManager, ModelOperations, add_database, set_default_alias};
 
 // 定义带有数据库别名的用户模型
 define_model! {
@@ -67,7 +67,6 @@ define_model! {
 
 #[tokio::main]
 async fn main() -> QuickDbResult<()> {
-
     println!("🚀 测试模型数据库别名功能");
     println!("===========================");
 
@@ -185,7 +184,7 @@ async fn test_cross_database_operations() -> QuickDbResult<()> {
         id: "main_user_1".to_string(),
         name: "主库用户".to_string(),
         email: "main@example.com".to_string(),
-        age: Some(25),  // Option<i32>类型
+        age: Some(25), // Option<i32>类型
     };
 
     match main_user.save().await {
@@ -198,7 +197,9 @@ async fn test_cross_database_operations() -> QuickDbResult<()> {
         id: "archive_user_1".to_string(),
         name: "归档用户".to_string(),
         email: "archive@example.com".to_string(),
-        archived_at: DateTime::parse_from_rfc3339("2023-01-01T00:00:00Z").unwrap().with_timezone(&Utc),
+        archived_at: DateTime::parse_from_rfc3339("2023-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc),
     };
 
     match archive_user.save().await {
@@ -236,7 +237,9 @@ async fn test_default_alias_fallback() -> QuickDbResult<()> {
         id: "log_1".to_string(),
         message: "测试日志消息".to_string(),
         level: "INFO".to_string(),
-        timestamp: DateTime::parse_from_rfc3339("2023-01-01T12:00:00Z").unwrap().with_timezone(&Utc),
+        timestamp: DateTime::parse_from_rfc3339("2023-01-01T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc),
     };
 
     match log_entry.save().await {

@@ -2,20 +2,15 @@
 //!
 //! 提供CacheManager的结构定义和构造函数
 
-use crate::types::{CacheConfig, CacheStrategy, CompressionAlgorithm};
 use super::stats::CachePerformanceStats;
-use rat_memcache::{RatMemCache, RatMemCacheBuilder};
-use rat_memcache::config::{L1Config, L2Config, TtlConfig, PerformanceConfig, LoggingConfig};
-use rat_memcache::types::EvictionStrategy;
-use anyhow::{anyhow, Result};
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    sync::atomic::AtomicU64,
-    path::PathBuf,
-};
-use tokio::sync::RwLock;
+use crate::types::{CacheConfig, CacheStrategy, CompressionAlgorithm};
+use anyhow::{Result, anyhow};
 use rat_logger::{debug, info};
+use rat_memcache::config::{L1Config, L2Config, LoggingConfig, PerformanceConfig, TtlConfig};
+use rat_memcache::types::EvictionStrategy;
+use rat_memcache::{RatMemCache, RatMemCacheBuilder};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, sync::atomic::AtomicU64};
+use tokio::sync::RwLock;
 
 /// 缓存键前缀
 pub const CACHE_KEY_PREFIX: &str = "rat_quickdb";
@@ -43,7 +38,7 @@ impl CacheManager {
     pub async fn new(config: CacheConfig) -> Result<Self> {
         // 直接使用用户传入的配置，不使用预设配置
         debug!("创建缓存管理器，配置: {:?}", config);
-        
+
         let builder = RatMemCacheBuilder::new()
             .l1_config(rat_memcache::config::L1Config {
                 max_memory: config.l1_config.max_memory_mb * 1024 * 1024, // 转换为字节
@@ -57,19 +52,42 @@ impl CacheManager {
             })
             .l2_config(rat_memcache::config::L2Config {
                 enable_l2_cache: config.l2_config.is_some(),
-                data_dir: config.l2_config.as_ref().map(|c| PathBuf::from(&c.storage_path)),
-                max_disk_size: config.l2_config.as_ref().map(|c| c.max_disk_mb as u64 * 1024 * 1024).unwrap_or(500 * 1024 * 1024),
+                data_dir: config
+                    .l2_config
+                    .as_ref()
+                    .map(|c| PathBuf::from(&c.storage_path)),
+                max_disk_size: config
+                    .l2_config
+                    .as_ref()
+                    .map(|c| c.max_disk_mb as u64 * 1024 * 1024)
+                    .unwrap_or(500 * 1024 * 1024),
                 write_buffer_size: 64 * 1024 * 1024,
                 max_write_buffer_number: 3,
                 block_cache_size: 16 * 1024 * 1024,
                 enable_lz4: config.compression_config.enabled,
                 compression_threshold: config.compression_config.threshold_bytes,
                 compression_max_threshold: config.compression_config.threshold_bytes * 10, // 最大阈值为最小阈值的10倍
-                compression_level: config.l2_config.as_ref().map(|c| c.compression_level).unwrap_or(6),
+                compression_level: config
+                    .l2_config
+                    .as_ref()
+                    .map(|c| c.compression_level)
+                    .unwrap_or(6),
                 background_threads: 2,
-                clear_on_startup: config.l2_config.as_ref().map(|c| c.clear_on_startup).unwrap_or(false),
-                cache_size_mb: config.l2_config.as_ref().map(|c| c.max_disk_mb).unwrap_or(500),
-                max_file_size_mb: config.l2_config.as_ref().map(|c| c.max_disk_mb / 2).unwrap_or(250),
+                clear_on_startup: config
+                    .l2_config
+                    .as_ref()
+                    .map(|c| c.clear_on_startup)
+                    .unwrap_or(false),
+                cache_size_mb: config
+                    .l2_config
+                    .as_ref()
+                    .map(|c| c.max_disk_mb)
+                    .unwrap_or(500),
+                max_file_size_mb: config
+                    .l2_config
+                    .as_ref()
+                    .map(|c| c.max_disk_mb / 2)
+                    .unwrap_or(250),
                 smart_flush_enabled: true,
                 smart_flush_base_interval_ms: 100,
                 smart_flush_min_interval_ms: 20,
@@ -116,11 +134,17 @@ impl CacheManager {
             .await
             .map_err(|e| anyhow!("Failed to create cache: {}", e))?;
 
-        info!("缓存管理器初始化成功 - L1容量: {}, L1内存: {}MB, L2磁盘: {}MB, 策略: {:?}", 
-              config.l1_config.max_capacity, 
-              config.l1_config.max_memory_mb,
-              config.l2_config.as_ref().map(|c| c.max_disk_mb).unwrap_or(0),
-              config.strategy);
+        info!(
+            "缓存管理器初始化成功 - L1容量: {}, L1内存: {}MB, L2磁盘: {}MB, 策略: {:?}",
+            config.l1_config.max_capacity,
+            config.l1_config.max_memory_mb,
+            config
+                .l2_config
+                .as_ref()
+                .map(|c| c.max_disk_mb)
+                .unwrap_or(0),
+            config.strategy
+        );
 
         Ok(Self {
             cache: Arc::new(cache),
@@ -134,4 +158,3 @@ impl CacheManager {
         })
     }
 }
-

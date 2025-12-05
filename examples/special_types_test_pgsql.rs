@@ -8,15 +8,21 @@
 //!
 //! 使用正确的ODM（Object-Document Mapper）方式进行测试
 
-use rat_quickdb::*;
-use rat_quickdb::types::{QueryCondition, QueryConditionGroup, LogicalOperator, QueryOperator, DataValue, QueryOptions, SortConfig, SortDirection, PaginationConfig};
-use rat_quickdb::manager::shutdown;
-use rat_quickdb::{ModelOperations, string_field, integer_field, float_field, datetime_field, boolean_field, json_field, array_field, FieldType};
-use std::collections::HashMap;
-use chrono::{Utc, DateTime, Duration};
+use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
-use rat_logger::{LoggerBuilder, handler::term::TermConfig, debug};
-use serde_json::{json, Value};
+use rat_logger::{LoggerBuilder, debug, handler::term::TermConfig};
+use rat_quickdb::manager::shutdown;
+use rat_quickdb::types::{
+    DataValue, LogicalOperator, PaginationConfig, QueryCondition, QueryConditionGroup,
+    QueryOperator, QueryOptions, SortConfig, SortDirection,
+};
+use rat_quickdb::*;
+use rat_quickdb::{
+    FieldType, ModelOperations, array_field, boolean_field, datetime_field, float_field,
+    integer_field, json_field, string_field,
+};
+use serde_json::{Value, json};
+use std::collections::HashMap;
 
 // 定义特殊字段测试模型
 define_model! {
@@ -127,26 +133,28 @@ async fn main() -> QuickDbResult<()> {
 
     let null_timestamp_condition = QueryConditionGroup::Group {
         operator: LogicalOperator::And,
-        conditions: vec![
-            QueryConditionGroup::Single(QueryCondition {
-                field: "expires_at".to_string(),
-                operator: QueryOperator::IsNull,
-                value: DataValue::Null,
-            }),
-        ],
+        conditions: vec![QueryConditionGroup::Single(QueryCondition {
+            field: "expires_at".to_string(),
+            operator: QueryOperator::IsNull,
+            value: DataValue::Null,
+        })],
     };
 
-    match ModelManager::<SpecialFieldsTest>::find_with_groups(
-        vec![null_timestamp_condition],
-        None,
-    ).await {
+    match ModelManager::<SpecialFieldsTest>::find_with_groups(vec![null_timestamp_condition], None)
+        .await
+    {
         Ok(records) => {
-            println!("   ✅ 成功查询到 {} 个expires_at为null的记录", records.len());
+            println!(
+                "   ✅ 成功查询到 {} 个expires_at为null的记录",
+                records.len()
+            );
             for record in &records {
-                println!("   - 记录ID: {}, 标题: {}, expires_at: {:?}, read_at: {:?}",
-                    record.id, record.title, record.expires_at, record.read_at);
+                println!(
+                    "   - 记录ID: {}, 标题: {}, expires_at: {:?}, read_at: {:?}",
+                    record.id, record.title, record.expires_at, record.read_at
+                );
             }
-        },
+        }
         Err(e) => {
             println!("   ❌ 查询null时间戳记录失败: {}", e);
             println!("   这表明时间戳null值反序列化存在问题");
@@ -160,28 +168,35 @@ async fn main() -> QuickDbResult<()> {
 
     let not_null_timestamp_condition = QueryConditionGroup::Group {
         operator: LogicalOperator::And,
-        conditions: vec![
-            QueryConditionGroup::Single(QueryCondition {
-                field: "expires_at".to_string(),
-                operator: QueryOperator::IsNotNull,
-                value: DataValue::Null,
-            }),
-        ],
+        conditions: vec![QueryConditionGroup::Single(QueryCondition {
+            field: "expires_at".to_string(),
+            operator: QueryOperator::IsNotNull,
+            value: DataValue::Null,
+        })],
     };
 
     match ModelManager::<SpecialFieldsTest>::find_with_groups(
         vec![not_null_timestamp_condition],
         None,
-    ).await {
+    )
+    .await
+    {
         Ok(records) => {
-            println!("   ✅ 成功查询到 {} 个expires_at不为null的记录", records.len());
+            println!(
+                "   ✅ 成功查询到 {} 个expires_at不为null的记录",
+                records.len()
+            );
             for record in &records {
                 if let Some(expires_at) = record.expires_at {
-                    println!("   - 记录ID: {}, 标题: {}, expires_at: {}",
-                        record.id, record.title, expires_at.format("%Y-%m-%d %H:%M:%S UTC"));
+                    println!(
+                        "   - 记录ID: {}, 标题: {}, expires_at: {}",
+                        record.id,
+                        record.title,
+                        expires_at.format("%Y-%m-%d %H:%M:%S UTC")
+                    );
                 }
             }
-        },
+        }
         Err(e) => {
             println!("   ❌ 查询非null时间戳记录失败: {}", e);
         }
@@ -194,27 +209,26 @@ async fn main() -> QuickDbResult<()> {
 
     let array_condition = QueryConditionGroup::Group {
         operator: LogicalOperator::And,
-        conditions: vec![
-            QueryConditionGroup::Single(QueryCondition {
-                field: "tags".to_string(),
-                operator: QueryOperator::IsNotNull,
-                value: DataValue::Null,
-            }),
-        ],
+        conditions: vec![QueryConditionGroup::Single(QueryCondition {
+            field: "tags".to_string(),
+            operator: QueryOperator::IsNotNull,
+            value: DataValue::Null,
+        })],
     };
 
-    match ModelManager::<SpecialFieldsTest>::find_with_groups(
-        vec![array_condition],
-        None,
-    ).await {
+    match ModelManager::<SpecialFieldsTest>::find_with_groups(vec![array_condition], None).await {
         Ok(records) => {
             println!("   ✅ 成功查询到 {} 个有tags数组的记录", records.len());
             for record in &records {
-                println!("   - 记录ID: {}, 标题: {}, tags数量: {}",
-                    record.id, record.title, record.tags.len());
+                println!(
+                    "   - 记录ID: {}, 标题: {}, tags数量: {}",
+                    record.id,
+                    record.title,
+                    record.tags.len()
+                );
                 println!("     标签: {}", record.tags.join(", "));
             }
-        },
+        }
         Err(e) => {
             println!("   ❌ 查询数组记录失败: {}", e);
             println!("   这表明PostgreSQL数组类型处理存在问题");
@@ -228,26 +242,23 @@ async fn main() -> QuickDbResult<()> {
 
     let json_condition = QueryConditionGroup::Group {
         operator: LogicalOperator::And,
-        conditions: vec![
-            QueryConditionGroup::Single(QueryCondition {
-                field: "metadata".to_string(),
-                operator: QueryOperator::IsNotNull,
-                value: DataValue::Null,
-            }),
-        ],
+        conditions: vec![QueryConditionGroup::Single(QueryCondition {
+            field: "metadata".to_string(),
+            operator: QueryOperator::IsNotNull,
+            value: DataValue::Null,
+        })],
     };
 
-    match ModelManager::<SpecialFieldsTest>::find_with_groups(
-        vec![json_condition],
-        None,
-    ).await {
+    match ModelManager::<SpecialFieldsTest>::find_with_groups(vec![json_condition], None).await {
         Ok(records) => {
             println!("   ✅ 成功查询到 {} 个有metadata JSON的记录", records.len());
             for record in &records {
-                println!("   - 记录ID: {}, 标题: {}, metadata: {}",
-                    record.id, record.title, record.metadata);
+                println!(
+                    "   - 记录ID: {}, 标题: {}, metadata: {}",
+                    record.id, record.title, record.metadata
+                );
             }
-        },
+        }
         Err(e) => {
             println!("   ❌ 查询JSON记录失败: {}", e);
             println!("   这表明JSON类型处理存在问题");
@@ -294,17 +305,16 @@ async fn main() -> QuickDbResult<()> {
         ],
     };
 
-    match ModelManager::<SpecialFieldsTest>::find_with_groups(
-        vec![complex_condition],
-        None,
-    ).await {
+    match ModelManager::<SpecialFieldsTest>::find_with_groups(vec![complex_condition], None).await {
         Ok(records) => {
             println!("   ✅ 成功执行复杂查询，找到 {} 个匹配记录", records.len());
             for record in &records {
-                println!("   - 记录ID: {}, 标题: {}, is_read: {}, expires_at: {:?}, read_at: {:?}",
-                    record.id, record.title, record.is_read, record.expires_at, record.read_at);
+                println!(
+                    "   - 记录ID: {}, 标题: {}, is_read: {}, expires_at: {:?}, read_at: {:?}",
+                    record.id, record.title, record.is_read, record.expires_at, record.read_at
+                );
             }
-        },
+        }
         Err(e) => {
             println!("   ❌ 复杂查询失败: {}", e);
             println!("   这表明复杂条件下的时间戳处理存在问题");
@@ -316,10 +326,7 @@ async fn main() -> QuickDbResult<()> {
     // 测试6: 验证所有数据的完整性（检查数据是否正确保存和读取）
     println!("6. 验证所有数据的完整性（检查数据是否正确保存和读取）");
 
-    match ModelManager::<SpecialFieldsTest>::find_with_groups(
-        vec![],
-        None,
-    ).await {
+    match ModelManager::<SpecialFieldsTest>::find_with_groups(vec![], None).await {
         Ok(all_records) => {
             println!("   ✅ 数据库中共有 {} 条记录", all_records.len());
 
@@ -359,7 +366,7 @@ async fn main() -> QuickDbResult<()> {
             println!("     - read_at不为null: {} 条", not_null_read_count);
             println!("     - 有tags数组: {} 条", with_tags_count);
             println!("     - 有metadata JSON: {} 条", with_metadata_count);
-        },
+        }
         Err(e) => {
             println!("   ❌ 查询所有记录失败: {}", e);
         }
@@ -397,7 +404,6 @@ async fn insert_test_data_with_extreme_scenarios() -> QuickDbResult<()> {
             json!({"type": "complete", "status": "active", "score": 95}),
             8,
         ),
-
         // 场景2: expires_at为null，read_at有值（模拟未设置过期时间的已读消息）
         create_test_record(
             "无过期时间的已读记录",
@@ -409,7 +415,6 @@ async fn insert_test_data_with_extreme_scenarios() -> QuickDbResult<()> {
             json!({"type": "read_no_expire", "status": "processed"}),
             5,
         ),
-
         // 场景3: expires_at有值，read_at为null（模拟未读消息）
         create_test_record(
             "未读的有效记录",
@@ -421,7 +426,6 @@ async fn insert_test_data_with_extreme_scenarios() -> QuickDbResult<()> {
             json!({"type": "unread", "priority": "high"}),
             9,
         ),
-
         // 场景4: 所有时间戳字段都为null（模拟草稿或临时记录）
         create_test_record(
             "草稿记录",
@@ -433,19 +437,17 @@ async fn insert_test_data_with_extreme_scenarios() -> QuickDbResult<()> {
             json!({"type": "draft", "editable": true}),
             1,
         ),
-
         // 场景5: 过期记录（模拟cleanup.rs需要清理的记录）
         create_test_record(
             "过期记录",
             Some("已过期且已读的记录，应该被cleanup清理"),
-            Some(base_time - Duration::hours(5)),  // 5小时前过期
+            Some(base_time - Duration::hours(5)), // 5小时前过期
             Some(base_time - Duration::days(40)), // 40天前读取（满足30天前的条件）
             true,
             vec!["过期".to_string(), "已读".to_string(), "需清理".to_string()],
             json!({"type": "expired", "cleanup_needed": true, "expired_days": 40}),
             3,
         ),
-
         // 场景6: 复杂JSON数据
         create_test_record(
             "复杂JSON记录",
@@ -476,7 +478,6 @@ async fn insert_test_data_with_extreme_scenarios() -> QuickDbResult<()> {
             }),
             7,
         ),
-
         // 场景7: 大数组数据
         create_test_record(
             "大数组记录",
@@ -488,7 +489,6 @@ async fn insert_test_data_with_extreme_scenarios() -> QuickDbResult<()> {
             json!({"type": "large_array", "tag_count": 20}),
             6,
         ),
-
         // 场景8: 空数组和空JSON
         create_test_record(
             "空容器记录",
@@ -496,7 +496,7 @@ async fn insert_test_data_with_extreme_scenarios() -> QuickDbResult<()> {
             Some(base_time + Duration::hours(6)),
             None,
             false,
-            vec![], // 空数组
+            vec![],    // 空数组
             json!({}), // 空JSON对象
             2,
         ),
@@ -537,13 +537,15 @@ async fn insert_test_data_with_extreme_scenarios() -> QuickDbResult<()> {
                 false
             },
             tags: if let Some(DataValue::Array(tags)) = record_data.get("tags") {
-                tags.iter().filter_map(|tag| {
-                    if let DataValue::String(s) = tag {
-                        Some(s.clone())
-                    } else {
-                        None
-                    }
-                }).collect()
+                tags.iter()
+                    .filter_map(|tag| {
+                        if let DataValue::String(s) = tag {
+                            Some(s.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
             } else {
                 vec![]
             },
@@ -594,7 +596,10 @@ fn create_test_record(
     record_data.insert("title".to_string(), DataValue::String(title.to_string()));
 
     if let Some(desc) = description {
-        record_data.insert("description".to_string(), DataValue::String(desc.to_string()));
+        record_data.insert(
+            "description".to_string(),
+            DataValue::String(desc.to_string()),
+        );
     }
 
     if let Some(expires) = expires_at {
@@ -634,13 +639,14 @@ fn json_value_to_data_value(json_val: Value) -> DataValue {
             } else {
                 DataValue::String(n.to_string())
             }
-        },
+        }
         Value::Bool(b) => DataValue::Bool(b),
         Value::Null => DataValue::Null,
         Value::Array(arr) => {
-            let data_array: Vec<DataValue> = arr.into_iter().map(json_value_to_data_value).collect();
+            let data_array: Vec<DataValue> =
+                arr.into_iter().map(json_value_to_data_value).collect();
             DataValue::Array(data_array)
-        },
+        }
         Value::Object(obj) => {
             let mut data_map = HashMap::new();
             for (k, v) in obj {
@@ -656,20 +662,22 @@ fn data_value_to_json_value(data_val: &DataValue) -> Value {
     match data_val {
         DataValue::String(s) => Value::String(s.clone()),
         DataValue::Int(i) => Value::Number(serde_json::Number::from(*i)),
-        DataValue::Float(f) => Value::Number(serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0))),
+        DataValue::Float(f) => {
+            Value::Number(serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0)))
+        }
         DataValue::Bool(b) => Value::Bool(*b),
         DataValue::Null => Value::Null,
         DataValue::Array(arr) => {
             let json_array: Vec<Value> = arr.iter().map(data_value_to_json_value).collect();
             Value::Array(json_array)
-        },
+        }
         DataValue::Object(obj) => {
             let mut json_map = serde_json::Map::new();
             for (k, v) in obj {
                 json_map.insert(k.clone(), data_value_to_json_value(v));
             }
             Value::Object(json_map)
-        },
+        }
         DataValue::DateTime(dt) => Value::String(dt.to_rfc3339()),
         // 其他类型根据需要转换
         _ => Value::Null,
