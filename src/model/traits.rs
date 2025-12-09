@@ -342,6 +342,15 @@ pub trait ModelOperations<T: Model> {
     async fn find(
         conditions: Vec<QueryCondition>,
         options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
+        Self::find_with_cache_control(conditions, options, false).await
+    }
+
+    /// 查找多条记录（支持缓存控制）
+    async fn find_with_cache_control(
+        conditions: Vec<QueryCondition>,
+        options: Option<QueryOptions>,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<T>>;
 
     /// 更新记录
@@ -357,6 +366,15 @@ pub trait ModelOperations<T: Model> {
     async fn find_with_groups(
         condition_groups: Vec<QueryConditionGroup>,
         options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
+        Self::find_with_groups_with_cache_control(condition_groups, options, false).await
+    }
+
+    /// 使用条件组查找多条记录（支持缓存控制和复杂的AND/OR逻辑组合）
+    async fn find_with_groups_with_cache_control(
+        condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<T>>;
 
     /// 批量更新记录

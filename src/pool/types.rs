@@ -39,12 +39,21 @@ pub enum DatabaseOperation {
         alias: String,
         response: oneshot::Sender<QuickDbResult<Option<DataValue>>>,
     },
-    /// 查找记录
+    /// 查找记录（支持缓存控制）
     Find {
         table: String,
         conditions: Vec<QueryCondition>,
         options: QueryOptions,
         alias: String,
+        response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
+    },
+    /// 查找记录（强制跳过缓存）
+    FindWithBypassCache {
+        table: String,
+        conditions: Vec<QueryCondition>,
+        options: QueryOptions,
+        alias: String,
+        bypass_cache: bool,
         response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
     },
     /// 使用条件组合查找记录（支持OR逻辑）
@@ -53,6 +62,15 @@ pub enum DatabaseOperation {
         condition_groups: Vec<QueryConditionGroup>,
         options: QueryOptions,
         alias: String,
+        response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
+    },
+    /// 使用条件组合查找记录（强制跳过缓存）
+    FindWithGroupsWithBypassCache {
+        table: String,
+        condition_groups: Vec<QueryConditionGroup>,
+        options: QueryOptions,
+        alias: String,
+        bypass_cache: bool,
         response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
     },
     /// 更新记录

@@ -76,7 +76,18 @@ impl AsyncOdmManager {
                     alias,
                     response,
                 } => {
-                    let result = Self::handle_find(&collection, conditions, options, alias).await;
+                    let result = Self::handle_find_with_cache_control(&collection, conditions, options, alias, false).await;
+                    let _ = response.send(result);
+                }
+                OdmRequest::FindWithCacheControl {
+                    collection,
+                    conditions,
+                    options,
+                    alias,
+                    bypass_cache,
+                    response,
+                } => {
+                    let result = Self::handle_find_with_cache_control(&collection, conditions, options, alias, bypass_cache).await;
                     let _ = response.send(result);
                 }
                 OdmRequest::FindWithGroups {
@@ -86,13 +97,18 @@ impl AsyncOdmManager {
                     alias,
                     response,
                 } => {
-                    let result = Self::handle_find_with_groups(
-                        &collection,
-                        condition_groups,
-                        options,
-                        alias,
-                    )
-                    .await;
+                    let result = Self::handle_find_with_groups(&collection, condition_groups, options, alias).await;
+                    let _ = response.send(result);
+                }
+                OdmRequest::FindWithGroupsWithCacheControl {
+                    collection,
+                    condition_groups,
+                    options,
+                    alias,
+                    bypass_cache,
+                    response,
+                } => {
+                    let result = Self::handle_find_with_groups_with_cache_control(&collection, condition_groups, options, alias, bypass_cache).await;
                     let _ = response.send(result);
                 }
                 OdmRequest::Update {

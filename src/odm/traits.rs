@@ -32,6 +32,18 @@ pub trait OdmOperations {
         conditions: Vec<QueryCondition>,
         options: Option<QueryOptions>,
         alias: Option<&str>,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_cache_control(collection, conditions, options, alias, false).await
+    }
+
+    /// 查找记录（支持缓存控制）
+    async fn find_with_cache_control(
+        &self,
+        collection: &str,
+        conditions: Vec<QueryCondition>,
+        options: Option<QueryOptions>,
+        alias: Option<&str>,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>>;
 
     /// 使用条件组合查找记录（支持复杂OR/AND逻辑）
@@ -41,6 +53,18 @@ pub trait OdmOperations {
         condition_groups: Vec<QueryConditionGroup>,
         options: Option<QueryOptions>,
         alias: Option<&str>,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_groups_with_cache_control(collection, condition_groups, options, alias, false).await
+    }
+
+    /// 使用条件组合查找记录（支持缓存控制）
+    async fn find_with_groups_with_cache_control(
+        &self,
+        collection: &str,
+        condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+        alias: Option<&str>,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>>;
 
     /// 更新记录

@@ -71,13 +71,25 @@ impl OdmOperations for AsyncOdmManager {
         options: Option<QueryOptions>,
         alias: Option<&str>,
     ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_cache_control(collection, conditions, options, alias, false).await
+    }
+
+    async fn find_with_cache_control(
+        &self,
+        collection: &str,
+        conditions: Vec<QueryCondition>,
+        options: Option<QueryOptions>,
+        alias: Option<&str>,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
         let (sender, receiver) = oneshot::channel();
 
-        let request = OdmRequest::Find {
+        let request = OdmRequest::FindWithCacheControl {
             collection: collection.to_string(),
             conditions,
             options,
             alias: alias.map(|s| s.to_string()),
+            bypass_cache,
             response: sender,
         };
 
@@ -99,13 +111,25 @@ impl OdmOperations for AsyncOdmManager {
         options: Option<QueryOptions>,
         alias: Option<&str>,
     ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_groups_with_cache_control(collection, condition_groups, options, alias, false).await
+    }
+
+    async fn find_with_groups_with_cache_control(
+        &self,
+        collection: &str,
+        condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+        alias: Option<&str>,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
         let (sender, receiver) = oneshot::channel();
 
-        let request = OdmRequest::FindWithGroups {
+        let request = OdmRequest::FindWithGroupsWithCacheControl {
             collection: collection.to_string(),
             condition_groups,
             options,
             alias: alias.map(|s| s.to_string()),
+            bypass_cache,
             response: sender,
         };
 

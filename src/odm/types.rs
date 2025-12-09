@@ -27,11 +27,27 @@ pub enum OdmRequest {
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
     },
+    FindWithCacheControl {
+        collection: String,
+        conditions: Vec<QueryCondition>,
+        options: Option<QueryOptions>,
+        alias: Option<String>,
+        bypass_cache: bool,
+        response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
+    },
     FindWithGroups {
         collection: String,
         condition_groups: Vec<QueryConditionGroup>,
         options: Option<QueryOptions>,
         alias: Option<String>,
+        response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
+    },
+    FindWithGroupsWithCacheControl {
+        collection: String,
+        condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+        alias: Option<String>,
+        bypass_cache: bool,
         response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
     },
     Update {

@@ -373,6 +373,50 @@ impl MultiConnectionManager {
                 let _ = response.send(result);
                 Ok(())
             }
+            DatabaseOperation::FindWithBypassCache {
+                table,
+                conditions,
+                options,
+                alias,
+                bypass_cache,
+                response,
+            } => {
+                let result = worker
+                    .adapter
+                    .find_with_cache_control(
+                        &worker.connection,
+                        &table,
+                        &conditions,
+                        &options,
+                        &alias,
+                        bypass_cache,
+                    )
+                    .await;
+                let _ = response.send(result);
+                Ok(())
+            }
+            DatabaseOperation::FindWithGroupsWithBypassCache {
+                table,
+                condition_groups,
+                options,
+                alias,
+                bypass_cache,
+                response,
+            } => {
+                let result = worker
+                    .adapter
+                    .find_with_groups_with_cache_control(
+                        &worker.connection,
+                        &table,
+                        &condition_groups,
+                        &options,
+                        &alias,
+                        bypass_cache,
+                    )
+                    .await;
+                let _ = response.send(result);
+                Ok(())
+            }
             DatabaseOperation::Update {
                 table,
                 conditions,

@@ -54,6 +54,25 @@ pub async fn find_by_id(
     manager.find_by_id(collection, id, alias).await
 }
 
+/// 便捷函数：查询记录（支持缓存控制）
+///
+/// 【注意】这是一个内部函数，建议通过ModelManager或模型的find方法进行操作
+/// 除非您明确知道自己在做什么，否则不要直接调用此函数
+#[doc(hidden)]
+pub async fn find_with_cache_control(
+    collection: &str,
+    conditions: Vec<QueryCondition>,
+    options: Option<QueryOptions>,
+    alias: Option<&str>,
+    bypass_cache: bool,
+) -> QuickDbResult<Vec<DataValue>> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
+    let manager = get_odm_manager().await;
+    manager.find_with_cache_control(collection, conditions, options, alias, bypass_cache).await
+}
+
 /// 便捷函数：查询记录
 ///
 /// 【注意】这是一个内部函数，建议通过ModelManager或模型的find方法进行操作
@@ -65,11 +84,28 @@ pub async fn find(
     options: Option<QueryOptions>,
     alias: Option<&str>,
 ) -> QuickDbResult<Vec<DataValue>> {
+    find_with_cache_control(collection, conditions, options, alias, false).await
+}
+
+/// 分组查询便捷函数（支持缓存控制）
+///
+/// 【注意】这是一个内部函数，建议通过ModelManager或模型的find_with_groups方法进行操作
+/// 除非您明确知道自己在做什么，否则不要直接调用此函数
+#[doc(hidden)]
+pub async fn find_with_groups_with_cache_control(
+    collection: &str,
+    condition_groups: Vec<QueryConditionGroup>,
+    options: Option<QueryOptions>,
+    alias: Option<&str>,
+    bypass_cache: bool,
+) -> QuickDbResult<Vec<DataValue>> {
     // 锁定全局操作
     crate::lock_global_operations();
 
     let manager = get_odm_manager().await;
-    manager.find(collection, conditions, options, alias).await
+    manager
+        .find_with_groups_with_cache_control(collection, condition_groups, options, alias, bypass_cache)
+        .await
 }
 
 /// 分组查询便捷函数
@@ -83,13 +119,7 @@ pub async fn find_with_groups(
     options: Option<QueryOptions>,
     alias: Option<&str>,
 ) -> QuickDbResult<Vec<DataValue>> {
-    // 锁定全局操作
-    crate::lock_global_operations();
-
-    let manager = get_odm_manager().await;
-    manager
-        .find_with_groups(collection, condition_groups, options, alias)
-        .await
+    find_with_groups_with_cache_control(collection, condition_groups, options, alias, false).await
 }
 
 /// 便捷函数：更新记录

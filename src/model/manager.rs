@@ -45,6 +45,17 @@ impl<T: Model> ModelManager<T> {
         <Self as ModelOperations<T>>::find(conditions, options).await
     }
 
+    /// 查找模型（支持缓存控制）
+    ///
+    /// 根据条件查找多条记录，可选择是否跳过缓存
+    pub async fn find_with_cache_control(
+        conditions: Vec<QueryCondition>,
+        options: Option<QueryOptions>,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<T>> {
+        <Self as ModelOperations<T>>::find_with_cache_control(conditions, options, bypass_cache).await
+    }
+
     /// 统计模型数量（静态便利方法）
     ///
     /// 根据条件统计记录数量
@@ -111,20 +122,22 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         }
     }
 
-    async fn find(
+    async fn find_with_cache_control(
         conditions: Vec<QueryCondition>,
         options: Option<QueryOptions>,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<T>> {
         let collection_name = T::collection_name();
         let database_alias = T::database_alias();
 
-        debug!("查找模型: collection={}", collection_name);
+        debug!("查找模型（bypass_cache={}）: collection={}", bypass_cache, collection_name);
 
-        let result = odm::find(
+        let result = odm::find_with_cache_control(
             &collection_name,
             conditions,
             options,
             database_alias.as_deref(),
+            bypass_cache,
         )
         .await?;
 
@@ -155,6 +168,13 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         Ok(models)
     }
 
+    async fn find(
+        conditions: Vec<QueryCondition>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
+        Self::find_with_cache_control(conditions, options, false).await
+    }
+
     async fn update(&self, _updates: HashMap<String, DataValue>) -> QuickDbResult<bool> {
         // 这个方法需要模型实例，应该在具体的模型实现中调用
         Err(QuickDbError::ValidationError {
@@ -180,20 +200,22 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         odm::count(&collection_name, conditions, database_alias.as_deref()).await
     }
 
-    async fn find_with_groups(
+    async fn find_with_groups_with_cache_control(
         condition_groups: Vec<QueryConditionGroup>,
         options: Option<QueryOptions>,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<T>> {
         let collection_name = T::collection_name();
         let database_alias = T::database_alias();
 
-        debug!("使用条件组查找模型: collection={}", collection_name);
+        debug!("使用条件组查找模型（bypass_cache={}）: collection={}", bypass_cache, collection_name);
 
-        let result = odm::find_with_groups(
+        let result = odm::find_with_groups_with_cache_control(
             &collection_name,
             condition_groups,
             options,
             database_alias.as_deref(),
+            bypass_cache,
         )
         .await?;
 
@@ -204,6 +226,13 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
             models.push(model);
         }
         Ok(models)
+    }
+
+    async fn find_with_groups(
+        condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
+        Self::find_with_groups_with_cache_control(condition_groups, options, false).await
     }
 
     /// 批量更新模型
