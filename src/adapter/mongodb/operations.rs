@@ -202,6 +202,31 @@ impl DatabaseAdapter for MongoAdapter {
         mongodb_query::find_by_id(self, connection, table, id, alias).await
     }
 
+    async fn find_with_cache_control(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        conditions: &[QueryCondition],
+        options: &QueryOptions,
+        alias: &str,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        mongodb_query::find(self, connection, table, conditions, options, alias).await
+    }
+
+    async fn find_with_groups_with_cache_control(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroup],
+        options: &QueryOptions,
+        alias: &str,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        mongodb_query::find_with_groups(self, connection, table, condition_groups, options, alias)
+            .await
+    }
+
     async fn find(
         &self,
         connection: &DatabaseConnection,
@@ -210,7 +235,7 @@ impl DatabaseAdapter for MongoAdapter {
         options: &QueryOptions,
         alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
-        mongodb_query::find(self, connection, table, conditions, options, alias).await
+        self.find_with_cache_control(connection, table, conditions, options, alias, false).await
     }
 
     async fn find_with_groups(
@@ -221,8 +246,7 @@ impl DatabaseAdapter for MongoAdapter {
         options: &QueryOptions,
         alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
-        mongodb_query::find_with_groups(self, connection, table, condition_groups, options, alias)
-            .await
+        self.find_with_groups_with_cache_control(connection, table, condition_groups, options, alias, false).await
     }
 
     async fn update(

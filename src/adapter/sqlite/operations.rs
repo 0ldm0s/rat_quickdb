@@ -226,13 +226,14 @@ impl DatabaseAdapter for SqliteAdapter {
         }
     }
 
-    async fn find(
+    async fn find_with_cache_control(
         &self,
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
         options: &QueryOptions,
         alias: &str,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>> {
         // 将简单条件转换为条件组合（AND逻辑）
         let condition_groups = if conditions.is_empty() {
@@ -248,18 +249,19 @@ impl DatabaseAdapter for SqliteAdapter {
             }]
         };
 
-        // 统一使用 find_with_groups 实现
-        self.find_with_groups(connection, table, &condition_groups, options, alias)
+        // 统一使用 find_with_groups_with_cache_control 实现
+        self.find_with_groups_with_cache_control(connection, table, &condition_groups, options, alias, bypass_cache)
             .await
     }
 
-    async fn find_with_groups(
+    async fn find_with_groups_with_cache_control(
         &self,
         connection: &DatabaseConnection,
         table: &str,
         condition_groups: &[QueryConditionGroup],
         options: &QueryOptions,
         alias: &str,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>> {
         let pool = match connection {
             DatabaseConnection::SQLite(pool) => pool,
@@ -337,6 +339,28 @@ impl DatabaseAdapter for SqliteAdapter {
 
             Ok(results)
         }
+    }
+
+    async fn find(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        conditions: &[QueryCondition],
+        options: &QueryOptions,
+        alias: &str,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_cache_control(connection, table, conditions, options, alias, false).await
+    }
+
+    async fn find_with_groups(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroup],
+        options: &QueryOptions,
+        alias: &str,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_groups_with_cache_control(connection, table, condition_groups, options, alias, false).await
     }
 
     async fn update(

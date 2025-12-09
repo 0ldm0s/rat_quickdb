@@ -66,6 +66,19 @@ pub trait DatabaseAdapter: Send + Sync {
         conditions: &[QueryCondition],
         options: &QueryOptions,
         alias: &str,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_cache_control(connection, table, conditions, options, alias, false).await
+    }
+
+    /// 查找记录（支持缓存控制）
+    async fn find_with_cache_control(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        conditions: &[QueryCondition],
+        options: &QueryOptions,
+        alias: &str,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>>;
 
     /// 使用条件组合查找记录（支持OR逻辑）
@@ -76,6 +89,19 @@ pub trait DatabaseAdapter: Send + Sync {
         condition_groups: &[QueryConditionGroup],
         options: &QueryOptions,
         alias: &str,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_groups_with_cache_control(connection, table, condition_groups, options, alias, false).await
+    }
+
+    /// 使用条件组合查找记录（支持缓存控制）
+    async fn find_with_groups_with_cache_control(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroup],
+        options: &QueryOptions,
+        alias: &str,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>>;
 
     /// 更新记录

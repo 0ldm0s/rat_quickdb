@@ -109,14 +109,15 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         result
     }
 
-    /// 查找记录 - 内部统一使用 find_with_groups 实现
-    async fn find(
+    /// 查找记录（支持缓存控制）- 内部统一使用 find_with_groups_with_cache_control 实现
+    async fn find_with_cache_control(
         &self,
         connection: &DatabaseConnection,
         table: &str,
         conditions: &[QueryCondition],
         options: &QueryOptions,
         alias: &str,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>> {
         // 将简单条件转换为条件组合（AND逻辑）
         let condition_groups = if conditions.is_empty() {
@@ -132,19 +133,20 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
             }]
         };
 
-        // 统一使用 find_with_groups 实现
-        self.find_with_groups(connection, table, &condition_groups, options, alias)
+        // 统一使用 find_with_groups_with_cache_control 实现
+        self.find_with_groups_with_cache_control(connection, table, &condition_groups, options, alias, bypass_cache)
             .await
     }
 
-    /// 使用条件组合查找记录 - 先检查缓存，缓存未命中时查询数据库并缓存结果
-    async fn find_with_groups(
+    /// 使用条件组合查找记录（支持缓存控制）- 根据 bypass_cache 参数决定是否跳过缓存
+    async fn find_with_groups_with_cache_control(
         &self,
         connection: &DatabaseConnection,
         table: &str,
         condition_groups: &[QueryConditionGroup],
         options: &QueryOptions,
         alias: &str,
+        bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>> {
         // 生成条件组合查询缓存键
         let cache_key = self.cache_manager.generate_condition_groups_cache_key(
@@ -153,44 +155,50 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
             options,
         );
 
-        // 先检查缓存
-        match self
-            .cache_manager
-            .get_cached_condition_groups_result(table, condition_groups, options)
-            .await
-        {
-            Ok(Some(cached_result)) => {
-                debug!("条件组合查询缓存命中: 表={}, 键={}", table, cache_key);
-                return Ok(cached_result);
+        // 如果不跳过缓存，先检查缓存
+        if !bypass_cache {
+            match self
+                .cache_manager
+                .get_cached_condition_groups_result(table, condition_groups, options)
+                .await
+            {
+                Ok(Some(cached_result)) => {
+                    debug!("条件组合查询缓存命中: 表={}, 键={}", table, cache_key);
+                    return Ok(cached_result);
+                }
+                Ok(None) => {
+                    debug!("条件组合查询缓存未命中: 表={}, 键={}", table, cache_key);
+                }
+                Err(e) => {
+                    warn!("获取条件组合查询缓存失败: {}", e);
+                }
             }
-            Ok(None) => {
-                debug!("条件组合查询缓存未命中: 表={}, 键={}", table, cache_key);
-            }
-            Err(e) => {
-                warn!("获取条件组合查询缓存失败: {}", e);
-            }
+        } else {
+            debug!("强制跳过缓存: 表={}, 键={}", table, cache_key);
         }
 
-        // 缓存未命中，查询数据库
+        // 查询数据库（缓存未命中或强制跳过缓存）
         let result = self
             .inner
             .find_with_groups(connection, table, condition_groups, options, alias)
             .await?;
 
-        // 缓存查询结果
-        if let Err(e) = self
-            .cache_manager
-            .cache_condition_groups_result(table, condition_groups, options, &result)
-            .await
-        {
-            warn!("缓存条件组合查询结果失败: {}", e);
-        } else {
-            debug!(
-                "已缓存条件组合查询结果: 表={}, 键={}, 结果数量={}",
-                table,
-                cache_key,
-                result.len()
-            );
+        // 缓存查询结果（仅在不跳过缓存时）
+        if !bypass_cache {
+            if let Err(e) = self
+                .cache_manager
+                .cache_condition_groups_result(table, condition_groups, options, &result)
+                .await
+            {
+                warn!("缓存条件组合查询结果失败: {}", e);
+            } else {
+                debug!(
+                    "已缓存条件组合查询结果: 表={}, 键={}, 结果数量={}",
+                    table,
+                    cache_key,
+                    result.len()
+                );
+            }
         }
 
         Ok(result)
