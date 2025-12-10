@@ -18,7 +18,7 @@
 - **🔒 SQLite布尔值兼容**: 自动处理SQLite布尔值存储差异，零配置兼容
 - **🏊 连接池管理**: 高效的连接池和无锁队列架构
 - **⚡ 异步支持**: 基于Tokio的异步运行时
-- **🧠 智能缓存**: 内置缓存支持（基于rat_memcache），支持TTL过期和回退机制
+- **🧠 智能缓存**: 内置缓存支持（基于rat_memcache），支持TTL过期、回退机制和缓存绕过
 - **🆔 多种ID生成策略**: AutoIncrement、UUID、Snowflake、ObjectId、Custom前缀
 - **📝 日志控制**: 由调用者完全控制日志初始化，避免库自动初始化冲突
 - **🐍 Python绑定**: 可选Python API支持
@@ -28,7 +28,37 @@
 
 ## 🔄 版本变更说明
 
-### v0.3.6 (当前版本) - 存储过程虚拟表系统
+### v0.4.2 (当前版本) - 缓存绕过功能
+
+**新功能：**
+- 🎯 **缓存绕过支持**：新增 `find_with_cache_control` 方法，支持强制跳过缓存查询
+- 🔄 **向后兼容**：原有 `find` 方法保持不变，作为新方法的包装器
+- 📊 **性能对比**：提供缓存绕过性能测试示例，展示实际性能差异
+- 🎛️ **灵活控制**：可根据业务需求选择使用缓存或强制查询数据库
+
+**使用示例：**
+```rust
+// 强制跳过缓存查询（适用于金融等实时数据场景）
+let results = ModelManager::<User>::find_with_cache_control(
+    conditions,
+    None,
+    true  // bypass_cache = true
+).await?;
+
+// 普通缓存查询（默认行为）
+let results = ModelManager::<User>::find(conditions, None).await?;
+```
+
+**性能测试示例：**
+```bash
+# 运行缓存绕过性能测试
+cargo run --example cache_bypass_comparison_mysql --features mysql-support
+cargo run --example cache_bypass_comparison_pgsql --features postgres-support
+cargo run --example cache_bypass_comparison_sqlite --features sqlite-support
+cargo run --example cache_bypass_comparison_mongodb --features mongodb-support
+```
+
+### v0.3.6 - 存储过程虚拟表系统
 
 ⚠️ **重要变更：连接池配置参数单位变更**
 
@@ -156,6 +186,12 @@ cargo run --example manual_table_management --features sqlite-support
 cargo run --example model_definition_mysql --features mysql-support
 cargo run --example model_definition_pgsql --features postgres-support
 cargo run --example model_definition_mongodb --features mongodb-support
+
+# 缓存绕过性能测试示例
+cargo run --example cache_bypass_comparison_mysql --features mysql-support
+cargo run --example cache_bypass_comparison_pgsql --features postgres-support
+cargo run --example cache_bypass_comparison_sqlite --features sqlite-support
+cargo run --example cache_bypass_comparison_mongodb --features mongodb-support
 ```
 
 ## ⚠️ 重要架构说明
@@ -737,7 +773,56 @@ rat_quickdb自动处理ObjectId在不同数据库中的类型转换：
 
 这种设计确保了ObjectId策略在所有支持的数据库中都能一致工作，同时充分利用各数据库的原生特性。
 
-## 🧠 缓存配置
+## 🧠 缓存配置与缓存绕过
+
+rat_quickdb提供了灵活的缓存管理功能，包括智能缓存和缓存绕过机制。
+
+### 缓存绕过功能
+
+在某些场景下（如金融交易、实时数据查询），您可能需要强制从数据库获取最新数据，绕过缓存。rat_quickdb提供了 `find_with_cache_control` 方法来满足这一需求：
+
+```rust
+use rat_quickdb::ModelOperations;
+
+// 正常查询（使用缓存）
+let cached_results = ModelManager::<User>::find(conditions, None).await?;
+
+// 强制跳过缓存查询
+let fresh_results = ModelManager::<User>::find_with_cache_control(
+    conditions,
+    None,
+    true  // bypass_cache = true
+).await?;
+```
+
+**适用场景**：
+- 🏦 **金融交易**：确保获取最新的账户余额和交易记录
+- 📊 **实时数据**：股票价格、实时监控数据等
+- 🔍 **数据一致性**：在数据更新后立即验证结果
+- 🧪 **测试场景**：需要绕过缓存进行基准测试
+
+### 缓存绕过性能对比示例
+
+rat_quickdb提供了完整的缓存绕过性能测试示例：
+
+```bash
+# MySQL 缓存绕过测试
+cargo run --example cache_bypass_comparison_mysql --features mysql-support
+
+# PostgreSQL 缓存绕过测试
+cargo run --example cache_bypass_comparison_pgsql --features postgres-support
+
+# SQLite 缓存绕过测试
+cargo run --example cache_bypass_comparison_sqlite --features sqlite-support
+
+# MongoDB 缓存绕过测试
+cargo run --example cache_bypass_comparison_mongodb --features mongodb-support
+```
+
+**性能提升示例**（实际测试结果）：
+- MySQL：16x 性能提升
+- PostgreSQL：2.25x 性能提升
+- MongoDB：1.88x 性能提升（重复查询），20x 提升（批量查询）
 
 ### 基本缓存配置（仅L1内存缓存）
 ```rust
@@ -1053,6 +1138,13 @@ let user_id = user.save().await?;
 // 查询记录
 let found_user = ModelManager::<User>::find_by_id(&user_id).await?;
 let users = ModelManager::<User>::find(conditions, options).await?;
+
+// 缓存绕过查询（适用于实时数据场景）
+let users = ModelManager::<User>::find_with_cache_control(
+    conditions,
+    options,
+    true  // bypass_cache = true, 强制跳过缓存
+).await?;
 
 // 更新记录
 let mut updates = HashMap::new();
@@ -1426,7 +1518,7 @@ let offset_seconds = parse_timezone_offset_to_seconds("+09:30")?;  // 34200
 
 ## 🌟 版本信息
 
-**当前版本**: 0.3.4
+**当前版本**: 0.4.2
 
 **支持Rust版本**: 1.70+
 
