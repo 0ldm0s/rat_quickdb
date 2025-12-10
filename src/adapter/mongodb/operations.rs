@@ -63,8 +63,6 @@ impl DatabaseAdapter for MongoAdapter {
             // 映射字段名（id -> _id）并处理ID策略
             let mut mapped_data = mongodb_utils::map_data_fields(self, data);
 
-            // 调试：打印接收到的数据
-
             // 根据ID策略处理ID字段
             if mapped_data.contains_key("_id") {
                 let strategy = id_strategy;
