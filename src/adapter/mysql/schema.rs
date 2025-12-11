@@ -83,7 +83,7 @@ pub(crate) async fn create_table(
             field_definitions.join(", ")
         );
 
-        adapter.execute_update(pool, &sql, &[]).await?;
+        adapter.execute_update(pool, &sql, &[], table).await?;
 
         Ok(())
     } else {
@@ -112,7 +112,7 @@ pub(crate) async fn create_index(
             fields.join(", ")
         );
 
-        adapter.execute_update(pool, &sql, &[]).await?;
+        adapter.execute_update(pool, &sql, &[], table).await?;
 
         Ok(())
     } else {
@@ -131,7 +131,7 @@ pub(crate) async fn table_exists(
     if let DatabaseConnection::MySQL(pool) = connection {
         let sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?";
         let params = vec![DataValue::String(table.to_string())];
-        let results = adapter.execute_query(pool, sql, &params).await?;
+        let results = adapter.execute_query(pool, sql, &params, table).await?;
 
         Ok(!results.is_empty())
     } else {
@@ -152,7 +152,7 @@ pub(crate) async fn drop_table(
 
         debug!("执行MySQL删除表SQL: {}", sql);
 
-        adapter.execute_update(pool, &sql, &[]).await?;
+        adapter.execute_update(pool, &sql, &[], table).await?;
 
         debug!("成功删除MySQL表: {}", table);
         Ok(())
@@ -173,7 +173,7 @@ pub(crate) async fn get_server_version(
 
         debug!("执行MySQL版本查询SQL: {}", sql);
 
-        let results = adapter.execute_query(pool, sql, &[]).await?;
+        let results = adapter.execute_system_query(pool, sql, &[]).await?;
 
         if let Some(result) = results.first() {
             match result {

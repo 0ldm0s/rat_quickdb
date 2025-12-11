@@ -23,7 +23,7 @@ pub(crate) async fn delete(
             .where_conditions(conditions)
             .build(table, alias)?;
 
-        adapter.execute_update(pool, &sql, &params).await
+        adapter.execute_update(pool, &sql, &params, table).await
     } else {
         Err(QuickDbError::ConnectionError {
             message: "连接类型不匹配，期望MySQL连接".to_string(),
@@ -50,7 +50,7 @@ pub(crate) async fn delete_by_id(
             .where_condition(condition)
             .build(table, alias)?;
 
-        let affected_rows = adapter.execute_update(pool, &sql, &params).await?;
+        let affected_rows = adapter.execute_update(pool, &sql, &params, table).await?;
         Ok(affected_rows > 0)
     } else {
         Err(QuickDbError::ConnectionError {
@@ -72,7 +72,7 @@ pub(crate) async fn count(
             .where_conditions(conditions)
             .build(table, alias)?;
 
-        let results = adapter.execute_query(pool, &sql, &params).await?;
+        let results = adapter.execute_query(pool, &sql, &params, table).await?;
 
         if let Some(result) = results.first() {
             if let DataValue::Object(map) = result {

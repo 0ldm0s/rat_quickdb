@@ -489,6 +489,7 @@ impl MysqlAdapter {
         pool: &Pool<MySql>,
         sql: &str,
         params: &[DataValue],
+        table: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
         let mut query = sqlx::query::<sqlx::MySql>(sql);
 
@@ -545,8 +546,20 @@ impl MysqlAdapter {
         let rows = query
             .fetch_all(pool)
             .await
-            .map_err(|e| QuickDbError::QueryError {
-                message: format!("执行MySQL查询失败: {}", e),
+            .map_err(|e| {
+                let error_string = e.to_string().to_lowercase();
+                if error_string.contains("table") && error_string.contains("doesn't exist") ||
+                   error_string.contains("base table") && error_string.contains("not found") ||
+                   error_string.contains("table") && error_string.contains("unknown") {
+                    QuickDbError::TableNotExistError {
+                        table: table.to_string(),
+                        message: format!("MySQL表 '{}' 不存在", table),
+                    }
+                } else {
+                    QuickDbError::QueryError {
+                        message: format!("执行MySQL查询失败: {}", e),
+                    }
+                }
             })?;
 
         let mut results = Vec::new();
@@ -590,6 +603,7 @@ impl MysqlAdapter {
         pool: &Pool<MySql>,
         sql: &str,
         params: &[DataValue],
+        table: &str,
     ) -> QuickDbResult<u64> {
         let mut query = sqlx::query(sql);
 
@@ -646,10 +660,94 @@ impl MysqlAdapter {
         let result = query
             .execute(pool)
             .await
-            .map_err(|e| QuickDbError::QueryError {
-                message: format!("执行MySQL更新失败: {}", e),
+            .map_err(|e| {
+                let error_string = e.to_string().to_lowercase();
+                if error_string.contains("table") && error_string.contains("doesn't exist") ||
+                   error_string.contains("base table") && error_string.contains("not found") ||
+                   error_string.contains("table") && error_string.contains("unknown") {
+                    QuickDbError::TableNotExistError {
+                        table: table.to_string(),
+                        message: format!("MySQL表 '{}' 不存在", table),
+                    }
+                } else {
+                    QuickDbError::QueryError {
+                        message: format!("执行MySQL更新失败: {}", e),
+                    }
+                }
             })?;
 
         Ok(result.rows_affected())
+    }
+
+    /// 执行系统级查询（不需要表名）
+    pub async fn execute_system_query(
+        &self,
+        pool: &Pool<MySql>,
+        sql: &str,
+        params: &[DataValue],
+    ) -> QuickDbResult<Vec<DataValue>> {
+        let mut query = sqlx::query::<sqlx::MySql>(sql);
+
+        // 绑定参数
+        for param in params {
+            query = match param {
+                DataValue::String(s) => query.bind(s),
+                DataValue::Int(i) => query.bind(*i),
+                DataValue::UInt(u) => {
+                    if *u <= i64::MAX as u64 {
+                        query.bind(*u as i64)
+                    } else {
+                        query.bind(u.to_string())
+                    }
+                }
+                DataValue::Float(f) => query.bind(*f),
+                DataValue::Bool(b) => query.bind(*b),
+                DataValue::DateTime(dt) => query.bind(dt.naive_utc().and_utc()),
+                DataValue::DateTimeUTC(dt) => query.bind(dt.naive_utc()),
+                DataValue::Null => query.bind(Option::<String>::None),
+                _ => query.bind(param.to_string()),
+            };
+        }
+
+        let rows = query
+            .fetch_all(pool)
+            .await
+            .map_err(|e| QuickDbError::QueryError {
+                message: format!("执行MySQL系统查询失败: {}", e),
+            })?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            // 使用 catch_unwind 捕获可能的 panic，防止连接池崩溃
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.row_to_data_map(&row)
+            })) {
+                Ok(Ok(data_map)) => {
+                    results.push(DataValue::Object(data_map));
+                }
+                Ok(Err(e)) => {
+                    error!("行数据转换失败: {}", e);
+                    // 创建一个包含错误信息的对象，而不是跳过这一行
+                    let mut error_map = HashMap::new();
+                    error_map.insert(
+                        "error".to_string(),
+                        DataValue::String(format!("数据转换失败: {}", e)),
+                    );
+                    results.push(DataValue::Object(error_map));
+                }
+                Err(panic_info) => {
+                    error!("行数据转换时发生 panic: {:?}", panic_info);
+                    // 创建一个包含错误信息的对象，而不是跳过这一行
+                    let mut error_map = HashMap::new();
+                    error_map.insert(
+                        "error".to_string(),
+                        DataValue::String("数据转换时发生 panic".to_string()),
+                    );
+                    results.push(DataValue::Object(error_map));
+                }
+            }
+        }
+
+        Ok(results)
     }
 }
