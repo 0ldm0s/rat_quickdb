@@ -130,12 +130,26 @@ impl DatabaseAdapter for MongoAdapter {
                         }
                         _ => {
                             // 其他情况，使用默认转换
-                            mongodb_utils::data_value_to_bson(self, value)
+                            match mongodb_utils::data_value_to_bson(self, value) {
+                                Ok(bson_val) => bson_val,
+                                Err(e) => {
+                                    return Err(QuickDbError::QueryError {
+                                        message: format!("转换DataValue为BSON失败: {}", e),
+                                    });
+                                }
+                            }
                         }
                     };
                     doc.insert(key, bson_value);
                 } else {
-                    doc.insert(key, mongodb_utils::data_value_to_bson(self, value));
+                    match mongodb_utils::data_value_to_bson(self, value) {
+                        Ok(bson_val) => doc.insert(key, bson_val),
+                        Err(e) => {
+                            return Err(QuickDbError::QueryError {
+                                message: format!("转换DataValue为BSON失败: {}", e),
+                            });
+                        }
+                    };
                 }
             }
 
@@ -261,7 +275,7 @@ impl DatabaseAdapter for MongoAdapter {
             let collection = mongodb_utils::get_collection(self, db, table);
 
             let query = build_query_document(table, alias, conditions)?;
-            let update = mongodb_utils::build_update_document(self, data);
+            let update = mongodb_utils::build_update_document(self, data)?;
 
             debug!("执行MongoDB更新: 查询={:?}, 更新={:?}", query, update);
 
@@ -320,12 +334,24 @@ impl DatabaseAdapter for MongoAdapter {
             for operation in operations {
                 match &operation.operation {
                     crate::types::UpdateOperator::Set => {
-                        let bson_value = mongodb_utils::data_value_to_bson(self, &operation.value);
-                        set_doc.insert(&operation.field, bson_value);
+                        match mongodb_utils::data_value_to_bson(self, &operation.value) {
+                            Ok(bson_value) => set_doc.insert(&operation.field, bson_value),
+                            Err(e) => {
+                                return Err(QuickDbError::QueryError {
+                                    message: format!("转换更新值为BSON失败: {}", e),
+                                });
+                            }
+                        };
                     }
                     crate::types::UpdateOperator::Increment => {
-                        let bson_value = mongodb_utils::data_value_to_bson(self, &operation.value);
-                        inc_doc.insert(&operation.field, bson_value);
+                        match mongodb_utils::data_value_to_bson(self, &operation.value) {
+                            Ok(bson_value) => inc_doc.insert(&operation.field, bson_value),
+                            Err(e) => {
+                                return Err(QuickDbError::QueryError {
+                                    message: format!("转换递增值为BSON失败: {}", e),
+                                });
+                            }
+                        };
                     }
                     crate::types::UpdateOperator::Decrement => {
                         // 对于减少操作，使用负数的inc操作
@@ -339,17 +365,31 @@ impl DatabaseAdapter for MongoAdapter {
                                 });
                             }
                         };
-                        let bson_value = mongodb_utils::data_value_to_bson(self, &neg_value);
-                        inc_doc.insert(&operation.field, bson_value);
+                        match mongodb_utils::data_value_to_bson(self, &neg_value) {
+                            Ok(bson_value) => inc_doc.insert(&operation.field, bson_value),
+                            Err(e) => {
+                                return Err(QuickDbError::QueryError {
+                                    message: format!("转换递减值为BSON失败: {}", e),
+                                });
+                            }
+                        };
                     }
                     crate::types::UpdateOperator::Multiply => {
                         // MongoDB使用$multiply操作符
-                        let bson_value = mongodb_utils::data_value_to_bson(self, &operation.value);
-                        if !set_doc.contains_key("$mul") {
-                            set_doc.insert("$mul", Document::new());
-                        }
-                        let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
-                        mul_doc.insert(&operation.field, bson_value);
+                        match mongodb_utils::data_value_to_bson(self, &operation.value) {
+                            Ok(bson_value) => {
+                                if !set_doc.contains_key("$mul") {
+                                    set_doc.insert("$mul", Document::new());
+                                }
+                                let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
+                                mul_doc.insert(&operation.field, bson_value);
+                            }
+                            Err(e) => {
+                                return Err(QuickDbError::QueryError {
+                                    message: format!("转换乘数值为BSON失败: {}", e),
+                                });
+                            }
+                        };
                     }
                     crate::types::UpdateOperator::Divide => {
                         // MongoDB不支持直接除法，但可以使用乘法配合小数
@@ -363,15 +403,23 @@ impl DatabaseAdapter for MongoAdapter {
                                 });
                             }
                         };
-                        let bson_value = mongodb_utils::data_value_to_bson(
+                        match mongodb_utils::data_value_to_bson(
                             self,
                             &crate::types::DataValue::Float(divisor),
-                        );
-                        if !set_doc.contains_key("$mul") {
-                            set_doc.insert("$mul", Document::new());
-                        }
-                        let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
-                        mul_doc.insert(&operation.field, bson_value);
+                        ) {
+                            Ok(bson_value) => {
+                                if !set_doc.contains_key("$mul") {
+                                    set_doc.insert("$mul", Document::new());
+                                }
+                                let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
+                                mul_doc.insert(&operation.field, bson_value);
+                            }
+                            Err(e) => {
+                                return Err(QuickDbError::QueryError {
+                                    message: format!("转换除数值为BSON失败: {}", e),
+                                });
+                            }
+                        };
                     }
                     crate::types::UpdateOperator::PercentIncrease => {
                         // 百分比增加：转换为乘法 (1 + percentage/100)
@@ -386,15 +434,23 @@ impl DatabaseAdapter for MongoAdapter {
                             }
                         };
                         let multiplier = 1.0 + percentage / 100.0;
-                        let bson_value = mongodb_utils::data_value_to_bson(
+                        match mongodb_utils::data_value_to_bson(
                             self,
                             &crate::types::DataValue::Float(multiplier),
-                        );
-                        if !set_doc.contains_key("$mul") {
-                            set_doc.insert("$mul", Document::new());
-                        }
-                        let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
-                        mul_doc.insert(&operation.field, bson_value);
+                        ) {
+                            Ok(bson_value) => {
+                                if !set_doc.contains_key("$mul") {
+                                    set_doc.insert("$mul", Document::new());
+                                }
+                                let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
+                                mul_doc.insert(&operation.field, bson_value);
+                            }
+                            Err(e) => {
+                                return Err(QuickDbError::QueryError {
+                                    message: format!("转换百分比增加值为BSON失败: {}", e),
+                                });
+                            }
+                        };
                     }
                     crate::types::UpdateOperator::PercentDecrease => {
                         // 百分比减少：转换为乘法 (1 - percentage/100)
@@ -409,15 +465,23 @@ impl DatabaseAdapter for MongoAdapter {
                             }
                         };
                         let multiplier = 1.0 - percentage / 100.0;
-                        let bson_value = mongodb_utils::data_value_to_bson(
+                        match mongodb_utils::data_value_to_bson(
                             self,
                             &crate::types::DataValue::Float(multiplier),
-                        );
-                        if !set_doc.contains_key("$mul") {
-                            set_doc.insert("$mul", Document::new());
-                        }
-                        let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
-                        mul_doc.insert(&operation.field, bson_value);
+                        ) {
+                            Ok(bson_value) => {
+                                if !set_doc.contains_key("$mul") {
+                                    set_doc.insert("$mul", Document::new());
+                                }
+                                let mul_doc = set_doc.get_mut("$mul").unwrap().as_document_mut().unwrap();
+                                mul_doc.insert(&operation.field, bson_value);
+                            }
+                            Err(e) => {
+                                return Err(QuickDbError::QueryError {
+                                    message: format!("转换百分比减少值为BSON失败: {}", e),
+                                });
+                            }
+                        };
                     }
                 }
             }

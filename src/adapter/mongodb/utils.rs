@@ -11,57 +11,112 @@ use rat_logger::debug;
 use std::collections::HashMap;
 
 /// 将DataValue转换为BSON值
-pub(crate) fn data_value_to_bson(adapter: &MongoAdapter, value: &DataValue) -> Bson {
+pub(crate) fn data_value_to_bson(adapter: &MongoAdapter, value: &DataValue) -> QuickDbResult<Bson> {
     match value {
-        DataValue::String(s) => Bson::String(s.clone()),
-        DataValue::Int(i) => Bson::Int64(*i),
+        DataValue::String(s) => Ok(Bson::String(s.clone())),
+        DataValue::Int(i) => Ok(Bson::Int64(*i)),
         DataValue::UInt(u) => {
             // MongoDB 原生支持 64 位无符号整数
             if *u <= i64::MAX as u64 {
-                Bson::Int64(*u as i64)
+                Ok(Bson::Int64(*u as i64))
             } else {
                 // 如果超过 i64 范围，使用字符串存储
-                Bson::String(u.to_string())
+                Ok(Bson::String(u.to_string()))
             }
         }
-        DataValue::Float(f) => Bson::Double(*f),
-        DataValue::Bool(b) => Bson::Boolean(*b),
+        DataValue::Float(f) => Ok(Bson::Double(*f)),
+        DataValue::Bool(b) => Ok(Bson::Boolean(*b)),
         DataValue::DateTime(dt) => {
             // 将DateTime<FixedOffset>转换为DateTime<Utc>，然后转换为MongoDB BSON DateTime
             let utc_dt = chrono::DateTime::<chrono::Utc>::from(*dt);
-            Bson::DateTime(mongodb::bson::DateTime::from_system_time(utc_dt.into()))
+            Ok(Bson::DateTime(mongodb::bson::DateTime::from_system_time(utc_dt.into())))
         }
         DataValue::DateTimeUTC(dt) => {
             // DateTime<Utc>直接转换为MongoDB BSON DateTime
-            Bson::DateTime(mongodb::bson::DateTime::from_system_time(dt.clone().into()))
+            Ok(Bson::DateTime(mongodb::bson::DateTime::from_system_time(dt.clone().into())))
         }
-        DataValue::Uuid(uuid) => Bson::String(uuid.to_string()),
+        DataValue::Uuid(uuid) => Ok(Bson::String(uuid.to_string())),
         DataValue::Json(json) => {
-            // 尝试将JSON转换为BSON文档
-            if let Ok(doc) = mongodb::bson::to_document(json) {
-                Bson::Document(doc)
-            } else {
-                Bson::String(json.to_string())
+            // 根据JSON类型选择合适的BSON表示
+            match json {
+                serde_json::Value::Object(_) => {
+                    // 对象类型转换为BSON文档
+                    if let Ok(doc) = mongodb::bson::to_document(json) {
+                        Ok(Bson::Document(doc))
+                    } else {
+                        Ok(Bson::String(json.to_string()))
+                    }
+                }
+                serde_json::Value::Array(arr) => {
+                    // 数组类型需要特殊处理，转换为BSON数组
+                    let bson_array: Vec<Bson> = arr
+                        .iter()
+                        .map(|item| {
+                            // 递归转换每个数组元素
+                            match item {
+                                serde_json::Value::Object(_) => {
+                                    if let Ok(doc) = mongodb::bson::to_document(item) {
+                                        Ok::<Bson, QuickDbError>(Bson::Document(doc))
+                                    } else {
+                                        Ok::<Bson, QuickDbError>(Bson::String(item.to_string()))
+                                    }
+                                }
+                                serde_json::Value::Array(nested_arr) => {
+                                    // 递归处理嵌套数组
+                                    let nested_bson_array: Vec<Bson> = nested_arr
+                                        .iter()
+                                        .map(|nested_item| {
+                                            if let Ok(doc) = mongodb::bson::to_document(nested_item) {
+                                                Ok::<Bson, QuickDbError>(Bson::Document(doc))
+                                            } else {
+                                                Ok::<Bson, QuickDbError>(Bson::String(nested_item.to_string()))
+                                            }
+                                        })
+                                        .collect::<Result<Vec<_>, _>>()?;
+                                    Ok::<Bson, QuickDbError>(Bson::Array(nested_bson_array))
+                                }
+                                _ => {
+                                    // 基础类型直接转换
+                                    if let Ok(doc) = mongodb::bson::to_document(item) {
+                                        Ok::<Bson, QuickDbError>(Bson::Document(doc))
+                                    } else {
+                                        Ok::<Bson, QuickDbError>(Bson::String(item.to_string()))
+                                    }
+                                }
+                            }
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok::<Bson, QuickDbError>(Bson::Array(bson_array))
+                }
+                _ => {
+                    // Json字段不应该存储对象和数组之外的其他类型
+                    // 这应该是验证阶段就拒绝的，如果到这里说明有内部错误
+                    // 返回错误而不是panic，让用户知道数据有问题
+                    return Err(QuickDbError::ValidationError {
+                        field: "json_field".to_string(),
+                        message: format!("Json字段类型接收到非对象/数组数据: {:?}，这是内部错误，应该在验证阶段被拒绝", json),
+                    });
+                }
             }
         }
         DataValue::Array(arr) => {
             let bson_array: Vec<Bson> =
-                arr.iter().map(|v| data_value_to_bson(adapter, v)).collect();
-            Bson::Array(bson_array)
+                arr.iter().map(|v| data_value_to_bson(adapter, v)).collect::<Result<Vec<_>, _>>()?;
+            Ok(Bson::Array(bson_array))
         }
         DataValue::Object(obj) => {
             let mut bson_doc = Document::new();
             for (key, value) in obj {
-                let bson_value = data_value_to_bson(adapter, value);
+                let bson_value = data_value_to_bson(adapter, value)?;
                 bson_doc.insert(key, bson_value);
             }
-            Bson::Document(bson_doc)
+            Ok(Bson::Document(bson_doc))
         }
-        DataValue::Null => Bson::Null,
-        DataValue::Bytes(bytes) => Bson::Binary(mongodb::bson::Binary {
+        DataValue::Null => Ok(Bson::Null),
+        DataValue::Bytes(bytes) => Ok(Bson::Binary(mongodb::bson::Binary {
             bytes: bytes.clone(),
             subtype: mongodb::bson::spec::BinarySubtype::Generic,
-        }),
+        })),
     }
 }
 
@@ -201,7 +256,7 @@ pub(crate) fn bson_to_data_value(adapter: &MongoAdapter, bson: &Bson) -> QuickDb
 pub(crate) fn build_update_document(
     adapter: &MongoAdapter,
     data: &HashMap<String, DataValue>,
-) -> Document {
+) -> QuickDbResult<Document> {
     let mut update_doc = Document::new();
     let mut set_doc = Document::new();
 
@@ -210,12 +265,19 @@ pub(crate) fn build_update_document(
     for (key, value) in &mapped_data {
         if key != "_id" {
             // MongoDB的_id字段不能更新
-            set_doc.insert(key, data_value_to_bson(adapter, value));
+            match data_value_to_bson(adapter, value) {
+                Ok(bson_value) => set_doc.insert(key, bson_value),
+                Err(e) => {
+                    return Err(QuickDbError::QueryError {
+                        message: format!("转换更新数据为BSON失败: {}", e),
+                    });
+                }
+            };
         }
     }
 
     update_doc.insert("$set", set_doc);
-    update_doc
+    Ok(update_doc)
 }
 
 /// 获取MongoDB集合

@@ -38,7 +38,16 @@ pub(crate) async fn find_by_id(
                     doc! { "_id": actual_id }
                 }
             }
-            _ => doc! { "_id": crate::adapter::mongodb::utils::data_value_to_bson(adapter, id) },
+            _ => {
+                match crate::adapter::mongodb::utils::data_value_to_bson(adapter, id) {
+                    Ok(bson_id) => doc! { "_id": bson_id },
+                    Err(e) => {
+                        return Err(QuickDbError::QueryError {
+                            message: format!("转换ID为BSON失败: {}", e),
+                        });
+                    }
+                }
+            }
         };
 
         debug!("执行MongoDB根据ID查询: {:?}", query);
