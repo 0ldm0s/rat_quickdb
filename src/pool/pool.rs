@@ -80,6 +80,7 @@ impl ConnectionPool {
                 pool.start_multi_connection_manager(operation_receiver, db_config, config)
                     .await?;
             }
+            #[allow(unreachable_patterns)]
             _ => Err(QuickDbError::ConfigError {
                 message: "不支持的数据库类型（可能需要启用相应的feature）".to_string(),
             })?,

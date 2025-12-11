@@ -2,11 +2,11 @@
 
 use crate::adapter::DatabaseAdapter;
 use crate::adapter::MongoAdapter;
-use crate::adapter::mongodb::query_builder::{MongoQueryBuilder, build_query_document};
+use crate::adapter::mongodb::query_builder::build_query_document;
 use crate::adapter::mongodb::utils::build_update_document;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::manager;
-use crate::model::{FieldDefinition, FieldType};
+use crate::model::FieldDefinition;
 use crate::pool::DatabaseConnection;
 use crate::types::*;
 use async_trait::async_trait;

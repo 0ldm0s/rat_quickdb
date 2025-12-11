@@ -4,14 +4,12 @@
 
 use super::DatabaseAdapter;
 use crate::cache::CacheManager;
-use crate::error::{QuickDbError, QuickDbResult};
-use crate::model::{FieldDefinition, FieldType};
+use crate::error::QuickDbResult;
+use crate::model::FieldDefinition;
 use crate::pool::DatabaseConnection;
 use crate::types::*;
 use async_trait::async_trait;
 use rat_logger::{debug, warn};
-use serde_json::Value;
-use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::sync::Arc;
 

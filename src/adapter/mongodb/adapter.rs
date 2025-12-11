@@ -2,7 +2,7 @@
 //!
 //! 提供MongoDB适配器的核心结构定义和基础功能
 
-use rat_logger::{debug, info};
+use rat_logger::debug;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -53,8 +53,6 @@ impl MongoAdapter {
         &self,
         config: &crate::stored_procedure::StoredProcedureConfig,
     ) -> crate::error::QuickDbResult<String> {
-        use serde_json::json;
-
         // 优先使用新的聚合管道API
         if let Some(pipeline) = &config.mongo_pipeline {
             return self.convert_pipeline_to_json(pipeline, config).await;
@@ -518,7 +516,6 @@ impl MongoAdapter {
     ) -> crate::error::QuickDbResult<Vec<std::collections::HashMap<String, crate::types::DataValue>>>
     {
         use mongodb::bson::Document;
-        use std::collections::HashMap;
 
         if let crate::pool::DatabaseConnection::MongoDB(db) = connection {
             let collection =

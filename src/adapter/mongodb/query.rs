@@ -6,10 +6,7 @@ use crate::adapter::mongodb::MongoAdapter;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::types::*;
 use mongodb::bson::{Document, doc};
-use mongodb::{Collection, Database};
 use rat_logger::debug;
-use regex;
-use std::collections::HashMap;
 
 pub(crate) async fn find_by_id(
     adapter: &MongoAdapter,

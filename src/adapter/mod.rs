@@ -3,7 +3,7 @@
 //! 提供统一的数据库操作接口，屏蔽不同数据库的实现差异
 
 use crate::error::{QuickDbError, QuickDbResult};
-use crate::model::{FieldDefinition, FieldType};
+use crate::model::FieldDefinition;
 use crate::pool::DatabaseConnection;
 use crate::types::*;
 use async_trait::async_trait;
