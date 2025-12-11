@@ -13,6 +13,14 @@ use super::adapter::SqliteAdapter;
 use super::query as sqlite_query;
 use super::schema as sqlite_schema;
 
+/// 检查SQLite错误是否为表不存在错误
+fn check_table_not_exist_error(error: &sqlx::Error, table: &str) -> bool {
+    let error_string = error.to_string().to_lowercase();
+    error_string.contains("no such table") ||
+    error_string.contains(&format!("no such table: {}", table.to_lowercase())) ||
+    error_string.contains("table") && error_string.contains("not found")
+}
+
 #[async_trait]
 impl DatabaseAdapter for SqliteAdapter {
     async fn create(
@@ -201,8 +209,17 @@ impl DatabaseAdapter for SqliteAdapter {
             let row = query
                 .fetch_optional(pool)
                 .await
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("执行SQLite根据ID查询失败: {}", e),
+                .map_err(|e| {
+                    if check_table_not_exist_error(&e, table) {
+                        QuickDbError::TableNotExistError {
+                            table: table.to_string(),
+                            message: format!("SQLite表 '{}' 不存在", table),
+                        }
+                    } else {
+                        QuickDbError::QueryError {
+                            message: format!("执行SQLite根据ID查询失败: {}", e),
+                        }
+                    }
                 })?;
 
             match row {
@@ -314,8 +331,17 @@ impl DatabaseAdapter for SqliteAdapter {
             let rows = query
                 .fetch_all(pool)
                 .await
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("执行SQLite条件组合查询失败: {}", e),
+                .map_err(|e| {
+                    if check_table_not_exist_error(&e, table) {
+                        QuickDbError::TableNotExistError {
+                            table: table.to_string(),
+                            message: format!("SQLite表 '{}' 不存在", table),
+                        }
+                    } else {
+                        QuickDbError::QueryError {
+                            message: format!("执行SQLite条件组合查询失败: {}", e),
+                        }
+                    }
                 })?;
 
             // 获取字段元数据
@@ -458,8 +484,17 @@ impl DatabaseAdapter for SqliteAdapter {
             let result = query
                 .execute(pool)
                 .await
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("执行SQLite更新失败: {}", e),
+                .map_err(|e| {
+                    if check_table_not_exist_error(&e, table) {
+                        QuickDbError::TableNotExistError {
+                            table: table.to_string(),
+                            message: format!("SQLite表 '{}' 不存在", table),
+                        }
+                    } else {
+                        QuickDbError::QueryError {
+                            message: format!("执行SQLite更新失败: {}", e),
+                        }
+                    }
                 })?;
 
             Ok(result.rows_affected())
