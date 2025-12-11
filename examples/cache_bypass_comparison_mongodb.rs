@@ -7,7 +7,7 @@ use rat_logger::{LoggerBuilder, debug, handler::term::TermConfig};
 use rat_quickdb::manager::shutdown;
 use rat_quickdb::types::*;
 use rat_quickdb::*;
-use rat_quickdb::{ModelOperations, datetime_field, float_field, integer_field, string_field};
+use rat_quickdb::{ModelOperations, datetime_field, float_field, integer_field, string_field, uuid_field};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -26,7 +26,7 @@ define_model! {
     collection = "users",
     database = "cached_mongodb",
     fields = {
-        id: string_field(None, None, None).required().unique(),
+        id: uuid_field().required().unique(),
         name: string_field(Some(100), Some(1), None).required(),
         email: string_field(Some(255), Some(1), None).required(),
         age: integer_field(Some(0), Some(150)).required(),
@@ -199,7 +199,7 @@ impl MongoCacheBypassTest {
             },
             alias: "cached_mongodb".to_string(),
             cache: Some(cache_config),
-            id_strategy: IdStrategy::ObjectId,
+            id_strategy: IdStrategy::Uuid,
         }
     }
 
@@ -266,9 +266,9 @@ impl MongoCacheBypassTest {
     }
 
     /// 创建缓存用户数据
-    fn create_cached_user(&self, id: &str, name: &str, email: &str, age: i32) -> CachedUser {
+    fn create_cached_user(&self, _id: &str, name: &str, email: &str, age: i32) -> CachedUser {
         CachedUser {
-            id: id.to_string(),
+            id: String::new(), // 使用空字符串让系统自动生成UUID
             name: name.to_string(),
             email: email.to_string(),
             age,

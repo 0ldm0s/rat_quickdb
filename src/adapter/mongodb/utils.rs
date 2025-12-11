@@ -76,11 +76,21 @@ pub(crate) fn data_value_to_bson(adapter: &MongoAdapter, value: &DataValue) -> Q
                                     Ok::<Bson, QuickDbError>(Bson::Array(nested_bson_array))
                                 }
                                 _ => {
-                                    // 基础类型直接转换
-                                    if let Ok(doc) = mongodb::bson::to_document(item) {
-                                        Ok::<Bson, QuickDbError>(Bson::Document(doc))
-                                    } else {
-                                        Ok::<Bson, QuickDbError>(Bson::String(item.to_string()))
+                                    // 基础类型直接转换为对应的BSON类型
+                                    match item {
+                                        serde_json::Value::String(s) => Ok::<Bson, QuickDbError>(Bson::String(s.clone())),
+                                        serde_json::Value::Number(n) => {
+                                            if let Some(i) = n.as_i64() {
+                                                Ok::<Bson, QuickDbError>(Bson::Int64(i))
+                                            } else if let Some(f) = n.as_f64() {
+                                                Ok::<Bson, QuickDbError>(Bson::Double(f))
+                                            } else {
+                                                Ok::<Bson, QuickDbError>(Bson::String(item.to_string()))
+                                            }
+                                        }
+                                        serde_json::Value::Bool(b) => Ok::<Bson, QuickDbError>(Bson::Boolean(*b)),
+                                        serde_json::Value::Null => Ok::<Bson, QuickDbError>(Bson::Null),
+                                        _ => Ok::<Bson, QuickDbError>(Bson::String(item.to_string())),
                                     }
                                 }
                             }
@@ -302,13 +312,35 @@ pub(crate) fn map_data_fields(
 ) -> HashMap<String, DataValue> {
     let mut mapped_data = HashMap::new();
 
+    // 优先使用_id（ODM层生成的），其次是id（需要映射为_id）
+    let id_value = if let Some(_id_val) = data.get("_id") {
+        // 检查_id是否有效（非空字符串、非null）
+        match _id_val {
+            crate::types::DataValue::String(s) if !s.is_empty() => Some(_id_val),
+            crate::types::DataValue::Null => None,
+            _ => Some(_id_val), // 其他非null类型
+        }
+    } else if let Some(id_val) = data.get("id") {
+        // 检查id是否有效
+        match id_val {
+            crate::types::DataValue::String(s) if !s.is_empty() => Some(id_val),
+            crate::types::DataValue::Null => None,
+            _ => Some(id_val), // 其他非null类型
+        }
+    } else {
+        None
+    };
+
+    // 如果有有效的ID值，添加到_id字段
+    if let Some(val) = id_value {
+        mapped_data.insert("_id".to_string(), val.clone());
+    }
+
+    // 处理其他字段，跳过id和_id
     for (key, value) in data {
-        let mapped_key = if key == "id" {
-            "_id" // 将id映射为_id
-        } else {
-            key.as_str()
-        };
-        mapped_data.insert(mapped_key.to_string(), value.clone());
+        if key != "id" && key != "_id" {
+            mapped_data.insert(key.clone(), value.clone());
+        }
     }
 
     mapped_data
