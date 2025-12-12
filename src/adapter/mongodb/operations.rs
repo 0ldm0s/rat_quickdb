@@ -19,6 +19,16 @@ use super::query as mongodb_query;
 use super::schema as mongodb_schema;
 use super::utils as mongodb_utils;
 
+/// 检查MongoDB错误是否为集合不存在错误
+fn check_collection_not_exist_error(error: &mongodb::error::Error, collection: &str) -> bool {
+    let error_string = error.to_string().to_lowercase();
+    error_string.contains("namespace not found") ||
+    error_string.contains(&format!("ns not found: {}", collection.to_lowercase())) ||
+    error_string.contains("collection") && error_string.contains("does not exist") ||
+    error_string.contains("invalid namespace") ||
+    error_string.contains("command failed") && error_string.contains("find")
+}
+
 #[async_trait]
 impl DatabaseAdapter for MongoAdapter {
     async fn create(
@@ -539,8 +549,15 @@ impl DatabaseAdapter for MongoAdapter {
             debug!("执行MongoDB删除: {:?}", query);
 
             let result = collection.delete_many(query, None).await.map_err(|e| {
-                QuickDbError::QueryError {
-                    message: format!("MongoDB删除失败: {}", e),
+                if check_collection_not_exist_error(&e, table) {
+                    QuickDbError::TableNotExistError {
+                        table: table.to_string(),
+                        message: format!("MongoDB集合 '{}' 不存在", table),
+                    }
+                } else {
+                    QuickDbError::QueryError {
+                        message: format!("MongoDB删除失败: {}", e),
+                    }
                 }
             })?;
 

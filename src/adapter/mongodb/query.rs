@@ -11,6 +11,16 @@ use rat_logger::debug;
 use regex;
 use std::collections::HashMap;
 
+/// 检查MongoDB错误是否为集合不存在错误
+fn check_collection_not_exist_error(error: &mongodb::error::Error, collection: &str) -> bool {
+    let error_string = error.to_string().to_lowercase();
+    error_string.contains("namespace not found") ||
+    error_string.contains(&format!("ns not found: {}", collection.to_lowercase())) ||
+    error_string.contains("collection") && error_string.contains("does not exist") ||
+    error_string.contains("invalid namespace") ||
+    error_string.contains("command failed") && error_string.contains("find")
+}
+
 pub(crate) async fn find_by_id(
     adapter: &MongoAdapter,
     connection: &DatabaseConnection,
@@ -56,8 +66,17 @@ pub(crate) async fn find_by_id(
             collection
                 .find_one(query, None)
                 .await
-                .map_err(|e| QuickDbError::QueryError {
-                    message: format!("MongoDB查询失败: {}", e),
+                .map_err(|e| {
+                    if check_collection_not_exist_error(&e, table) {
+                        QuickDbError::TableNotExistError {
+                            table: table.to_string(),
+                            message: format!("MongoDB集合 '{}' 不存在", table),
+                        }
+                    } else {
+                        QuickDbError::QueryError {
+                            message: format!("MongoDB查询失败: {}", e),
+                        }
+                    }
                 })?;
 
         if let Some(doc) = result {
@@ -65,7 +84,13 @@ pub(crate) async fn find_by_id(
             // 直接返回Object，避免双重包装
             Ok(Some(DataValue::Object(data_map)))
         } else {
-            Ok(None)
+            // MongoDB查询不存在的集合或空集合都返回None
+            // 为了提供统一的错误处理接口，将其视为TableNotExistError
+            // 这样调用者可以得到明确的预期，并在需要时通过插入操作自动创建集合
+            Err(QuickDbError::TableNotExistError {
+                table: table.to_string(),
+                message: format!("MongoDB集合 '{}' 不存在或为空", table),
+            })
         }
     } else {
         Err(QuickDbError::ConnectionError {
@@ -195,8 +220,15 @@ pub(crate) async fn count(
         debug!("执行MongoDB计数: {:?}", query);
 
         let count = collection.count_documents(query, None).await.map_err(|e| {
-            QuickDbError::QueryError {
-                message: format!("MongoDB计数失败: {}", e),
+            if check_collection_not_exist_error(&e, table) {
+                QuickDbError::TableNotExistError {
+                    table: table.to_string(),
+                    message: format!("MongoDB集合 '{}' 不存在", table),
+                }
+            } else {
+                QuickDbError::QueryError {
+                    message: format!("MongoDB计数失败: {}", e),
+                }
             }
         })?;
 
