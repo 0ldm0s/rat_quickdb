@@ -222,6 +222,7 @@ pub fn create_adapter(db_type: &DatabaseType) -> QuickDbResult<Box<dyn DatabaseA
         DatabaseType::PostgreSQL => Ok(Box::new(PostgresAdapter::new())),
         #[cfg(feature = "mongodb-support")]
         DatabaseType::MongoDB => Ok(Box::new(MongoAdapter::new())),
+        #[allow(unreachable_patterns)]
         _ => Err(QuickDbError::UnsupportedDatabase {
             db_type: format!("{:?} (可能需要启用相应的feature)", db_type),
         }),

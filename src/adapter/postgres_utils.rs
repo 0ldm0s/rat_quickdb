@@ -238,6 +238,7 @@ pub fn convert_to_jsonb_value(value: &DataValue) -> QuickDbResult<DataValue> {
 
         // 数字类型：直接转换为JSON数字格式
         DataValue::Int(i) => Ok(DataValue::String(i.to_string())),
+        DataValue::UInt(u) => Ok(DataValue::String(u.to_string())),
         DataValue::Float(f) => Ok(DataValue::String(f.to_string())),
 
         // 布尔值：转换为JSON布尔格式
@@ -315,24 +316,6 @@ pub fn convert_to_jsonb_value(value: &DataValue) -> QuickDbResult<DataValue> {
                 message: format!("JSON值序列化失败: {}", e),
             }),
         },
-
-        // 数值类型：转换为JSON数字
-        DataValue::Int(i) => {
-            let json_val = serde_json::Value::Number(serde_json::Number::from(*i));
-            Ok(DataValue::String(json_val.to_string()))
-        }
-
-        DataValue::UInt(u) => {
-            let json_val = serde_json::Value::Number(serde_json::Number::from(*u));
-            Ok(DataValue::String(json_val.to_string()))
-        }
-
-        DataValue::Float(f) => {
-            let json_val = serde_json::Number::from_f64(*f)
-                .map(serde_json::Value::Number)
-                .unwrap_or(serde_json::Value::Null);
-            Ok(DataValue::String(json_val.to_string()))
-        }
 
         // 日期时间：转换为ISO8601字符串
         DataValue::DateTime(dt) => Ok(DataValue::String(dt.to_rfc3339())),
