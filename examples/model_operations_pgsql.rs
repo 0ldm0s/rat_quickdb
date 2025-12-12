@@ -143,6 +143,22 @@ async fn demonstrate_crud() -> Result<SimpleStats, Box<dyn std::error::Error>> {
 
     let mut stats = SimpleStats::new();
 
+    // 测试表不存在错误识别
+    println!("\n测试表不存在错误识别功能...");
+    match ModelManager::<User>::find_by_id("00000000-0000-0000-0000-000000000000").await {
+        Err(QuickDbError::TableNotExistError { table, message }) => {
+            println!("✅ 成功识别表不存在错误:");
+            println!("   表名: {}", table);
+            println!("   错误信息: {}", message);
+        }
+        Err(e) => {
+            println!("⚠️  识别到其他错误: {}", e);
+        }
+        Ok(_) => {
+            println!("ℹ️  表已存在（可能是之前创建的）");
+        }
+    }
+
     // 创建用户
     let user = User {
         id: String::new(),
