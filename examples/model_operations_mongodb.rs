@@ -14,6 +14,9 @@ use rat_quickdb::{
     ModelManager, ModelOperations, array_field, boolean_field, datetime_field, float_field,
     integer_field, json_field, string_field, uuid_field,
 };
+
+// 数据库别名常量
+const DATABASE_ALIAS: &str = "main";
 use std::collections::HashMap;
 use std::time::Instant;
 use tokio::join;
@@ -32,7 +35,7 @@ define_model! {
         tags: Option<Vec<String>>,
     }
     collection = "users",
-    database = "main",
+    database = DATABASE_ALIAS,
     fields = {
         id: uuid_field().required().unique(),
         username: string_field(None, None, None).required().unique(),
@@ -63,7 +66,7 @@ define_model! {
         created_at: chrono::DateTime<chrono::Utc>,
     }
     collection = "employees",
-    database = "main",
+    database = DATABASE_ALIAS,
     fields = {
         id: uuid_field().required().unique(),
         employee_id: string_field(None, None, None).required().unique(),
@@ -127,12 +130,14 @@ async fn cleanup_test_data() {
     println!("清理测试数据...");
 
     // 清理用户表
-    if let Err(e) = rat_quickdb::drop_table("main", "users").await {
-        println!("清理用户表失败: {}", e);
+    println!("正在清理用户表...");
+    match rat_quickdb::drop_table(DATABASE_ALIAS, "users").await {
+        Ok(_) => println!("✅ 用户表清理成功"),
+        Err(e) => println!("⚠️  清理用户表失败: {}", e),
     }
 
     // 清理员工表
-    if let Err(e) = rat_quickdb::drop_table("main", "employees").await {
+    if let Err(e) = rat_quickdb::drop_table(DATABASE_ALIAS, "employees").await {
         println!("清理员工表失败: {}", e);
     }
 }
@@ -142,6 +147,22 @@ async fn demonstrate_crud() -> Result<SimpleStats, Box<dyn std::error::Error>> {
     println!("\n=== CRUD操作演示 ===");
 
     let mut stats = SimpleStats::new();
+
+    // 测试表不存在错误识别
+    println!("\n测试表不存在错误识别功能...");
+    match ModelManager::<User>::find_by_id("00000000-0000-0000-0000-000000000000").await {
+        Err(QuickDbError::TableNotExistError { table, message }) => {
+            println!("✅ 成功识别表不存在错误:");
+            println!("   表名: {}", table);
+            println!("   错误信息: {}", message);
+        }
+        Err(e) => {
+            println!("⚠️  识别到其他错误: {}", e);
+        }
+        Ok(_) => {
+            println!("ℹ️  表已存在（可能是之前创建的）");
+        }
+    }
 
     // 创建用户
     let user = User {
@@ -483,8 +504,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .health_check_timeout_sec(3)
                 .build()?,
         )
-        .alias("main")
-        .id_strategy(IdStrategy::ObjectId)
+        .alias(DATABASE_ALIAS)
+        .id_strategy(IdStrategy::Uuid)
         .build()?;
 
     add_database(db_config).await?;

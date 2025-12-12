@@ -112,7 +112,7 @@ pub(crate) async fn create_table(
         debug!("🔍 执行PostgreSQL建表SQL: {}", sql);
         debug!("🔍 字段定义详情: {:?}", field_definitions);
 
-        super::utils::execute_update(adapter, pool, &sql, &[]).await?;
+        super::utils::execute_update(adapter, pool, &sql, &[], table).await?;
 
         Ok(())
     } else {
@@ -143,7 +143,7 @@ pub(crate) async fn create_index(
 
         debug!("执行PostgreSQL索引创建: {}", sql);
 
-        super::utils::execute_update(adapter, pool, &sql, &[]).await?;
+        super::utils::execute_update(adapter, pool, &sql, &[], table).await?;
 
         Ok(())
     } else {

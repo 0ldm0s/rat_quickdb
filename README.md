@@ -28,7 +28,32 @@
 
 ## 🔄 版本变更说明
 
-### v0.4.2 (当前版本) - 缓存绕过功能
+### v0.4.5 (当前版本) - 统一表不存在错误处理
+
+**新功能：**
+- 🎯 **统一TableNotExistError**：所有数据库适配器现在提供一致的表不存在错误识别
+- 🔄 **MongoDB特殊处理**：针对MongoDB的集合自动创建特性，采用实用主义策略
+- 📊 **统一接口**：调用者无需区分数据库类型，获得一致的错误处理体验
+- 🎛️ **业务友好**：明确的错误预期，便于业务逻辑处理
+
+**核心改进：**
+```rust
+// 统一的表不存在错误处理
+match ModelManager::<User>::find_by_id("non-existent-id").await {
+    Err(QuickDbError::TableNotExistError { table, message }) => {
+        println!("表不存在: {}", table);
+        // 调用者可以明确知道需要初始化数据
+    }
+    // ... 其他错误处理
+}
+```
+
+**MongoDB特殊策略：**
+- 查询不存在的集合或空集合都返回 `TableNotExistError`
+- 调用者收到错误后插入数据会自动创建集合
+- 提供统一的错误接口，隐藏MongoDB的语义差异
+
+### v0.4.2 - 缓存绕过功能
 
 **新功能：**
 - 🎯 **缓存绕过支持**：新增 `find_with_cache_control` 方法，支持强制跳过缓存查询
@@ -89,7 +114,7 @@ let pool_config = PoolConfig::builder()
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.6"
+rat_quickdb = "0.4.5"
 ```
 
 ### 🔧 特性控制
@@ -98,7 +123,7 @@ rat_quickdb 使用 Cargo 特性来控制不同数据库的支持和功能。默�
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = [
+rat_quickdb = { version = "0.4.5", features = [
     "sqlite-support",    # 支持SQLite数据库
     "postgres-support",  # 支持PostgreSQL数据库
     "mysql-support",     # 支持MySQL数据库
@@ -139,19 +164,19 @@ rat_quickdb = { version = "0.3.6", features = [
 **仅使用SQLite**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.4.5", features = ["sqlite-support"] }
 ```
 
 **使用PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["postgres-support"] }
+rat_quickdb = { version = "0.4.5", features = ["postgres-support"] }
 ```
 
 **使用所有数据库**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["full"] }
+rat_quickdb = { version = "0.4.5", features = ["full"] }
 ```
 
 **L2缓存配置注意事项**:
@@ -1518,7 +1543,7 @@ let offset_seconds = parse_timezone_offset_to_seconds("+09:30")?;  // 34200
 
 ## 🌟 版本信息
 
-**当前版本**: 0.4.2
+**当前版本**: 0.4.5
 
 **支持Rust版本**: 1.70+
 

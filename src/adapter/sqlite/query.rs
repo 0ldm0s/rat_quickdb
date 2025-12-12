@@ -6,6 +6,14 @@ use crate::types::*;
 use rat_logger::debug;
 use sqlx::{Column, Row, sqlite::SqliteRow};
 
+/// 检查SQLite错误是否为表不存在错误
+fn check_table_not_exist_error(error: &sqlx::Error, table: &str) -> bool {
+    let error_string = error.to_string().to_lowercase();
+    error_string.contains("no such table") ||
+    error_string.contains(&format!("no such table: {}", table.to_lowercase())) ||
+    error_string.contains("table") && error_string.contains("not found")
+}
+
 /// SQLite删除操作
 pub(crate) async fn delete(
     adapter: &SqliteAdapter,
@@ -52,8 +60,17 @@ pub(crate) async fn delete(
         let result = query
             .execute(pool)
             .await
-            .map_err(|e| QuickDbError::QueryError {
-                message: format!("执行SQLite删除失败: {}", e),
+            .map_err(|e| {
+                if check_table_not_exist_error(&e, table) {
+                    QuickDbError::TableNotExistError {
+                        table: table.to_string(),
+                        message: format!("SQLite表 '{}' 不存在", table),
+                    }
+                } else {
+                    QuickDbError::QueryError {
+                        message: format!("执行SQLite删除失败: {}", e),
+                    }
+                }
             })?;
 
         Ok(result.rows_affected())
@@ -124,8 +141,17 @@ pub(crate) async fn count(
         let row = query
             .fetch_one(pool)
             .await
-            .map_err(|e| QuickDbError::QueryError {
-                message: format!("执行SQLite统计失败: {}", e),
+            .map_err(|e| {
+                if check_table_not_exist_error(&e, table) {
+                    QuickDbError::TableNotExistError {
+                        table: table.to_string(),
+                        message: format!("SQLite表 '{}' 不存在", table),
+                    }
+                } else {
+                    QuickDbError::QueryError {
+                        message: format!("执行SQLite统计失败: {}", e),
+                    }
+                }
             })?;
 
         let count: i64 = row.try_get("count").map_err(|e| QuickDbError::QueryError {

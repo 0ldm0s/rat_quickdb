@@ -8,6 +8,7 @@ use crate::pool::DatabaseConnection;
 use crate::types::*;
 use rat_logger::debug;
 
+
 /// PostgreSQL删除操作
 pub(crate) async fn delete(
     adapter: &PostgresAdapter,
@@ -24,7 +25,7 @@ pub(crate) async fn delete(
 
         debug!("执行PostgreSQL删除: {}", sql);
 
-        super::utils::execute_update(adapter, pool, &sql, &params).await
+        super::utils::execute_update(adapter, pool, &sql, &params, table).await
     } else {
         Err(QuickDbError::ConnectionError {
             message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
@@ -66,7 +67,7 @@ pub(crate) async fn count(
 
         debug!("执行PostgreSQL计数: {}", sql);
 
-        let results = super::utils::execute_query(adapter, pool, &sql, &params).await?;
+        let results = super::utils::execute_query(adapter, pool, &sql, &params, table).await?;
         if let Some(result) = results.first() {
             if let DataValue::Object(obj) = result {
                 if let Some(DataValue::Int(count)) = obj.get("count") {

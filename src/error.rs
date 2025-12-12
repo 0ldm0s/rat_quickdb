@@ -62,6 +62,10 @@ pub enum QuickDbError {
     /// 通用错误
     #[error("操作失败: {0}")]
     Other(#[from] anyhow::Error),
+
+    /// 表或集合不存在错误
+    #[error("表或集合 '{table}' 不存在: {message}")]
+    TableNotExistError { table: String, message: String },
 }
 
 /// QuickDB 结果类型别名
@@ -134,6 +138,14 @@ impl ErrorBuilder {
             message: message.into(),
         }
     }
+
+    /// 创建表不存在错误
+    pub fn table_not_exist_error(table: impl Into<String>, message: impl Into<String>) -> QuickDbError {
+        QuickDbError::TableNotExistError {
+            table: table.into(),
+            message: message.into(),
+        }
+    }
 }
 
 /// 便捷宏 - 快速创建错误
@@ -166,6 +178,9 @@ macro_rules! quick_error {
     (cache, $msg:expr) => {
         $crate::error::ErrorBuilder::cache_error($msg)
     };
+    (table_not_exist, $table:expr, $msg:expr) => {
+        $crate::error::ErrorBuilder::table_not_exist_error($table, $msg)
+    };
 }
 
 #[cfg(test)]
@@ -184,5 +199,19 @@ mod tests {
         let err = quick_error!(validation, "用户名", "不能为空");
         assert!(matches!(err, QuickDbError::ValidationError { .. }));
         assert_eq!(err.to_string(), "模型验证失败: 用户名 - 不能为空");
+    }
+
+    #[test]
+    fn test_table_not_exist_error() {
+        let err = ErrorBuilder::table_not_exist_error("users", "表不存在");
+        assert!(matches!(err, QuickDbError::TableNotExistError { .. }));
+        assert_eq!(err.to_string(), "表或集合 'users' 不存在: 表不存在");
+    }
+
+    #[test]
+    fn test_table_not_exist_macro() {
+        let err = quick_error!(table_not_exist, "products", "产品表不存在");
+        assert!(matches!(err, QuickDbError::TableNotExistError { .. }));
+        assert_eq!(err.to_string(), "表或集合 'products' 不存在: 产品表不存在");
     }
 }

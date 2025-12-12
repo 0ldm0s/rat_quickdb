@@ -212,6 +212,7 @@ pub(crate) async fn execute_query(
     pool: &sqlx::Pool<sqlx::Postgres>,
     sql: &str,
     params: &[DataValue],
+    table: &str,
 ) -> QuickDbResult<Vec<DataValue>> {
     let mut query = sqlx::query(sql);
 
@@ -262,8 +263,22 @@ pub(crate) async fn execute_query(
     let rows = query
         .fetch_all(pool)
         .await
-        .map_err(|e| QuickDbError::QueryError {
-            message: format!("执行PostgreSQL查询失败: {}", e),
+        .map_err(|e| {
+            let error_string = e.to_string().to_lowercase();
+            if error_string.contains("relation") && error_string.contains("does not exist") ||
+               error_string.contains(&format!("relation \"{}\" does not exist", table.to_lowercase())) ||
+               error_string.contains("table") && error_string.contains("doesn't exist") ||
+               error_string.contains(&format!("table \"{}\" doesn't exist", table.to_lowercase())) ||
+               error_string.contains("relation") && error_string.contains("unknown") {
+                QuickDbError::TableNotExistError {
+                    table: table.to_string(),
+                    message: format!("PostgreSQL表 '{}' 不存在", table),
+                }
+            } else {
+                QuickDbError::QueryError {
+                    message: format!("执行PostgreSQL查询失败: {}", e),
+                }
+            }
         })?;
 
     let mut results = Vec::new();
@@ -281,6 +296,7 @@ pub(crate) async fn execute_update(
     pool: &sqlx::Pool<sqlx::Postgres>,
     sql: &str,
     params: &[DataValue],
+    table: &str,
 ) -> QuickDbResult<u64> {
     rat_logger::debug!("🔍 PostgreSQL execute_update: SQL={}", sql);
     let mut query = sqlx::query(sql);
@@ -334,8 +350,22 @@ pub(crate) async fn execute_update(
     let result = query
         .execute(pool)
         .await
-        .map_err(|e| QuickDbError::QueryError {
-            message: format!("执行PostgreSQL更新失败: {}", e),
+        .map_err(|e| {
+            let error_string = e.to_string().to_lowercase();
+            if error_string.contains("relation") && error_string.contains("does not exist") ||
+               error_string.contains(&format!("relation \"{}\" does not exist", table.to_lowercase())) ||
+               error_string.contains("table") && error_string.contains("doesn't exist") ||
+               error_string.contains(&format!("table \"{}\" doesn't exist", table.to_lowercase())) ||
+               error_string.contains("relation") && error_string.contains("unknown") {
+                QuickDbError::TableNotExistError {
+                    table: table.to_string(),
+                    message: format!("PostgreSQL表 '{}' 不存在", table),
+                }
+            } else {
+                QuickDbError::QueryError {
+                    message: format!("执行PostgreSQL更新失败: {}", e),
+                }
+            }
         })?;
 
     Ok(result.rows_affected())

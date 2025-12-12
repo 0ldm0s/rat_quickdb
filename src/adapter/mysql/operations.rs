@@ -219,7 +219,7 @@ impl DatabaseAdapter for MysqlAdapter {
                 .limit(1)
                 .build(table, alias)?;
 
-            let results = self.execute_query(pool, &sql, &params).await?;
+            let results = self.execute_query(pool, &sql, &params, table).await?;
             Ok(results.into_iter().next())
         } else {
             Err(QuickDbError::ConnectionError {
@@ -285,7 +285,7 @@ impl DatabaseAdapter for MysqlAdapter {
 
             debug!("执行MySQL条件组合查询: {}", sql);
 
-            self.execute_query(pool, &sql, &params).await
+            self.execute_query(pool, &sql, &params, table).await
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望MySQL连接".to_string(),
@@ -380,7 +380,7 @@ impl DatabaseAdapter for MysqlAdapter {
                 .where_conditions(conditions)
                 .build(table, alias)?;
 
-            self.execute_update(pool, &sql, &params).await
+            self.execute_update(pool, &sql, &params, table).await
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望MySQL连接".to_string(),
@@ -409,7 +409,7 @@ impl DatabaseAdapter for MysqlAdapter {
                 .where_condition(condition)
                 .build(table, alias)?;
 
-            let affected_rows = self.execute_update(pool, &sql, &params).await?;
+            let affected_rows = self.execute_update(pool, &sql, &params, table).await?;
             Ok(affected_rows > 0)
         } else {
             Err(QuickDbError::ConnectionError {
@@ -490,7 +490,7 @@ impl DatabaseAdapter for MysqlAdapter {
 
             debug!("执行MySQL操作更新: {}", sql);
 
-            self.execute_update(pool, &sql, &params).await
+            self.execute_update(pool, &sql, &params, table).await
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望MySQL连接".to_string(),

@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use super::query as postgres_query;
 use super::schema as postgres_schema;
 
+
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
     async fn create(
@@ -132,7 +133,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
             debug!("执行PostgreSQL插入: {}", sql);
 
-            let results = super::utils::execute_query(self, pool, &sql, &params).await?;
+            let results = super::utils::execute_query(self, pool, &sql, &params, table).await?;
 
             if let Some(result) = results.first() {
                 Ok(result.clone())
@@ -171,7 +172,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
             debug!("执行PostgreSQL根据ID查询: {}", sql);
 
-            let results = super::utils::execute_query(self, pool, &sql, &params).await?;
+            let results = super::utils::execute_query(self, pool, &sql, &params, table).await?;
             Ok(results.into_iter().next())
         } else {
             Err(QuickDbError::ConnectionError {
@@ -238,7 +239,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
             debug!("执行PostgreSQL条件组查询: {}", sql);
 
-            super::utils::execute_query(self, pool, &sql, &params).await
+            super::utils::execute_query(self, pool, &sql, &params, table).await
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
@@ -334,7 +335,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
             debug!("执行PostgreSQL更新: {}", sql);
 
-            super::utils::execute_update(self, pool, &sql, &params).await
+            super::utils::execute_update(self, pool, &sql, &params, table).await
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
@@ -457,7 +458,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
             debug!("执行PostgreSQL操作更新: {}", sql);
 
-            super::utils::execute_update(self, pool, &sql, &params).await
+            super::utils::execute_update(self, pool, &sql, &params, table).await
         } else {
             Err(QuickDbError::ConnectionError {
                 message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
@@ -597,7 +598,7 @@ impl DatabaseAdapter for PostgresAdapter {
             debug!("🔍 执行PostgreSQL建表SQL: {}", sql);
             debug!("🔍 字段定义详情: {:?}", field_definitions);
 
-            super::utils::execute_update(self, pool, &sql, &[]).await?;
+            super::utils::execute_update(self, pool, &sql, &[], table).await?;
 
             Ok(())
         } else {
@@ -627,7 +628,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
             debug!("执行PostgreSQL索引创建: {}", sql);
 
-            super::utils::execute_update(self, pool, &sql, &[]).await?;
+            super::utils::execute_update(self, pool, &sql, &[], table).await?;
 
             Ok(())
         } else {
