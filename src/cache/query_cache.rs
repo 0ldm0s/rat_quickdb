@@ -102,9 +102,6 @@ impl CacheManager {
                                 DataValue::DateTimeUTC(dt) => {
                                     serde_json::Value::String(dt.to_rfc3339())
                                 }
-                                DataValue::DateTimeUTC(dt) => {
-                                    serde_json::Value::String(dt.to_rfc3339())
-                                }
                                 DataValue::Null => serde_json::Value::Null,
                                 DataValue::Bytes(bytes) => {
                                     serde_json::Value::String(base64::encode(bytes))
@@ -231,9 +228,6 @@ impl CacheManager {
                                 DataValue::Float(f) => serde_json::Value::Number(serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0))),
                                 DataValue::Bool(b) => serde_json::Value::Bool(*b),
                                 DataValue::DateTime(dt) => {
-                                    serde_json::Value::String(dt.to_rfc3339())
-                                }
-                                DataValue::DateTimeUTC(dt) => {
                                     serde_json::Value::String(dt.to_rfc3339())
                                 }
                                 DataValue::DateTimeUTC(dt) => {
