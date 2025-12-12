@@ -8,6 +8,17 @@ use crate::types::*;
 use mongodb::bson::{Bson, Document, Regex, doc};
 use rat_logger::debug;
 
+/// 映射字段名（适配MongoDB命名约定）
+/// 将通用的字段名映射为MongoDB特定的字段名
+fn map_field_name(field_name: &str) -> &str {
+    // MongoDB使用_id作为主键，而不是id
+    if field_name == "id" {
+        "_id"
+    } else {
+        field_name
+    }
+}
+
 /// MongoDB查询构建器
 pub struct MongoQueryBuilder {
     conditions: Vec<QueryCondition>,
@@ -73,7 +84,6 @@ impl MongoQueryBuilder {
         let mut query_doc = Document::new();
 
         for condition in &self.conditions {
-            let field_name = &condition.field;
             let condition_doc = self.build_single_condition_document(table, alias, condition)?;
 
             if !condition_doc.is_empty() {
@@ -150,7 +160,7 @@ impl MongoQueryBuilder {
         alias: &str,
         condition: &QueryCondition,
     ) -> QuickDbResult<Document> {
-        let field_name = &condition.field;
+        let field_name = map_field_name(&condition.field);
         let bson_value = self.data_value_to_bson(&condition.value);
 
         debug!(
@@ -491,5 +501,32 @@ mod tests {
     #[test]
     fn test_mongo_query_builder_basic() {
         // 这里可以添加单元测试
+    }
+
+    #[test]
+    fn test_field_name_mapping() {
+        // 测试id字段映射到_id
+        assert_eq!(map_field_name("id"), "_id");
+        // 测试其他字段保持不变
+        assert_eq!(map_field_name("name"), "name");
+        assert_eq!(map_field_name("email"), "email");
+        assert_eq!(map_field_name("_id"), "_id");
+    }
+
+    #[test]
+    fn test_id_field_in_query_condition() {
+        let conditions = vec![QueryCondition {
+            field: "id".to_string(),
+            operator: crate::types::QueryOperator::Eq,
+            value: crate::types::DataValue::String("test_id".to_string()),
+        }];
+
+        let result = build_query_document("users", "test", &conditions);
+        assert!(result.is_ok());
+
+        let doc = result.unwrap();
+        // 验证生成的查询文档中包含_id字段而不是id字段
+        assert!(doc.contains_key("_id"));
+        assert!(!doc.contains_key("id"));
     }
 }
