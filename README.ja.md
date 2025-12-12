@@ -18,15 +18,71 @@
 - **🔒 SQLiteブール値互換性**: SQLiteのブール値保存の違いを自動処理、ゼロ設定互換
 - **🏊 コネクションプール管理**: 効率的なコネクションプールとロックフリーキューアーキテクチャ
 - **⚡ 非同期サポート**: Tokioベースの非同期ランタイム
-- **🧠 スマートキャッシュ**: 組み込みキャッシュサポート（rat_memcacheベース）、TTL期限切れとフォールバック機構対応
+- **🧠 スマートキャッシュ**: 組み込みキャッシュサポート（rat_memcacheベース）、TTL期限切れ、フォールバック機構、キャッシュバイパス対応
 - **🆔 複数のID生成戦略**: AutoIncrement、UUID、Snowflake、ObjectId、カスタム接頭辞
 - **📝 ログ制御**: 呼び出し元による完全なログ初期化制御、ライブラリの自動初期化競合を回避
 - **🐍 Pythonバインディング**: オプションのPython APIサポート
 - **📋 タスクキュー**: 組み込み非同期タスクキューシステム
 - **🔍 型安全性**: 強力な型モデル定義と検証
 - **📋 ストアドプロシージャ**: 複データベースの統一ストアドプロシージャAPI、マルチテーブルJOINと集約クエリをサポート
+- **🌍 統一エラー処理**: すべてのデータベースадаптерで一貫したエラー処理、明確なエラータイプ
 
 ## 🔄 バージョン変更
+
+### v0.4.5（現在のバージョン） - 統一テーブル不存在エラー処理
+
+**新機能：**
+- 🎯 **統一TableNotExistError**：すべてのデータベースадаптерが一貫したテーブル不存在エラー認識を提供
+- 🔄 **MongoDB特別処理**: MongoDBの自動コレクション作成機能に対する実用的アプローチ
+- 📊 **統一インターフェース**: 呼び出し元はデータベースタイプを区別する必要がない、一貫したエラー処理体験を取得
+- 🎛️ **ビジネスフレンドリー**: 明確なエラー予想、ビジネスロジック処理を facilita
+
+**核心的改善：**
+```rust
+// 統一テーブル不存在エラー処理
+match ModelManager::<User>::find_by_id("non-existent-id").await {
+    Err(QuickDbError::TableNotExistError { table, message }) => {
+        println!("テーブルが存在しません: {}", table);
+        // 呼び出し元はデータ初期化が必要であることを明確に把握できる
+    }
+    // ... 他のエラー処理
+}
+```
+
+**MongoDB特別戦略：**
+- 存在しないコレクションまたは空のコレクションへのクエリは `TableNotExistError` を返す
+- エラーを受信後、データの挿入により自動的にコレクションが作成される
+- MongoDBのセマンティックな差異を隠す、統一されたエラーインターフェースを提供
+
+### v0.4.2 - キャッシュバイパス機能
+
+**新機能：**
+- 🎯 **キャッシュバイパスサポート**: 新しい `find_with_cache_control` メソッド、強制キャッシュスキップクエリをサポート
+- 🔄 **後方互換**: 元の `find` メソッドは変更なし、新しいメソッドのラッパーとして機能
+- 📊 **性能比較**: キャッシュバイパス性能テスト例を提供、実際の性能差を表示
+- 🎛️ **柔軟な制御**: ビジネスニーズに基づいてキャッシュ使用または強制データベースクエリを選択
+
+**使用例：**
+```rust
+// 強制スキップキャッシュクエリ（金融などのリアルタイムデータシナリオに適している）
+let results = ModelManager::<User>::find_with_cache_control(
+    conditions,
+    None,
+    true  // bypass_cache = true
+).await?;
+
+// 通常のキャッシュクエリ（デフォルト動作）
+let results = ModelManager::<User>::find(conditions, None).await?;
+```
+
+**性能テスト例：**
+```bash
+# キャッシュバイパス性能テストを実行
+cargo run --example cache_bypass_comparison_mysql --features mysql-support
+cargo run --example cache_bypass_comparison_pgsql --features postgres-support
+cargo run --example cache_bypass_comparison_sqlite --features sqlite-support
+cargo run --example cache_bypass_comparison_mongodb --features mongodb-support
+```
 
 ### v0.3.6（現在のバージョン） - ストアドプロシージャ仮想テーブルシステム
 
@@ -59,7 +115,7 @@ let pool_config = PoolConfig::builder()
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.6"
+rat_quickdb = "0.4.5"
 ```
 
 ### 🔧 特性制御
@@ -68,7 +124,7 @@ rat_quickdbはCargo機能を使用して異なるデータベースサポート�
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = [
+rat_quickdb = { version = "0.4.5", features = [
     "sqlite-support",    # SQLiteデータベースサポート
     "postgres-support",  # PostgreSQLデータベースサポート
     "mysql-support",     # MySQLデータベースサポート
@@ -93,19 +149,19 @@ rat_quickdb = { version = "0.3.6", features = [
 **SQLiteのみ**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.4.5", features = ["sqlite-support"] }
 ```
 
 **PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["postgres-support"] }
+rat_quickdb = { version = "0.4.5", features = ["postgres-support"] }
 ```
 
 **すべてのデータベース**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["full"] }
+rat_quickdb = { version = "0.4.5", features = ["full"] }
 ```
 
 **L2キャッシュ設定に関する注意事項**:
@@ -721,7 +777,56 @@ rat_quickdbは異なるデータベースでのObjectIdタイプ変換を自動�
 
 この設計により、ObjectId戦略はすべてのサポート対象データベースで一貫して動作し、各データベースのネイティブ機能を最大限に活用できます。
 
-## 🧠 キャッシュ設定
+## 🧠 キャッシュ設定とキャッシュバイパス
+
+rat_quickdbは、スマートキャッシュとキャッシュバイパス機構を含む、柔軟なキャッシュ管理機能を提供します。
+
+### キャッシュバイパス機能
+
+特定のシナリオ（金融取引、リアルタイムデータクエリなど）では、キャッシュをバイパスしてデータベースから最新データを強制的に取得する必要があります。rat_quickdbは、この要件を満たすために `find_with_cache_control` メソッドを提供します：
+
+```rust
+use rat_quickdb::ModelOperations;
+
+// 通常のクエリ（キャッシュを使用）
+let cached_results = ModelManager::<User>::find(conditions, None).await?;
+
+// 強制スキップキャッシュクエリ
+let fresh_results = ModelManager::<User>::find_with_cache_control(
+    conditions,
+    None,
+    true  // bypass_cache = true
+).await?;
+```
+
+**適用シナリオ**：
+- 🏦 **金融取引**: 最新のアカウント残高と取引記録の取得を保証
+- 📊 **リアルタイムデータ**: 株価、リアルタイム監視データなど
+- 🔍 **データ一貫性**: データ更新後の即座の結果検証
+- 🧪 **テストシナリオ**: ベンチマークのためのキャッシュバイパスが必要
+
+### キャッシュバイパス性能比較例
+
+rat_quickdbは完全なキャッシュバイパス性能テスト例を提供します：
+
+```bash
+# MySQL キャッシュバイパステスト
+cargo run --example cache_bypass_comparison_mysql --features mysql-support
+
+# PostgreSQL キャッシュバイパステスト
+cargo run --example cache_bypass_comparison_pgsql --features postgres-support
+
+# SQLite キャッシュバイパステスト
+cargo run --example cache_bypass_comparison_sqlite --features sqlite-support
+
+# MongoDB キャッシュバイパステスト
+cargo run --example cache_bypass_comparison_mongodb --features mongodb-support
+```
+
+**性能向上例**（実際のテスト結果）：
+- MySQL: 16倍の性能向上
+- PostgreSQL: 2.25倍の性能向上
+- MongoDB: 1.88倍の向上（重复クエリ）、20倍の向上（バッチクエリ）
 
 ### 基本キャッシュ設定（L1メモリキャッシュのみ）
 ```rust

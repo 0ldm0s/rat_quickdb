@@ -18,17 +18,73 @@
 - **🔒 SQLite Boolean Compatibility**: Automatically handles SQLite boolean value storage differences, zero configuration compatibility
 - **🏊 Connection Pool Management**: Efficient connection pool and lock-free queue architecture
 - **⚡ Async Support**: Based on Tokio async runtime
-- **🧠 Smart Caching**: Built-in caching support (based on rat_memcache), with TTL expiration and fallback mechanism
+- **🧠 Smart Caching**: Built-in caching support (based on rat_memcache), supports TTL expiration, fallback mechanism, and cache bypass
 - **🆔 Multiple ID Generation Strategies**: AutoIncrement, UUID, Snowflake, ObjectId, Custom prefix
 - **📝 Logging Control**: Complete logging initialization control by caller, avoiding library auto-initialization conflicts
 - **🐍 Python Bindings**: Optional Python API support
 - **📋 Task Queue**: Built-in async task queue system
 - **🔍 Type Safety**: Strong type model definitions and validation
 - **📋 Stored Procedures**: Cross-database unified stored procedure API with multi-table JOIN and aggregation queries
+- **🌍 Unified Error Handling**: Consistent error handling across all database adapters with clear error types
 
 ## 🔄 Version Changes
 
-### v0.3.6 (Current Version) - Stored Procedure Virtual Table System
+### v0.4.5 (Current Version) - Unified Table Not Exist Error Handling
+
+**New Features:**
+- 🎯 **Unified TableNotExistError**: All database adapters now provide consistent table not exist error recognition
+- 🔄 **MongoDB Special Handling**: Pragmatic approach for MongoDB's automatic collection creation feature
+- 📊 **Unified Interface**: Callers don't need to distinguish database types, getting consistent error handling experience
+- 🎛️ **Business-Friendly**: Clear error expectations, facilitating business logic processing
+
+**Core Improvements:**
+```rust
+// Unified table not exist error handling
+match ModelManager::<User>::find_by_id("non-existent-id").await {
+    Err(QuickDbError::TableNotExistError { table, message }) => {
+        println!("Table does not exist: {}", table);
+        // Caller can clearly know data initialization is needed
+    }
+    // ... other error handling
+}
+```
+
+**MongoDB Special Strategy:**
+- Queries to non-existent or empty collections return `TableNotExistError`
+- After receiving the error, inserting data will automatically create the collection
+- Provides unified error interface, hiding MongoDB's semantic differences
+
+### v0.4.2 - Cache Bypass Functionality
+
+**New Features:**
+- 🎯 **Cache Bypass Support**: New `find_with_cache_control` method, supporting forced cache skip queries
+- 🔄 **Backward Compatible**: Original `find` method remains unchanged, serving as a wrapper for the new method
+- 📊 **Performance Comparison**: Provides cache bypass performance test examples, showing actual performance differences
+- 🎛️ **Flexible Control**: Choose between using cache or forcing database queries based on business needs
+
+**Usage Example:**
+```rust
+// Force skip cache query (suitable for financial and other real-time data scenarios)
+let results = ModelManager::<User>::find_with_cache_control(
+    conditions,
+    None,
+    true  // bypass_cache = true
+).await?;
+
+// Normal cache query (default behavior)
+let results = ModelManager::<User>::find(conditions, None).await?;
+```
+
+**Performance Test Examples:**
+```bash
+# Run cache bypass performance tests
+cargo run --example cache_bypass_comparison_mysql --features mysql-support
+cargo run --example cache_bypass_comparison_pgsql --features postgres-support
+cargo run --example cache_bypass_comparison_sqlite --features sqlite-support
+cargo run --example cache_bypass_comparison_mongodb --features mongodb-support
+```
+
+### v0.3.6 - Stored Procedure Virtual Table System
 
 ⚠️ **Important Change: Connection Pool Configuration Parameter Unit Changes**
 
@@ -59,7 +115,7 @@ Add dependency in `Cargo.toml`:
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.6"
+rat_quickdb = "0.4.5"
 ```
 
 ### 🔧 Feature Control
@@ -68,7 +124,7 @@ rat_quickdb uses Cargo features to control different database support and functi
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = [
+rat_quickdb = { version = "0.4.5", features = [
     "sqlite-support",    # Support SQLite database
     "postgres-support",  # Support PostgreSQL database
     "mysql-support",     # Support MySQL database
@@ -93,19 +149,19 @@ rat_quickdb = { version = "0.3.6", features = [
 **SQLite only**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.4.5", features = ["sqlite-support"] }
 ```
 
 **PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["postgres-support"] }
+rat_quickdb = { version = "0.4.5", features = ["postgres-support"] }
 ```
 
 **All databases**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["full"] }
+rat_quickdb = { version = "0.4.5", features = ["full"] }
 ```
 
 **L2 Cache Configuration Notes**:
@@ -721,7 +777,56 @@ rat_quickdb automatically handles ObjectId type conversion in different database
 
 This design ensures ObjectId strategy works consistently across all supported databases while fully utilizing each database's native features.
 
-## 🧠 Cache Configuration
+## 🧠 Cache Configuration and Cache Bypass
+
+rat_quickdb provides flexible cache management functionality, including smart caching and cache bypass mechanisms.
+
+### Cache Bypass Functionality
+
+In certain scenarios (such as financial transactions, real-time data queries), you may need to force fetching the latest data from the database, bypassing the cache. rat_quickdb provides the `find_with_cache_control` method to meet this requirement:
+
+```rust
+use rat_quickdb::ModelOperations;
+
+// Normal query (using cache)
+let cached_results = ModelManager::<User>::find(conditions, None).await?;
+
+// Force skip cache query
+let fresh_results = ModelManager::<User>::find_with_cache_control(
+    conditions,
+    None,
+    true  // bypass_cache = true
+).await?;
+```
+
+**Applicable Scenarios**:
+- 🏦 **Financial Transactions**: Ensure fetching the latest account balances and transaction records
+- 📊 **Real-time Data**: Stock prices, real-time monitoring data, etc.
+- 🔍 **Data Consistency**: Verify results immediately after data updates
+- 🧪 **Testing Scenarios**: Need to bypass cache for benchmarking
+
+### Cache Bypass Performance Comparison Examples
+
+rat_quickdb provides complete cache bypass performance test examples:
+
+```bash
+# MySQL cache bypass test
+cargo run --example cache_bypass_comparison_mysql --features mysql-support
+
+# PostgreSQL cache bypass test
+cargo run --example cache_bypass_comparison_pgsql --features postgres-support
+
+# SQLite cache bypass test
+cargo run --example cache_bypass_comparison_sqlite --features sqlite-support
+
+# MongoDB cache bypass test
+cargo run --example cache_bypass_comparison_mongodb --features mongodb-support
+```
+
+**Performance Improvement Examples** (actual test results):
+- MySQL: 16x performance improvement
+- PostgreSQL: 2.25x performance improvement
+- MongoDB: 1.88x improvement (repeated queries), 20x improvement (batch queries)
 
 ### Basic Cache Configuration (L1 Memory Cache Only)
 ```rust
