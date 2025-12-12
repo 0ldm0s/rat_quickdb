@@ -229,8 +229,92 @@ async fn test_id_field_queries() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // 测试7: 测试find_with_groups复杂查询（支持AND/OR逻辑）
+    println!("\n7. 测试find_with_groups复杂查询...");
+    use crate::types::{QueryConditionGroup, LogicalOperator};
+
+    let (test_id, _) = &test_users[2];
+    let condition_groups = vec![
+        QueryConditionGroup::Single(QueryCondition {
+            field: "id".to_string(),
+            operator: QueryOperator::Eq,
+            value: DataValue::String(test_id.clone()),
+        }),
+        QueryConditionGroup::Single(QueryCondition {
+            field: "username".to_string(),
+            operator: QueryOperator::Eq,
+            value: DataValue::String("test_user_2".to_string()),
+        }),
+    ];
+
+    let start = Instant::now();
+    match ModelManager::<User>::find_with_groups(condition_groups, None).await {
+        Ok(users) => {
+            let duration = start.elapsed().as_millis();
+            if users.is_empty() {
+                println!("❌ find_with_groups复杂查询未找到用户 (耗时: {}ms)", duration);
+                return Err("find_with_groups复杂查询失败".into());
+            } else {
+                println!("✅ find_with_groups复杂查询成功: 找到 {} 条记录 (耗时: {}ms)", users.len(), duration);
+                assert_eq!(users.len(), 1);
+                assert_eq!(users[0].username, "test_user_2");
+                println!("   验证: 查询到的用户是 {}", users[0].username);
+            }
+        }
+        Err(e) => {
+            println!("❌ find_with_groups复杂查询错误: {}", e);
+            return Err(e.into());
+        }
+    }
+
+    // 测试8: 测试find_with_groups多ID OR查询
+    println!("\n8. 测试find_with_groups多ID OR查询...");
+    let ids: Vec<String> = test_users.iter().take(3).map(|(id, _)| id.clone()).collect();
+
+    let condition_groups = vec![
+        QueryConditionGroup::Group {
+            operator: LogicalOperator::Or,
+            conditions: vec![
+                QueryConditionGroup::Single(QueryCondition {
+                    field: "id".to_string(),
+                    operator: QueryOperator::Eq,
+                    value: DataValue::String(ids[0].clone()),
+                }),
+                QueryConditionGroup::Single(QueryCondition {
+                    field: "id".to_string(),
+                    operator: QueryOperator::Eq,
+                    value: DataValue::String(ids[1].clone()),
+                }),
+                QueryConditionGroup::Single(QueryCondition {
+                    field: "id".to_string(),
+                    operator: QueryOperator::Eq,
+                    value: DataValue::String(ids[2].clone()),
+                }),
+            ],
+        },
+    ];
+
+    let start = Instant::now();
+    match ModelManager::<User>::find_with_groups(condition_groups, None).await {
+        Ok(users) => {
+            let duration = start.elapsed().as_millis();
+            if users.is_empty() {
+                println!("❌ find_with_groups多ID OR查询未找到用户 (耗时: {}ms)", duration);
+                return Err("find_with_groups多ID OR查询失败".into());
+            } else {
+                println!("✅ find_with_groups多ID OR查询成功: 找到 {} 条记录 (耗时: {}ms)", users.len(), duration);
+                assert_eq!(users.len(), 3);
+                println!("   查询到的用户: {:?}", users.iter().map(|u| &u.username).collect::<Vec<_>>());
+            }
+        }
+        Err(e) => {
+            println!("❌ find_with_groups多ID OR查询错误: {}", e);
+            return Err(e.into());
+        }
+    }
+
     // 清理测试数据
-    println!("\n7. 清理测试数据...");
+    println!("\n9. 清理测试数据...");
     for (id, _) in &test_users {
         if let Ok(Some(user)) = ModelManager::<User>::find_by_id(id).await {
             let _ = user.delete().await;
