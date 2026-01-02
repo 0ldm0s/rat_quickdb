@@ -243,8 +243,8 @@ impl MongoQueryBuilder {
         let bson_value = self.data_value_to_bson(&condition.value);
 
         debug!(
-            "[MongoDB] 处理条件: {} {:?} {:?}",
-            field_name, condition.operator, bson_value
+            "[MongoDB] 处理条件: {} (原始: {}) {:?} {:?}",
+            field_name, condition.field, condition.operator, bson_value
         );
 
         let condition_doc = match condition.operator {
