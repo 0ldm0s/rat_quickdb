@@ -210,14 +210,29 @@ async fn create_product_test_data(count: usize) -> Result<(), Box<dyn std::error
     println!("创建 {} 条测试产品数据...", count);
 
     for i in 0..count {
+        // 前5个产品使用英文名称，用于测试大小写不敏感查询
+        let (name, category) = if i < 5 {
+            let cat = match i % 3 {
+                0 => "Electronics",
+                1 => "Office",
+                _ => "Lifestyle",
+            };
+            (format!("PRODUCT {}", i), cat.to_string())
+        } else {
+            (
+                format!("产品 {}", i),
+                match i % 3 {
+                    0 => "电子产品".to_string(),
+                    1 => "办公用品".to_string(),
+                    _ => "生活用品".to_string(),
+                },
+            )
+        };
+
         let product = Product {
             id: String::new(),
-            name: format!("产品 {}", i),
-            category: match i % 3 {
-                0 => "电子产品".to_string(),
-                1 => "办公用品".to_string(),
-                _ => "生活用品".to_string(),
-            },
+            name,
+            category,
             price: (100 + i) as f64 * 1.5,
             stock: (10 + i * 2) as i32,
             is_available: i % 3 != 0,
@@ -264,6 +279,7 @@ async fn demonstrate_batch_operations() -> Result<QueryStats, Box<dyn std::error
         field: "age".to_string(),
         operator: QueryOperator::Gte,
         value: DataValue::Int(40),
+        case_insensitive: false,
     }];
 
     // 执行批量更新
@@ -298,6 +314,7 @@ async fn demonstrate_batch_operations() -> Result<QueryStats, Box<dyn std::error
         field: "is_active".to_string(),
         operator: QueryOperator::Eq,
         value: DataValue::Bool(false),
+        case_insensitive: false,
     }];
 
     let delete_result = User::delete_many(delete_conditions).await;
@@ -337,6 +354,7 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
         field: "category".to_string(),
         operator: QueryOperator::Eq,
         value: DataValue::String("电子产品".to_string()),
+        case_insensitive: false,
     }];
 
     let simple_result = ModelManager::<Product>::find(simple_conditions, None).await?;
@@ -359,6 +377,7 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
                 field: "is_available".to_string(),
                 operator: QueryOperator::Eq,
                 value: DataValue::Bool(true),
+                case_insensitive: false,
             }),
             QueryConditionGroup::Group {
                 operator: LogicalOperator::Or,
@@ -367,11 +386,13 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
                         field: "category".to_string(),
                         operator: QueryOperator::Eq,
                         value: DataValue::String("电子产品".to_string()),
+                        case_insensitive: false,
                     }),
                     QueryConditionGroup::Single(QueryCondition {
                         field: "price".to_string(),
                         operator: QueryOperator::Gte,
                         value: DataValue::Float(180.0),
+                        case_insensitive: false,
                     }),
                 ],
             },
@@ -500,6 +521,7 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
             DataValue::String("热销".to_string()),
             DataValue::String("新品".to_string()),
         ]),
+        case_insensitive: false,
     }];
 
     let in_result = ModelManager::<Product>::find(in_conditions, None).await?;
@@ -510,6 +532,52 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
         println!("   {}. {} - 标签: {:?}", i + 1, product.name, product.tags);
     }
     stats.add_operation(in_time, true, false);
+
+    // 7. 大小写不敏感查询测试
+    println!("\n7. 大小写不敏感查询测试...");
+    let start = Instant::now();
+
+    // 先测试大小写敏感查询（默认行为）
+    let case_sensitive_conditions = vec![QueryCondition {
+        field: "category".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("ELECTRONICS".to_string()),
+        case_insensitive: false,
+    }];
+
+    let case_sensitive_result =
+        ModelManager::<Product>::find(case_sensitive_conditions, None).await?;
+    println!(
+        "   大小写敏感查询 'ELECTRONICS': {} 条记录",
+        case_sensitive_result.len()
+    );
+
+    // 测试大小写不敏感查询
+    let case_insensitive_conditions = vec![QueryCondition {
+        field: "category".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("electronics".to_string()),
+        case_insensitive: true,
+    }];
+
+    let case_insensitive_result =
+        ModelManager::<Product>::find(case_insensitive_conditions, None).await?;
+    let ci_time = start.elapsed().as_millis() as u64;
+    println!(
+        "   大小写不敏感查询 'electronics': {} 条记录，耗时 {}ms",
+        case_insensitive_result.len(),
+        ci_time
+    );
+
+    // 验证结果
+    if case_insensitive_result.len() > 0 {
+        println!("   ✅ 大小写不敏感查询成功");
+        println!("   找到的产品: {}", case_insensitive_result[0].name);
+    } else {
+        println!("   ⚠️  大小写不敏感查询未找到结果");
+    }
+
+    stats.add_operation(ci_time, true, false);
 
     Ok(stats)
 }
@@ -532,6 +600,7 @@ async fn performance_benchmark() -> Result<(), Box<dyn std::error::Error>> {
                 field: "is_available".to_string(),
                 operator: QueryOperator::Eq,
                 value: DataValue::Bool(true),
+                case_insensitive: false,
             }],
         ),
         (
@@ -541,11 +610,13 @@ async fn performance_benchmark() -> Result<(), Box<dyn std::error::Error>> {
                     field: "is_available".to_string(),
                     operator: QueryOperator::Eq,
                     value: DataValue::Bool(true),
+                    case_insensitive: false,
                 },
                 QueryCondition {
                     field: "price".to_string(),
                     operator: QueryOperator::Gte,
                     value: DataValue::Float(300.0),
+                    case_insensitive: false,
                 },
             ],
         ),
@@ -556,11 +627,13 @@ async fn performance_benchmark() -> Result<(), Box<dyn std::error::Error>> {
                     field: "price".to_string(),
                     operator: QueryOperator::Gte,
                     value: DataValue::Float(100.0),
+                    case_insensitive: false,
                 },
                 QueryCondition {
                     field: "price".to_string(),
                     operator: QueryOperator::Lte,
                     value: DataValue::Float(500.0),
+                    case_insensitive: false,
                 },
             ],
         ),

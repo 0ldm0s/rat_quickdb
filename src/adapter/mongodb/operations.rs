@@ -314,6 +314,7 @@ impl DatabaseAdapter for MongoAdapter {
             field: "_id".to_string(), // MongoDB使用_id作为主键
             operator: QueryOperator::Eq,
             value: id.clone(),
+            case_insensitive: false,
         }];
 
         let affected = self
@@ -580,6 +581,7 @@ impl DatabaseAdapter for MongoAdapter {
             field: "_id".to_string(), // MongoDB使用_id作为主键
             operator: QueryOperator::Eq,
             value: id.clone(),
+            case_insensitive: false,
         }];
 
         let affected = self.delete(connection, table, &conditions, alias).await?;

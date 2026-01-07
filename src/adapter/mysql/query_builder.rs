@@ -519,10 +519,30 @@ impl SqlQueryBuilder {
         let (clause, params) = match condition.operator {
             QueryOperator::Eq => {
                 new_index += 1;
-                (
-                    format!("{} = {}", safe_field, placeholder),
-                    vec![condition.value.clone()],
-                )
+                // 处理大小写不敏感的等于操作
+                if condition.case_insensitive {
+                    match &condition.value {
+                        DataValue::String(s) => {
+                            // 使用LOWER函数实现大小写不敏感比较
+                            (
+                                format!("LOWER({}) = LOWER({})", safe_field, placeholder),
+                                vec![condition.value.clone()],
+                            )
+                        }
+                        _ => {
+                            // 非字符串类型，使用正常的等于比较
+                            (
+                                format!("{} = {}", safe_field, placeholder),
+                                vec![condition.value.clone()],
+                            )
+                        }
+                    }
+                } else {
+                    (
+                        format!("{} = {}", safe_field, placeholder),
+                        vec![condition.value.clone()],
+                    )
+                }
             }
             QueryOperator::Ne => {
                 new_index += 1;
@@ -759,10 +779,30 @@ impl SqlQueryBuilder {
 
             match condition.operator {
                 QueryOperator::Eq => {
-                    let value = condition.value.clone();
-                    clauses.push(format!("{} = {}", safe_field, placeholder));
-                    params.push(value);
-                    param_index += 1;
+                    // 处理大小写不敏感的等于操作
+                    if condition.case_insensitive {
+                        match &condition.value {
+                            DataValue::String(_) => {
+                                // 使用LOWER函数实现大小写不敏感比较
+                                let value = condition.value.clone();
+                                clauses.push(format!("LOWER({}) = LOWER({})", safe_field, placeholder));
+                                params.push(value);
+                                param_index += 1;
+                            }
+                            _ => {
+                                // 非字符串类型，使用正常的等于比较
+                                let value = condition.value.clone();
+                                clauses.push(format!("{} = {}", safe_field, placeholder));
+                                params.push(value);
+                                param_index += 1;
+                            }
+                        }
+                    } else {
+                        let value = condition.value.clone();
+                        clauses.push(format!("{} = {}", safe_field, placeholder));
+                        params.push(value);
+                        param_index += 1;
+                    }
                 }
                 QueryOperator::Ne => {
                     clauses.push(format!("{} != {}", safe_field, placeholder));

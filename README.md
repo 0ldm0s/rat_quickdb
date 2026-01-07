@@ -28,7 +28,73 @@
 
 ## 🔄 版本变更说明
 
-### v0.4.5 (当前版本) - 统一表不存在错误处理
+### v0.4.7 (当前版本) - 大小写不敏感查询支持
+
+**新功能：**
+- 🎯 **大小写不敏感查询**：所有数据库适配器现在支持大小写不敏感的字符串查询
+- 🔄 **统一API**：在 `QueryCondition` 中添加 `case_insensitive` 字段，默认为 `false`
+- 📊 **跨数据库支持**：MongoDB、MySQL、PostgreSQL、SQLite 全部支持
+
+**使用示例：**
+```rust
+use rat_quickdb::*;
+
+// 大小写敏感查询（默认行为）
+let sensitive_results = ModelManager::<User>::find(
+    vec![QueryCondition {
+        field: "username".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("ADMIN".to_string()),
+        case_insensitive: false,  // 默认值
+    }],
+    None
+).await?;
+
+// 大小写不敏感查询
+let insensitive_results = ModelManager::<User>::find(
+    vec![QueryCondition {
+        field: "username".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("admin".to_string()),
+        case_insensitive: true,  // 启用大小写不敏感
+    }],
+    None
+).await?;
+```
+
+**实现方式：**
+- **MongoDB**: 使用正则表达式 `$regex: "^value$", $options: "i"`
+- **MySQL**: 使用 `LOWER(field) = LOWER(value)`
+- **PostgreSQL**: 使用 `LOWER(field) = LOWER(value)`
+- **SQLite**: 使用 `LOWER(field) = LOWER(value)`
+
+**适用场景：**
+- 📧 用户名/邮箱查询（用户可能输入任意大小写）
+- 🔍 产品名称搜索（不区分大小写）
+- 🏷️ 标签和分类查询（提高查询友好性）
+- 🌍 多语言文本搜索（适应不同语言的大小写规则）
+
+**性能说明：**
+- 对字符串字段启用大小写不敏感查询会略微降低查询性能
+- 建议对需要模糊匹配的字段使用，对精确匹配字段保持默认大小写敏感
+- 可以通过创建函数索引（如 `LOWER(field)`）来优化性能
+
+**测试验证：**
+```bash
+# MongoDB
+cargo run --example query_operations_mongodb --features mongodb-support
+
+# MySQL
+cargo run --example query_operations_mysql --features mysql-support
+
+# PostgreSQL
+cargo run --example query_operations_pgsql --features postgres-support
+
+# SQLite
+cargo run --example query_operations_sqlite --features sqlite-support
+```
+
+### v0.4.5 - 统一表不存在错误处理
 
 **新功能：**
 - 🎯 **统一TableNotExistError**：所有数据库适配器现在提供一致的表不存在错误识别
@@ -114,7 +180,7 @@ let pool_config = PoolConfig::builder()
 
 ```toml
 [dependencies]
-rat_quickdb = "0.4.5"
+rat_quickdb = "0.4.7"
 ```
 
 ### 🔧 特性控制
@@ -123,7 +189,7 @@ rat_quickdb 使用 Cargo 特性来控制不同数据库的支持和功能。默�
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.4.5", features = [
+rat_quickdb = { version = "0.4.7", features = [
     "sqlite-support",    # 支持SQLite数据库
     "postgres-support",  # 支持PostgreSQL数据库
     "mysql-support",     # 支持MySQL数据库
@@ -164,19 +230,19 @@ rat_quickdb = { version = "0.4.5", features = [
 **仅使用SQLite**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.4.5", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.4.7", features = ["sqlite-support"] }
 ```
 
 **使用PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.4.5", features = ["postgres-support"] }
+rat_quickdb = { version = "0.4.7", features = ["postgres-support"] }
 ```
 
 **使用所有数据库**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.4.5", features = ["full"] }
+rat_quickdb = { version = "0.4.7", features = ["full"] }
 ```
 
 **L2缓存配置注意事项**:
@@ -1543,11 +1609,13 @@ let offset_seconds = parse_timezone_offset_to_seconds("+09:30")?;  // 34200
 
 ## 🌟 版本信息
 
-**当前版本**: 0.4.5
+**当前版本**: 0.4.7
 
 **支持Rust版本**: 1.70+
 
-**重要更新**: v0.3.0 强制使用define_model!宏定义模型，修复重大架构问题，提升类型安全性！
+**重要更新**:
+- v0.4.7: 新增大小写不敏感查询支持
+- v0.3.0: 强制使用define_model!宏定义模型，修复重大架构问题，提升类型安全性！
 
 ## 📄 许可证
 

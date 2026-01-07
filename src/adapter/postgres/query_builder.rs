@@ -518,12 +518,41 @@ impl SqlQueryBuilder {
         let (clause, params) = match condition.operator {
             QueryOperator::Eq => {
                 new_index += 1;
-                let value = self.convert_uuid_value_for_postgres(
-                    table,
-                    &condition.field,
-                    &condition.value,
-                    alias,
-                )?;
+                // 处理大小写不敏感的等于操作
+                let value = if condition.case_insensitive {
+                    match &condition.value {
+                        DataValue::String(_) => {
+                            // 使用LOWER函数实现大小写不敏感比较
+                            let v = self.convert_uuid_value_for_postgres(
+                                table,
+                                &condition.field,
+                                &condition.value,
+                                alias,
+                            )?;
+                            return Ok((
+                                format!("LOWER({}) = LOWER({})", safe_field, placeholder),
+                                vec![v],
+                                new_index,
+                            ));
+                        }
+                        _ => {
+                            // 非字符串类型，继续正常处理
+                            self.convert_uuid_value_for_postgres(
+                                table,
+                                &condition.field,
+                                &condition.value,
+                                alias,
+                            )?
+                        }
+                    }
+                } else {
+                    self.convert_uuid_value_for_postgres(
+                        table,
+                        &condition.field,
+                        &condition.value,
+                        alias,
+                    )?
+                };
                 (format!("{} = {}", safe_field, placeholder), vec![value])
             }
             QueryOperator::Ne => {
@@ -737,15 +766,45 @@ impl SqlQueryBuilder {
 
             match condition.operator {
                 QueryOperator::Eq => {
-                    let value = self.convert_uuid_value_for_postgres(
-                        table,
-                        &condition.field,
-                        &condition.value,
-                        alias,
-                    )?;
-                    clauses.push(format!("{} = {}", safe_field, placeholder));
-                    params.push(value);
-                    param_index += 1;
+                    // 处理大小写不敏感的等于操作
+                    if condition.case_insensitive {
+                        match &condition.value {
+                            DataValue::String(_) => {
+                                // 使用LOWER函数实现大小写不敏感比较
+                                let value = self.convert_uuid_value_for_postgres(
+                                    table,
+                                    &condition.field,
+                                    &condition.value,
+                                    alias,
+                                )?;
+                                clauses.push(format!("LOWER({}) = LOWER({})", safe_field, placeholder));
+                                params.push(value);
+                                param_index += 1;
+                            }
+                            _ => {
+                                // 非字符串类型，使用正常的等于比较
+                                let value = self.convert_uuid_value_for_postgres(
+                                    table,
+                                    &condition.field,
+                                    &condition.value,
+                                    alias,
+                                )?;
+                                clauses.push(format!("{} = {}", safe_field, placeholder));
+                                params.push(value);
+                                param_index += 1;
+                            }
+                        }
+                    } else {
+                        let value = self.convert_uuid_value_for_postgres(
+                            table,
+                            &condition.field,
+                            &condition.value,
+                            alias,
+                        )?;
+                        clauses.push(format!("{} = {}", safe_field, placeholder));
+                        params.push(value);
+                        param_index += 1;
+                    }
                 }
                 QueryOperator::Ne => {
                     clauses.push(format!("{} != {}", safe_field, placeholder));

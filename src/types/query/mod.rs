@@ -10,6 +10,9 @@ pub struct QueryCondition {
     pub operator: QueryOperator,
     /// 值
     pub value: DataValue,
+    /// 是否大小写不敏感（仅对字符串操作符有效）
+    #[serde(default)]
+    pub case_insensitive: bool,
 }
 
 /// 逻辑操作符

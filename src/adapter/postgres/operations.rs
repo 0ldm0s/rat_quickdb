@@ -162,6 +162,7 @@ impl DatabaseAdapter for PostgresAdapter {
                 field: "id".to_string(),
                 operator: QueryOperator::Eq,
                 value: id.clone(),
+                case_insensitive: false,
             };
 
             let (sql, params) = SqlQueryBuilder::new()
@@ -355,6 +356,7 @@ impl DatabaseAdapter for PostgresAdapter {
             field: "id".to_string(),
             operator: QueryOperator::Eq,
             value: id.clone(),
+            case_insensitive: false,
         }];
 
         let affected = self

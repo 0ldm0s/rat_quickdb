@@ -169,7 +169,23 @@ impl MongoQueryBuilder {
         );
 
         let condition_doc = match condition.operator {
-            QueryOperator::Eq => doc! { field_name: bson_value },
+            QueryOperator::Eq => {
+                // 处理大小写不敏感的等于操作
+                if condition.case_insensitive {
+                    match &bson_value {
+                        Bson::String(s) => {
+                            // 使用正则表达式实现大小写不敏感匹配
+                            doc! { field_name: doc! { "$regex": format!("^{}$", &regex::escape(s)), "$options": "i" } }
+                        }
+                        _ => {
+                            // 非字符串类型，使用正常的等于匹配
+                            doc! { field_name: bson_value }
+                        }
+                    }
+                } else {
+                    doc! { field_name: bson_value }
+                }
+            }
             QueryOperator::Ne => doc! { field_name: doc! { "$ne": bson_value } },
             QueryOperator::Gt => doc! { field_name: doc! { "$gt": bson_value } },
             QueryOperator::Gte => doc! { field_name: doc! { "$gte": bson_value } },

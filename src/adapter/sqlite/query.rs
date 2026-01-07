@@ -89,6 +89,7 @@ pub(crate) async fn delete_by_id(
         field: "id".to_string(),
         operator: QueryOperator::Eq,
         value: id.clone(),
+        case_insensitive: false,
     };
 
     let affected_rows = delete(adapter, connection, table, &[condition], alias).await?;

@@ -513,6 +513,7 @@ impl DatabaseAdapter for SqliteAdapter {
             field: "id".to_string(),
             operator: QueryOperator::Eq,
             value: id.clone(),
+            case_insensitive: false,
         };
 
         let affected_rows = self
