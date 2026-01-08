@@ -4,7 +4,7 @@
 //! 提供各种缓存键的生成策略和实现
 
 use crate::types::{
-    CacheConfig, DataValue, IdType, QueryCondition, QueryConditionGroup, QueryOptions,
+    CacheConfig, DataValue, IdType, QueryCondition, QueryConditionGroup, QueryConditionGroupWithConfig, QueryConditionWithConfig, QueryOptions,
     SortDirection,
 };
 use rat_logger::debug;
@@ -27,7 +27,7 @@ impl CacheManager {
     pub fn generate_query_cache_key(
         &self,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
     ) -> String {
         let query_signature = self.build_query_signature(options);
@@ -38,6 +38,23 @@ impl CacheManager {
             CACHE_KEY_PREFIX, table, conditions_signature, query_signature, self.config.version
         );
         debug!("生成查询缓存键: table={}, key={}", table, key);
+        key
+    }
+
+    /// 生成条件组合查询缓存键（完整版）
+    pub fn generate_condition_groups_with_config_cache_key(
+        &self,
+        table: &str,
+        condition_groups: &[QueryConditionGroupWithConfig],
+        options: &QueryOptions,
+    ) -> String {
+        let query_signature = self.build_query_signature(options);
+        let groups_signature = self.build_condition_groups_with_config_signature(condition_groups);
+        let key = format!(
+            "{}:{}:groups:{}:{}",
+            CACHE_KEY_PREFIX, table, groups_signature, query_signature
+        );
+        debug!("生成条件组合查询缓存键（完整版）: table={}, key={}", table, key);
         key
     }
 
@@ -102,7 +119,7 @@ impl CacheManager {
     }
 
     /// 构建条件签名
-    fn build_conditions_signature(&self, conditions: &[QueryCondition]) -> String {
+    fn build_conditions_signature(&self, conditions: &[QueryConditionWithConfig]) -> String {
         if conditions.is_empty() {
             return "no_cond".to_string();
         }
@@ -124,6 +141,69 @@ impl CacheManager {
                     _ => "val".to_string(),
                 }
             ));
+        }
+        signature
+    }
+
+    /// 构建条件组合签名（完整版）
+    fn build_condition_groups_with_config_signature(&self, condition_groups: &[QueryConditionGroupWithConfig]) -> String {
+        if condition_groups.is_empty() {
+            return "no_groups".to_string();
+        }
+
+        let mut signature = String::new();
+        for (i, group) in condition_groups.iter().enumerate() {
+            if i > 0 {
+                signature.push('_');
+            }
+            match group {
+                QueryConditionGroupWithConfig::Single(condition) => {
+                    signature.push_str(&format!(
+                        "s{}{:?}{}{}",
+                        condition.field,
+                        condition.operator,
+                        if condition.case_insensitive { "ci" } else { "cs" },
+                        match &condition.value {
+                            DataValue::String(s) => s.clone(),
+                            DataValue::Int(n) => n.to_string(),
+                            DataValue::Float(f) => f.to_string(),
+                            DataValue::Bool(b) => b.to_string(),
+                            _ => "val".to_string(),
+                        }
+                    ));
+                }
+                QueryConditionGroupWithConfig::GroupWithConfig {
+                    conditions,
+                    operator,
+                } => {
+                    signature.push_str(&format!("g{:?}_", operator));
+                    for (j, condition) in conditions.iter().enumerate() {
+                        if j > 0 {
+                            signature.push('|');
+                        }
+                        match condition {
+                            QueryConditionGroupWithConfig::Single(cond) => {
+                                signature.push_str(&format!(
+                                    "{}{:?}{}{}",
+                                    cond.field,
+                                    cond.operator,
+                                    if cond.case_insensitive { "ci" } else { "cs" },
+                                    match &cond.value {
+                                        DataValue::String(s) => s.clone(),
+                                        DataValue::Int(n) => n.to_string(),
+                                        DataValue::Float(f) => f.to_string(),
+                                        DataValue::Bool(b) => b.to_string(),
+                                        _ => "val".to_string(),
+                                    }
+                                ));
+                            }
+                            QueryConditionGroupWithConfig::GroupWithConfig { .. } => {
+                                signature.push_str("nested");
+                            }
+                        }
+                    }
+                }
+            }
         }
         signature
     }

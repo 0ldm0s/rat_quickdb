@@ -107,12 +107,12 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         result
     }
 
-    /// 查找记录（支持缓存控制）- 内部统一使用 find_with_groups_with_cache_control 实现
+    /// 查找记录（支持缓存控制）- 内部统一使用 find_with_groups_with_cache_control_and_config 实现
     async fn find_with_cache_control(
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
         alias: &str,
         bypass_cache: bool,
@@ -121,22 +121,22 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         let condition_groups = if conditions.is_empty() {
             vec![]
         } else {
-            let group_conditions = conditions
+            let group_conditions: Vec<QueryConditionGroupWithConfig> = conditions
                 .iter()
-                .map(|c| QueryConditionGroup::Single(c.clone()))
+                .map(|c| QueryConditionGroupWithConfig::Single(c.clone()))
                 .collect();
-            vec![QueryConditionGroup::Group {
+            vec![QueryConditionGroupWithConfig::GroupWithConfig {
                 operator: LogicalOperator::And,
                 conditions: group_conditions,
             }]
         };
 
-        // 统一使用 find_with_groups_with_cache_control 实现
-        self.find_with_groups_with_cache_control(connection, table, &condition_groups, options, alias, bypass_cache)
+        // 统一使用 find_with_groups_with_cache_control_and_config 实现
+        self.find_with_groups_with_cache_control_and_config(connection, table, &condition_groups, options, alias, bypass_cache)
             .await
     }
 
-    /// 使用条件组合查找记录（支持缓存控制）- 根据 bypass_cache 参数决定是否跳过缓存
+    /// 使用条件组合查找记录（支持缓存控制）- 简化版，转换为完整版后调用
     async fn find_with_groups_with_cache_control(
         &self,
         connection: &DatabaseConnection,
@@ -146,8 +146,34 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         alias: &str,
         bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>> {
+        // 转换为完整版
+        let condition_groups_with_config: Vec<QueryConditionGroupWithConfig> = condition_groups
+            .iter()
+            .map(|g| g.clone().into())
+            .collect();
+        self.find_with_groups_with_cache_control_and_config(
+            connection,
+            table,
+            &condition_groups_with_config,
+            options,
+            alias,
+            bypass_cache,
+        )
+        .await
+    }
+
+    /// 使用条件组合查找记录（支持缓存控制和完整配置）- 完整版实现
+    async fn find_with_groups_with_cache_control_and_config(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroupWithConfig],
+        options: &QueryOptions,
+        alias: &str,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
         // 生成条件组合查询缓存键
-        let cache_key = self.cache_manager.generate_condition_groups_cache_key(
+        let cache_key = self.cache_manager.generate_condition_groups_with_config_cache_key(
             table,
             condition_groups,
             options,
@@ -157,7 +183,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         if !bypass_cache {
             match self
                 .cache_manager
-                .get_cached_condition_groups_result(table, condition_groups, options)
+                .get_cached_condition_groups_with_config_result(table, condition_groups, options)
                 .await
             {
                 Ok(Some(cached_result)) => {
@@ -178,14 +204,14 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         // 查询数据库（缓存未命中或强制跳过缓存）
         let result = self
             .inner
-            .find_with_groups(connection, table, condition_groups, options, alias)
+            .find_with_groups_with_config(connection, table, condition_groups, options, alias)
             .await?;
 
         // 缓存查询结果（仅在不跳过缓存时）
         if !bypass_cache {
             if let Err(e) = self
                 .cache_manager
-                .cache_condition_groups_result(table, condition_groups, options, &result)
+                .cache_condition_groups_with_config_result(table, condition_groups, options, &result)
                 .await
             {
                 warn!("缓存条件组合查询结果失败: {}", e);
@@ -207,7 +233,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         data: &HashMap<String, DataValue>,
         alias: &str,
     ) -> QuickDbResult<u64> {
@@ -238,7 +264,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         operations: &[crate::types::UpdateOperation],
         alias: &str,
     ) -> QuickDbResult<u64> {
@@ -312,7 +338,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64> {
         // 直接调用内部适配器删除记录
@@ -385,7 +411,7 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64> {
         // 统计操作不缓存，直接调用内部适配器

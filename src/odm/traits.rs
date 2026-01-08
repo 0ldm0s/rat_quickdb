@@ -29,7 +29,7 @@ pub trait OdmOperations {
     async fn find(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<&str>,
     ) -> QuickDbResult<Vec<DataValue>> {
@@ -40,13 +40,13 @@ pub trait OdmOperations {
     async fn find_with_cache_control(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<&str>,
         bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>>;
 
-    /// 使用条件组合查找记录（支持复杂OR/AND逻辑）
+    /// 使用条件组合查找记录（支持复杂OR/AND逻辑）- 简化版
     async fn find_with_groups(
         &self,
         collection: &str,
@@ -57,11 +57,38 @@ pub trait OdmOperations {
         self.find_with_groups_with_cache_control(collection, condition_groups, options, alias, false).await
     }
 
-    /// 使用条件组合查找记录（支持缓存控制）
+    /// 使用条件组合查找记录（支持缓存控制）- 简化版
     async fn find_with_groups_with_cache_control(
         &self,
         collection: &str,
         condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+        alias: Option<&str>,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        let condition_groups_with_config: Vec<crate::types::QueryConditionGroupWithConfig> = condition_groups
+            .into_iter()
+            .map(|g| g.into())
+            .collect();
+        self.find_with_groups_with_cache_control_and_config(collection, condition_groups_with_config, options, alias, bypass_cache).await
+    }
+
+    /// 使用条件组合查找记录（支持复杂OR/AND逻辑）- 完整版
+    async fn find_with_groups_with_config(
+        &self,
+        collection: &str,
+        condition_groups: Vec<crate::types::QueryConditionGroupWithConfig>,
+        options: Option<QueryOptions>,
+        alias: Option<&str>,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_groups_with_cache_control_and_config(collection, condition_groups, options, alias, false).await
+    }
+
+    /// 使用条件组合查找记录（支持缓存控制）- 完整版
+    async fn find_with_groups_with_cache_control_and_config(
+        &self,
+        collection: &str,
+        condition_groups: Vec<crate::types::QueryConditionGroupWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<&str>,
         bypass_cache: bool,
@@ -71,7 +98,7 @@ pub trait OdmOperations {
     async fn update(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         updates: HashMap<String, DataValue>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64>;
@@ -80,7 +107,7 @@ pub trait OdmOperations {
     async fn update_with_operations(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         operations: Vec<crate::types::UpdateOperation>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64>;
@@ -98,7 +125,7 @@ pub trait OdmOperations {
     async fn delete(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64>;
 
@@ -114,7 +141,7 @@ pub trait OdmOperations {
     async fn count(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64>;
 

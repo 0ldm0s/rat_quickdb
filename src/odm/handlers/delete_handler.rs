@@ -14,7 +14,7 @@ impl AsyncOdmManager {
     #[doc(hidden)]
     pub async fn handle_delete(
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         alias: Option<String>,
     ) -> QuickDbResult<u64> {
         let manager = get_global_pool_manager();
@@ -128,7 +128,7 @@ impl AsyncOdmManager {
     #[doc(hidden)]
     pub async fn handle_count(
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         alias: Option<String>,
     ) -> QuickDbResult<u64> {
         let manager = get_global_pool_manager();

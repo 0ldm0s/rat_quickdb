@@ -69,7 +69,7 @@ impl AsyncOdmManager {
     #[doc(hidden)]
     pub async fn handle_find_with_cache_control(
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<String>,
         bypass_cache: bool,
@@ -128,7 +128,7 @@ impl AsyncOdmManager {
     #[doc(hidden)]
     pub async fn handle_find(
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<String>,
     ) -> QuickDbResult<Vec<DataValue>> {
@@ -139,7 +139,7 @@ impl AsyncOdmManager {
     #[doc(hidden)]
     pub async fn handle_find_with_groups_with_cache_control(
         collection: &str,
-        condition_groups: Vec<QueryConditionGroup>,
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<String>,
         bypass_cache: bool,
@@ -198,7 +198,7 @@ impl AsyncOdmManager {
     #[doc(hidden)]
     pub async fn handle_find_with_groups(
         collection: &str,
-        condition_groups: Vec<QueryConditionGroup>,
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<String>,
     ) -> QuickDbResult<Vec<DataValue>> {

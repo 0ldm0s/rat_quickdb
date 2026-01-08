@@ -228,7 +228,7 @@ impl DatabaseAdapter for MongoAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
         alias: &str,
         bypass_cache: bool,
@@ -249,11 +249,24 @@ impl DatabaseAdapter for MongoAdapter {
             .await
     }
 
+    async fn find_with_groups_with_cache_control_and_config(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroupWithConfig],
+        options: &QueryOptions,
+        alias: &str,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        mongodb_query::find_with_groups_with_config(self, connection, table, condition_groups, options, alias)
+            .await
+    }
+
     async fn find(
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
         alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
@@ -275,7 +288,7 @@ impl DatabaseAdapter for MongoAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         data: &HashMap<String, DataValue>,
         alias: &str,
     ) -> QuickDbResult<u64> {
@@ -310,7 +323,7 @@ impl DatabaseAdapter for MongoAdapter {
         data: &HashMap<String, DataValue>,
         alias: &str,
     ) -> QuickDbResult<bool> {
-        let conditions = vec![QueryCondition {
+        let conditions = vec![QueryConditionWithConfig {
             field: "_id".to_string(), // MongoDB使用_id作为主键
             operator: QueryOperator::Eq,
             value: id.clone(),
@@ -327,7 +340,7 @@ impl DatabaseAdapter for MongoAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         operations: &[crate::types::UpdateOperation],
         alias: &str,
     ) -> QuickDbResult<u64> {
@@ -539,7 +552,7 @@ impl DatabaseAdapter for MongoAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64> {
         if let DatabaseConnection::MongoDB(db) = connection {
@@ -577,7 +590,7 @@ impl DatabaseAdapter for MongoAdapter {
         id: &DataValue,
         alias: &str,
     ) -> QuickDbResult<bool> {
-        let conditions = vec![QueryCondition {
+        let conditions = vec![QueryConditionWithConfig {
             field: "_id".to_string(), // MongoDB使用_id作为主键
             operator: QueryOperator::Eq,
             value: id.clone(),
@@ -592,7 +605,7 @@ impl DatabaseAdapter for MongoAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64> {
         mongodb_query::count(self, connection, table, conditions, alias).await

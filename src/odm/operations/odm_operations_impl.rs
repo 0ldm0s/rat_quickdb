@@ -67,7 +67,7 @@ impl OdmOperations for AsyncOdmManager {
     async fn find(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<&str>,
     ) -> QuickDbResult<Vec<DataValue>> {
@@ -77,7 +77,7 @@ impl OdmOperations for AsyncOdmManager {
     async fn find_with_cache_control(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<&str>,
         bypass_cache: bool,
@@ -122,6 +122,31 @@ impl OdmOperations for AsyncOdmManager {
         alias: Option<&str>,
         bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>> {
+        let condition_groups_with_config: Vec<crate::types::QueryConditionGroupWithConfig> = condition_groups
+            .into_iter()
+            .map(|g| g.into())
+            .collect();
+        self.find_with_groups_with_cache_control_and_config(collection, condition_groups_with_config, options, alias, bypass_cache).await
+    }
+
+    async fn find_with_groups_with_config(
+        &self,
+        collection: &str,
+        condition_groups: Vec<crate::types::QueryConditionGroupWithConfig>,
+        options: Option<QueryOptions>,
+        alias: Option<&str>,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_groups_with_cache_control_and_config(collection, condition_groups, options, alias, false).await
+    }
+
+    async fn find_with_groups_with_cache_control_and_config(
+        &self,
+        collection: &str,
+        condition_groups: Vec<crate::types::QueryConditionGroupWithConfig>,
+        options: Option<QueryOptions>,
+        alias: Option<&str>,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
         let (sender, receiver) = oneshot::channel();
 
         let request = OdmRequest::FindWithGroupsWithCacheControl {
@@ -147,7 +172,7 @@ impl OdmOperations for AsyncOdmManager {
     async fn update(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         updates: HashMap<String, DataValue>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64> {
@@ -175,7 +200,7 @@ impl OdmOperations for AsyncOdmManager {
     async fn update_with_operations(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         operations: Vec<crate::types::UpdateOperation>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64> {
@@ -231,7 +256,7 @@ impl OdmOperations for AsyncOdmManager {
     async fn delete(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64> {
         let (sender, receiver) = oneshot::channel();
@@ -283,7 +308,7 @@ impl OdmOperations for AsyncOdmManager {
     async fn count(
         &self,
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         alias: Option<&str>,
     ) -> QuickDbResult<u64> {
         let (sender, receiver) = oneshot::channel();

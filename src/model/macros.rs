@@ -360,10 +360,70 @@ macro_rules! define_model {
                 $crate::odm::delete_by_id(&collection_name, &id_str, database_alias.as_deref()).await
             }
 
-            /// 批量更新模型（静态方法）
+            // ========== 简化方法：接受 QueryCondition（自动转换） ==========
+
+            /// 批量更新模型（简化方法）
             ///
-            /// 根据条件批量更新多条记录，返回受影响的行数
+            /// 接受 `Vec<QueryCondition>` 并自动转换为 `Vec<QueryConditionWithConfig>`
             pub async fn update_many(conditions: Vec<$crate::types::QueryCondition>, updates: std::collections::HashMap<String, $crate::types::DataValue>) -> $crate::error::QuickDbResult<u64> {
+                let conditions_with_config: Vec<$crate::types::QueryConditionWithConfig> = conditions
+                    .into_iter()
+                    .map(|c| c.into())
+                    .collect();
+                let collection_name = Self::collection_name();
+                let database_alias = Self::database_alias();
+
+                $crate::odm::update(
+                    &collection_name,
+                    conditions_with_config,
+                    updates,
+                    database_alias.as_deref(),
+                ).await
+            }
+
+            /// 使用操作数组批量更新模型（简化方法）
+            ///
+            /// 接受 `Vec<QueryCondition>` 并自动转换为 `Vec<QueryConditionWithConfig>`
+            pub async fn update_many_with_operations(conditions: Vec<$crate::types::QueryCondition>, operations: Vec<$crate::types::UpdateOperation>) -> $crate::error::QuickDbResult<u64> {
+                let conditions_with_config: Vec<$crate::types::QueryConditionWithConfig> = conditions
+                    .into_iter()
+                    .map(|c| c.into())
+                    .collect();
+                let collection_name = Self::collection_name();
+                let database_alias = Self::database_alias();
+
+                $crate::odm::update_with_operations(
+                    &collection_name,
+                    conditions_with_config,
+                    operations,
+                    database_alias.as_deref(),
+                ).await
+            }
+
+            /// 批量删除模型（简化方法）
+            ///
+            /// 接受 `Vec<QueryCondition>` 并自动转换为 `Vec<QueryConditionWithConfig>`
+            pub async fn delete_many(conditions: Vec<$crate::types::QueryCondition>) -> $crate::error::QuickDbResult<u64> {
+                let conditions_with_config: Vec<$crate::types::QueryConditionWithConfig> = conditions
+                    .into_iter()
+                    .map(|c| c.into())
+                    .collect();
+                let collection_name = Self::collection_name();
+                let database_alias = Self::database_alias();
+
+                $crate::odm::delete(
+                    &collection_name,
+                    conditions_with_config,
+                    database_alias.as_deref(),
+                ).await
+            }
+
+            // ========== 完整方法：接受 QueryConditionWithConfig ==========
+
+            /// 批量更新模型（带配置）
+            ///
+            /// 接受 `Vec<QueryConditionWithConfig>`，支持大小写不敏感等高级配置
+            pub async fn update_many_with_config(conditions: Vec<$crate::types::QueryConditionWithConfig>, updates: std::collections::HashMap<String, $crate::types::DataValue>) -> $crate::error::QuickDbResult<u64> {
                 let collection_name = Self::collection_name();
                 let database_alias = Self::database_alias();
 
@@ -375,10 +435,10 @@ macro_rules! define_model {
                 ).await
             }
 
-            /// 使用操作数组批量更新模型（静态方法）
+            /// 使用操作数组批量更新模型（带配置）
             ///
-            /// 根据条件使用操作数组批量更新多条记录，支持原子性增减操作，返回受影响的行数
-            pub async fn update_many_with_operations(conditions: Vec<$crate::types::QueryCondition>, operations: Vec<$crate::types::UpdateOperation>) -> $crate::error::QuickDbResult<u64> {
+            /// 接受 `Vec<QueryConditionWithConfig>`，支持大小写不敏感等高级配置
+            pub async fn update_many_with_operations_and_config(conditions: Vec<$crate::types::QueryConditionWithConfig>, operations: Vec<$crate::types::UpdateOperation>) -> $crate::error::QuickDbResult<u64> {
                 let collection_name = Self::collection_name();
                 let database_alias = Self::database_alias();
 
@@ -390,10 +450,10 @@ macro_rules! define_model {
                 ).await
             }
 
-            /// 批量删除模型（静态方法）
+            /// 批量删除模型（带配置）
             ///
-            /// 根据条件批量删除多条记录，返回受影响的行数
-            pub async fn delete_many(conditions: Vec<$crate::types::QueryCondition>) -> $crate::error::QuickDbResult<u64> {
+            /// 接受 `Vec<QueryConditionWithConfig>`，支持大小写不敏感等高级配置
+            pub async fn delete_many_with_config(conditions: Vec<$crate::types::QueryConditionWithConfig>) -> $crate::error::QuickDbResult<u64> {
                 let collection_name = Self::collection_name();
                 let database_alias = Self::database_alias();
 

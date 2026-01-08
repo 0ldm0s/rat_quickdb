@@ -15,7 +15,7 @@ impl AsyncOdmManager {
     #[doc(hidden)]
     pub async fn handle_update(
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         updates: HashMap<String, DataValue>,
         alias: Option<String>,
     ) -> QuickDbResult<u64> {
@@ -74,7 +74,7 @@ impl AsyncOdmManager {
     #[doc(hidden)]
     pub async fn handle_update_with_operations(
         collection: &str,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         operations: Vec<crate::types::UpdateOperation>,
         alias: Option<String>,
     ) -> QuickDbResult<u64> {

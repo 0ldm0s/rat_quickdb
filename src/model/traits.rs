@@ -338,17 +338,21 @@ pub trait ModelOperations<T: Model> {
     /// 根据ID查找记录
     async fn find_by_id(id: &str) -> QuickDbResult<Option<T>>;
 
-    /// 查找多条记录
+    /// 查找多条记录（简化版）
     async fn find(
         conditions: Vec<QueryCondition>,
         options: Option<QueryOptions>,
     ) -> QuickDbResult<Vec<T>> {
-        Self::find_with_cache_control(conditions, options, false).await
+        let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+            .into_iter()
+            .map(|c| c.into())
+            .collect();
+        Self::find_with_cache_control(conditions_with_config, options, false).await
     }
 
     /// 查找多条记录（支持缓存控制）
     async fn find_with_cache_control(
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: Option<QueryOptions>,
         bypass_cache: bool,
     ) -> QuickDbResult<Vec<T>>;
@@ -359,10 +363,21 @@ pub trait ModelOperations<T: Model> {
     /// 删除记录
     async fn delete(&self) -> QuickDbResult<bool>;
 
-    /// 统计记录数量
-    async fn count(conditions: Vec<QueryCondition>) -> QuickDbResult<u64>;
+    /// 统计记录数量（简化版）
+    async fn count(conditions: Vec<QueryCondition>) -> QuickDbResult<u64> {
+        let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+            .into_iter()
+            .map(|c| c.into())
+            .collect();
+        Self::count_with_config(conditions_with_config).await
+    }
 
-    /// 使用条件组查找多条记录（支持复杂的AND/OR逻辑组合）
+    /// 统计记录数量（完整版）
+    async fn count_with_config(conditions: Vec<QueryConditionWithConfig>) -> QuickDbResult<u64>;
+
+    /// 使用条件组查找多条记录（支持复杂的AND/OR逻辑组合）- 简化版
+    ///
+    /// 接受 `QueryConditionGroup`，自动转换为 `QueryConditionGroupWithConfig`
     async fn find_with_groups(
         condition_groups: Vec<QueryConditionGroup>,
         options: Option<QueryOptions>,
@@ -370,9 +385,36 @@ pub trait ModelOperations<T: Model> {
         Self::find_with_groups_with_cache_control(condition_groups, options, false).await
     }
 
-    /// 使用条件组查找多条记录（支持缓存控制和复杂的AND/OR逻辑组合）
+    /// 使用条件组查找多条记录（支持缓存控制和复杂的AND/OR逻辑组合）- 简化版
+    ///
+    /// 接受 `QueryConditionGroup`，自动转换为 `QueryConditionGroupWithConfig`
     async fn find_with_groups_with_cache_control(
         condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<T>> {
+        let condition_groups_with_config: Vec<QueryConditionGroupWithConfig> = condition_groups
+            .into_iter()
+            .map(|g| g.into())
+            .collect();
+        Self::find_with_groups_with_cache_control_and_config(condition_groups_with_config, options, bypass_cache).await
+    }
+
+    /// 使用条件组查找多条记录（支持复杂的AND/OR逻辑组合）- 完整版
+    ///
+    /// 接受 `QueryConditionGroupWithConfig`，支持大小写不敏感等高级配置
+    async fn find_with_groups_with_config(
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
+        Self::find_with_groups_with_cache_control_and_config(condition_groups, options, false).await
+    }
+
+    /// 使用条件组查找多条记录（支持缓存控制和复杂的AND/OR逻辑组合）- 完整版
+    ///
+    /// 接受 `QueryConditionGroupWithConfig`，支持大小写不敏感等高级配置
+    async fn find_with_groups_with_cache_control_and_config(
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
         options: Option<QueryOptions>,
         bypass_cache: bool,
     ) -> QuickDbResult<Vec<T>>;
@@ -381,7 +423,7 @@ pub trait ModelOperations<T: Model> {
     ///
     /// 根据条件批量更新多条记录，返回受影响的行数
     async fn update_many(
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         updates: HashMap<String, DataValue>,
     ) -> QuickDbResult<u64>;
 
@@ -389,14 +431,14 @@ pub trait ModelOperations<T: Model> {
     ///
     /// 根据条件使用操作数组批量更新多条记录，支持原子性增减操作，返回受影响的行数
     async fn update_many_with_operations(
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         operations: Vec<crate::types::UpdateOperation>,
     ) -> QuickDbResult<u64>;
 
     /// 批量删除模型
     ///
     /// 根据条件批量删除多条记录，返回受影响的行数
-    async fn delete_many(conditions: Vec<QueryCondition>) -> QuickDbResult<u64>;
+    async fn delete_many(conditions: Vec<QueryConditionWithConfig>) -> QuickDbResult<u64>;
 
     /// 创建表
     ///

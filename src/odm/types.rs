@@ -22,14 +22,14 @@ pub enum OdmRequest {
     },
     Find {
         collection: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
     },
     FindWithCacheControl {
         collection: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<String>,
         bypass_cache: bool,
@@ -37,14 +37,14 @@ pub enum OdmRequest {
     },
     FindWithGroups {
         collection: String,
-        condition_groups: Vec<QueryConditionGroup>,
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
     },
     FindWithGroupsWithCacheControl {
         collection: String,
-        condition_groups: Vec<QueryConditionGroup>,
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
         options: Option<QueryOptions>,
         alias: Option<String>,
         bypass_cache: bool,
@@ -52,14 +52,14 @@ pub enum OdmRequest {
     },
     Update {
         collection: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         updates: HashMap<String, DataValue>,
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
     UpdateWithOperations {
         collection: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         operations: Vec<crate::types::UpdateOperation>,
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<u64>>,
@@ -73,7 +73,7 @@ pub enum OdmRequest {
     },
     Delete {
         collection: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
@@ -85,7 +85,7 @@ pub enum OdmRequest {
     },
     Count {
         collection: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },

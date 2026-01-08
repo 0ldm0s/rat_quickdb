@@ -100,7 +100,7 @@ pub(crate) async fn find(
     adapter: &MongoAdapter,
     connection: &DatabaseConnection,
     table: &str,
-    conditions: &[QueryCondition],
+    conditions: &[QueryConditionWithConfig],
     options: &QueryOptions,
     alias: &str,
 ) -> QuickDbResult<Vec<DataValue>> {
@@ -110,16 +110,16 @@ pub(crate) async fn find(
     } else {
         let group_conditions = conditions
             .iter()
-            .map(|c| QueryConditionGroup::Single(c.clone()))
+            .map(|c| QueryConditionGroupWithConfig::Single(c.clone()))
             .collect();
-        vec![QueryConditionGroup::Group {
+        vec![QueryConditionGroupWithConfig::GroupWithConfig {
             operator: LogicalOperator::And,
             conditions: group_conditions,
         }]
     };
 
-    // 统一使用 find_with_groups 实现
-    find_with_groups(
+    // 统一使用 find_with_groups_with_config 实现
+    find_with_groups_with_config(
         adapter,
         connection,
         table,
@@ -201,11 +201,83 @@ pub(crate) async fn find_with_groups(
         })
     }
 }
+
+pub(crate) async fn find_with_groups_with_config(
+    adapter: &MongoAdapter,
+    connection: &DatabaseConnection,
+    table: &str,
+    condition_groups: &[QueryConditionGroupWithConfig],
+    options: &QueryOptions,
+    alias: &str,
+) -> QuickDbResult<Vec<DataValue>> {
+    if let DatabaseConnection::MongoDB(db) = connection {
+        let collection = crate::adapter::mongodb::utils::get_collection(adapter, db, table);
+
+        let query = crate::adapter::mongodb::query_builder::MongoQueryBuilder::new()
+            .where_condition_groups_with_config(condition_groups)
+            .build(table, alias)?;
+
+        debug!("执行MongoDB条件组合查询（完整版）: {:?}", query);
+
+        let mut find_options = mongodb::options::FindOptions::default();
+
+        // 添加排序
+        if !options.sort.is_empty() {
+            let mut sort_doc = Document::new();
+            for sort_field in &options.sort {
+                let sort_value = match sort_field.direction {
+                    SortDirection::Asc => 1,
+                    SortDirection::Desc => -1,
+                };
+                sort_doc.insert(&sort_field.field, sort_value);
+            }
+            find_options.sort = Some(sort_doc);
+        }
+
+        // 添加分页
+        if let Some(pagination) = &options.pagination {
+            find_options.limit = Some(pagination.limit as i64);
+            find_options.skip = Some(pagination.skip);
+        }
+
+        let mut cursor =
+            collection
+                .find(query, find_options)
+                .await
+                .map_err(|e| QuickDbError::QueryError {
+                    message: format!("MongoDB条件组合查询失败: {}", e),
+                })?;
+
+        let mut results = Vec::new();
+        while cursor
+            .advance()
+            .await
+            .map_err(|e| QuickDbError::QueryError {
+                message: format!("MongoDB游标遍历失败: {}", e),
+            })?
+        {
+            let doc = cursor
+                .deserialize_current()
+                .map_err(|e| QuickDbError::QueryError {
+                    message: format!("MongoDB文档反序列化失败: {}", e),
+                })?;
+            let data_map = crate::adapter::mongodb::utils::document_to_data_map(adapter, &doc)?;
+            results.push(DataValue::Object(data_map));
+        }
+
+        Ok(results)
+    } else {
+        Err(QuickDbError::ConnectionError {
+            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+        })
+    }
+}
+
 pub(crate) async fn count(
     adapter: &MongoAdapter,
     connection: &DatabaseConnection,
     table: &str,
-    conditions: &[QueryCondition],
+    conditions: &[QueryConditionWithConfig],
     alias: &str,
 ) -> QuickDbResult<u64> {
     if let DatabaseConnection::MongoDB(db) = connection {

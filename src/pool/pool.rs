@@ -324,7 +324,7 @@ impl ConnectionPool {
     pub async fn find(
         &self,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
     ) -> QuickDbResult<Vec<DataValue>> {
         let (response_sender, response_receiver) = oneshot::channel();
@@ -354,7 +354,7 @@ impl ConnectionPool {
     pub async fn update(
         &self,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         data: &HashMap<String, DataValue>,
     ) -> QuickDbResult<u64> {
         let (response_sender, response_receiver) = oneshot::channel();
@@ -414,7 +414,7 @@ impl ConnectionPool {
     pub async fn delete(
         &self,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64> {
         let (response_sender, response_receiver) = oneshot::channel();
@@ -472,7 +472,7 @@ impl ConnectionPool {
     pub async fn count(
         &self,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64> {
         let (response_sender, response_receiver) = oneshot::channel();

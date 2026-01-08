@@ -63,7 +63,7 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
         alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
@@ -75,7 +75,7 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
         alias: &str,
         bypass_cache: bool,
@@ -93,12 +93,41 @@ pub trait DatabaseAdapter: Send + Sync {
         self.find_with_groups_with_cache_control(connection, table, condition_groups, options, alias, false).await
     }
 
-    /// 使用条件组合查找记录（支持缓存控制）
+    /// 使用条件组合查找记录（支持缓存控制）- 简化版
     async fn find_with_groups_with_cache_control(
         &self,
         connection: &DatabaseConnection,
         table: &str,
         condition_groups: &[QueryConditionGroup],
+        options: &QueryOptions,
+        alias: &str,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        let condition_groups_with_config: Vec<QueryConditionGroupWithConfig> = condition_groups
+            .iter()
+            .map(|g| g.clone().into())
+            .collect();
+        self.find_with_groups_with_cache_control_and_config(connection, table, &condition_groups_with_config, options, alias, bypass_cache).await
+    }
+
+    /// 使用条件组合查找记录（支持复杂OR/AND逻辑）- 完整版
+    async fn find_with_groups_with_config(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroupWithConfig],
+        options: &QueryOptions,
+        alias: &str,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        self.find_with_groups_with_cache_control_and_config(connection, table, condition_groups, options, alias, false).await
+    }
+
+    /// 使用条件组合查找记录（支持缓存控制和复杂OR/AND逻辑）- 完整版
+    async fn find_with_groups_with_cache_control_and_config(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroupWithConfig],
         options: &QueryOptions,
         alias: &str,
         bypass_cache: bool,
@@ -109,7 +138,7 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         data: &HashMap<String, DataValue>,
         alias: &str,
     ) -> QuickDbResult<u64>;
@@ -119,7 +148,7 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         operations: &[crate::types::UpdateOperation],
         alias: &str,
     ) -> QuickDbResult<u64>;
@@ -139,7 +168,7 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64>;
 
@@ -157,7 +186,7 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64>;
 

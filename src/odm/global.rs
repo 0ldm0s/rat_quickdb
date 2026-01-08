@@ -61,7 +61,7 @@ pub async fn find_by_id(
 #[doc(hidden)]
 pub async fn find_with_cache_control(
     collection: &str,
-    conditions: Vec<QueryCondition>,
+    conditions: Vec<QueryConditionWithConfig>,
     options: Option<QueryOptions>,
     alias: Option<&str>,
     bypass_cache: bool,
@@ -80,7 +80,7 @@ pub async fn find_with_cache_control(
 #[doc(hidden)]
 pub async fn find(
     collection: &str,
-    conditions: Vec<QueryCondition>,
+    conditions: Vec<QueryConditionWithConfig>,
     options: Option<QueryOptions>,
     alias: Option<&str>,
 ) -> QuickDbResult<Vec<DataValue>> {
@@ -94,7 +94,7 @@ pub async fn find(
 #[doc(hidden)]
 pub async fn find_with_groups_with_cache_control(
     collection: &str,
-    condition_groups: Vec<QueryConditionGroup>,
+    condition_groups: Vec<QueryConditionGroupWithConfig>,
     options: Option<QueryOptions>,
     alias: Option<&str>,
     bypass_cache: bool,
@@ -104,7 +104,7 @@ pub async fn find_with_groups_with_cache_control(
 
     let manager = get_odm_manager().await;
     manager
-        .find_with_groups_with_cache_control(collection, condition_groups, options, alias, bypass_cache)
+        .find_with_groups_with_cache_control_and_config(collection, condition_groups, options, alias, bypass_cache)
         .await
 }
 
@@ -119,7 +119,11 @@ pub async fn find_with_groups(
     options: Option<QueryOptions>,
     alias: Option<&str>,
 ) -> QuickDbResult<Vec<DataValue>> {
-    find_with_groups_with_cache_control(collection, condition_groups, options, alias, false).await
+    let condition_groups_with_config: Vec<QueryConditionGroupWithConfig> = condition_groups
+        .into_iter()
+        .map(|g| g.into())
+        .collect();
+    find_with_groups_with_cache_control(collection, condition_groups_with_config, options, alias, false).await
 }
 
 /// 便捷函数：更新记录
@@ -129,7 +133,7 @@ pub async fn find_with_groups(
 #[doc(hidden)]
 pub async fn update(
     collection: &str,
-    conditions: Vec<QueryCondition>,
+    conditions: Vec<QueryConditionWithConfig>,
     updates: HashMap<String, DataValue>,
     alias: Option<&str>,
 ) -> QuickDbResult<u64> {
@@ -165,7 +169,7 @@ pub async fn update_by_id(
 #[doc(hidden)]
 pub async fn update_with_operations(
     collection: &str,
-    conditions: Vec<QueryCondition>,
+    conditions: Vec<QueryConditionWithConfig>,
     operations: Vec<crate::types::UpdateOperation>,
     alias: Option<&str>,
 ) -> QuickDbResult<u64> {
@@ -185,7 +189,7 @@ pub async fn update_with_operations(
 #[doc(hidden)]
 pub async fn delete(
     collection: &str,
-    conditions: Vec<QueryCondition>,
+    conditions: Vec<QueryConditionWithConfig>,
     alias: Option<&str>,
 ) -> QuickDbResult<u64> {
     // 锁定全局操作
@@ -215,7 +219,7 @@ pub async fn delete_by_id(collection: &str, id: &str, alias: Option<&str>) -> Qu
 #[doc(hidden)]
 pub async fn count(
     collection: &str,
-    conditions: Vec<QueryCondition>,
+    conditions: Vec<QueryConditionWithConfig>,
     alias: Option<&str>,
 ) -> QuickDbResult<u64> {
     // 锁定全局操作

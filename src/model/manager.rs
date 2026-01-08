@@ -26,42 +26,84 @@ impl<T: Model> ModelManager<T> {
         }
     }
 
-    /// 批量删除模型（静态便利方法）
-    ///
-    /// 根据条件批量删除多条记录，返回受影响的行数
-    /// 这是 ModelOperations::delete_many 的静态便利包装器
-    pub async fn delete_many(conditions: Vec<QueryCondition>) -> QuickDbResult<u64> {
-        <Self as ModelOperations<T>>::delete_many(conditions).await
-    }
+    // ========== 简化方法：接受 QueryCondition（自动转换） ==========
 
-    /// 查找模型（静态便利方法）
+    /// 查找模型（简化方法）
     ///
-    /// 根据条件查找多条记录
-    /// 这是 ModelOperations::find 的静态便利包装器
+    /// 接受 `Vec<QueryCondition>` 并自动转换为 `Vec<QueryConditionWithConfig>`
+    /// 适用于不需要额外配置的常见查询场景
     pub async fn find(
         conditions: Vec<QueryCondition>,
         options: Option<QueryOptions>,
     ) -> QuickDbResult<Vec<T>> {
-        <Self as ModelOperations<T>>::find(conditions, options).await
+        let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+            .into_iter()
+            .map(|c| c.into())
+            .collect();
+        Self::find_with_config(conditions_with_config, options).await
     }
 
-    /// 查找模型（支持缓存控制）
+    /// 统计模型数量（简化方法）
     ///
-    /// 根据条件查找多条记录，可选择是否跳过缓存
+    /// 接受 `Vec<QueryCondition>` 并自动转换为 `Vec<QueryConditionWithConfig>`
+    pub async fn count(conditions: Vec<QueryCondition>) -> QuickDbResult<u64> {
+        let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+            .into_iter()
+            .map(|c| c.into())
+            .collect();
+        Self::count_with_config(conditions_with_config).await
+    }
+
+    /// 批量删除模型（简化方法）
+    ///
+    /// 接受 `Vec<QueryCondition>` 并自动转换为 `Vec<QueryConditionWithConfig>`
+    pub async fn delete_many(conditions: Vec<QueryCondition>) -> QuickDbResult<u64> {
+        let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+            .into_iter()
+            .map(|c| c.into())
+            .collect();
+        Self::delete_many_with_config(conditions_with_config).await
+    }
+
+    /// 查找模型（简化方法，支持缓存控制）
+    ///
+    /// 接受 `Vec<QueryCondition>` 并自动转换为 `Vec<QueryConditionWithConfig>`
     pub async fn find_with_cache_control(
         conditions: Vec<QueryCondition>,
         options: Option<QueryOptions>,
         bypass_cache: bool,
     ) -> QuickDbResult<Vec<T>> {
-        <Self as ModelOperations<T>>::find_with_cache_control(conditions, options, bypass_cache).await
+        let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+            .into_iter()
+            .map(|c| c.into())
+            .collect();
+        <Self as ModelOperations<T>>::find_with_cache_control(conditions_with_config, options, bypass_cache).await
     }
 
-    /// 统计模型数量（静态便利方法）
+    // ========== 完整方法：接受 QueryConditionWithConfig ==========
+
+    /// 查找模型（带配置）
     ///
-    /// 根据条件统计记录数量
-    /// 这是 ModelOperations::count 的静态便利包装器
-    pub async fn count(conditions: Vec<QueryCondition>) -> QuickDbResult<u64> {
-        <Self as ModelOperations<T>>::count(conditions).await
+    /// 接受 `Vec<QueryConditionWithConfig>`，支持大小写不敏感等高级配置
+    pub async fn find_with_config(
+        conditions: Vec<QueryConditionWithConfig>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
+        <Self as ModelOperations<T>>::find_with_cache_control(conditions, options, false).await
+    }
+
+    /// 统计模型数量（带配置）
+    ///
+    /// 接受 `Vec<QueryConditionWithConfig>`，支持大小写不敏感等高级配置
+    pub async fn count_with_config(conditions: Vec<QueryConditionWithConfig>) -> QuickDbResult<u64> {
+        <Self as ModelOperations<T>>::count_with_config(conditions).await
+    }
+
+    /// 批量删除模型（带配置）
+    ///
+    /// 接受 `Vec<QueryConditionWithConfig>`，支持大小写不敏感等高级配置
+    pub async fn delete_many_with_config(conditions: Vec<QueryConditionWithConfig>) -> QuickDbResult<u64> {
+        <Self as ModelOperations<T>>::delete_many(conditions).await
     }
 
     /// 创建表（静态便利方法）
@@ -123,7 +165,7 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
     }
 
     async fn find_with_cache_control(
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: Option<QueryOptions>,
         bypass_cache: bool,
     ) -> QuickDbResult<Vec<T>> {
@@ -168,13 +210,6 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         Ok(models)
     }
 
-    async fn find(
-        conditions: Vec<QueryCondition>,
-        options: Option<QueryOptions>,
-    ) -> QuickDbResult<Vec<T>> {
-        Self::find_with_cache_control(conditions, options, false).await
-    }
-
     async fn update(&self, _updates: HashMap<String, DataValue>) -> QuickDbResult<bool> {
         // 这个方法需要模型实例，应该在具体的模型实现中调用
         Err(QuickDbError::ValidationError {
@@ -192,6 +227,14 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
     }
 
     async fn count(conditions: Vec<QueryCondition>) -> QuickDbResult<u64> {
+        let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+            .into_iter()
+            .map(|c| c.into())
+            .collect();
+        Self::count_with_config(conditions_with_config).await
+    }
+
+    async fn count_with_config(conditions: Vec<QueryConditionWithConfig>) -> QuickDbResult<u64> {
         let collection_name = T::collection_name();
         let database_alias = T::database_alias();
 
@@ -202,6 +245,54 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
 
     async fn find_with_groups_with_cache_control(
         condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<T>> {
+        let collection_name = T::collection_name();
+        let database_alias = T::database_alias();
+
+        debug!("使用条件组查找模型（bypass_cache={}）: collection={}", bypass_cache, collection_name);
+
+        // 转换为完整版
+        let condition_groups_with_config: Vec<QueryConditionGroupWithConfig> = condition_groups
+            .into_iter()
+            .map(|g| g.into())
+            .collect();
+
+        let result = odm::find_with_groups_with_cache_control(
+            &collection_name,
+            condition_groups_with_config,
+            options,
+            database_alias.as_deref(),
+            bypass_cache,
+        )
+        .await?;
+
+        // 处理返回的 DataValue 数据
+        let mut models = Vec::new();
+        for data_value in result {
+            let model: T = T::from_data_map(data_value.expect_object()?)?;
+            models.push(model);
+        }
+        Ok(models)
+    }
+
+    async fn find_with_groups(
+        condition_groups: Vec<QueryConditionGroup>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
+        Self::find_with_groups_with_cache_control(condition_groups, options, false).await
+    }
+
+    async fn find_with_groups_with_config(
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
+        options: Option<QueryOptions>,
+    ) -> QuickDbResult<Vec<T>> {
+        Self::find_with_groups_with_cache_control_and_config(condition_groups, options, false).await
+    }
+
+    async fn find_with_groups_with_cache_control_and_config(
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
         options: Option<QueryOptions>,
         bypass_cache: bool,
     ) -> QuickDbResult<Vec<T>> {
@@ -228,18 +319,11 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         Ok(models)
     }
 
-    async fn find_with_groups(
-        condition_groups: Vec<QueryConditionGroup>,
-        options: Option<QueryOptions>,
-    ) -> QuickDbResult<Vec<T>> {
-        Self::find_with_groups_with_cache_control(condition_groups, options, false).await
-    }
-
     /// 批量更新模型
     ///
     /// 根据条件批量更新多条记录，返回受影响的行数
     async fn update_many(
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         updates: HashMap<String, DataValue>,
     ) -> QuickDbResult<u64> {
         let collection_name = T::collection_name();
@@ -264,7 +348,7 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
     ///
     /// 根据条件使用操作数组批量更新多条记录，支持原子性增减操作，返回受影响的行数
     async fn update_many_with_operations(
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         operations: Vec<crate::types::UpdateOperation>,
     ) -> QuickDbResult<u64> {
         let collection_name = T::collection_name();
@@ -289,7 +373,7 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
     /// 批量删除模型
     ///
     /// 根据条件批量删除多条记录，返回受影响的行数
-    async fn delete_many(conditions: Vec<QueryCondition>) -> QuickDbResult<u64> {
+    async fn delete_many(conditions: Vec<QueryConditionWithConfig>) -> QuickDbResult<u64> {
         let collection_name = T::collection_name();
         let database_alias = T::database_alias();
 

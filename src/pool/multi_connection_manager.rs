@@ -346,9 +346,14 @@ impl MultiConnectionManager {
                 alias,
                 response,
             } => {
+                // 将 QueryCondition 转换为 QueryConditionWithConfig
+                let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+                    .iter()
+                    .map(|c| c.clone().into())
+                    .collect();
                 let result = worker
                     .adapter
-                    .find(&worker.connection, &table, &conditions, &options, &alias)
+                    .find(&worker.connection, &table, &conditions_with_config, &options, &alias)
                     .await;
                 let _ = response.send(result);
                 Ok(())
@@ -381,12 +386,17 @@ impl MultiConnectionManager {
                 bypass_cache,
                 response,
             } => {
+                // 将 QueryCondition 转换为 QueryConditionWithConfig
+                let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+                    .iter()
+                    .map(|c| c.clone().into())
+                    .collect();
                 let result = worker
                     .adapter
                     .find_with_cache_control(
                         &worker.connection,
                         &table,
-                        &conditions,
+                        &conditions_with_config,
                         &options,
                         &alias,
                         bypass_cache,
@@ -405,7 +415,7 @@ impl MultiConnectionManager {
             } => {
                 let result = worker
                     .adapter
-                    .find_with_groups_with_cache_control(
+                    .find_with_groups_with_cache_control_and_config(
                         &worker.connection,
                         &table,
                         &condition_groups,
@@ -424,9 +434,14 @@ impl MultiConnectionManager {
                 alias,
                 response,
             } => {
+                // 将 QueryCondition 转换为 QueryConditionWithConfig
+                let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+                    .iter()
+                    .map(|c| c.clone().into())
+                    .collect();
                 let result = worker
                     .adapter
-                    .update(&worker.connection, &table, &conditions, &data, &alias)
+                    .update(&worker.connection, &table, &conditions_with_config, &data, &alias)
                     .await;
                 let _ = response.send(result);
                 Ok(())
@@ -438,12 +453,17 @@ impl MultiConnectionManager {
                 alias,
                 response,
             } => {
+                // 将 QueryCondition 转换为 QueryConditionWithConfig
+                let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+                    .iter()
+                    .map(|c| c.clone().into())
+                    .collect();
                 let result = worker
                     .adapter
                     .update_with_operations(
                         &worker.connection,
                         &table,
-                        &conditions,
+                        &conditions_with_config,
                         &operations,
                         &alias,
                     )
@@ -471,9 +491,14 @@ impl MultiConnectionManager {
                 alias,
                 response,
             } => {
+                // 将 QueryCondition 转换为 QueryConditionWithConfig
+                let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+                    .iter()
+                    .map(|c| c.clone().into())
+                    .collect();
                 let result = worker
                     .adapter
-                    .delete(&worker.connection, &table, &conditions, &alias)
+                    .delete(&worker.connection, &table, &conditions_with_config, &alias)
                     .await;
                 let _ = response.send(result);
                 Ok(())
@@ -497,9 +522,14 @@ impl MultiConnectionManager {
                 alias,
                 response,
             } => {
+                // 将 QueryCondition 转换为 QueryConditionWithConfig
+                let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+                    .iter()
+                    .map(|c| c.clone().into())
+                    .collect();
                 let result = worker
                     .adapter
-                    .count(&worker.connection, &table, &conditions, &alias)
+                    .count(&worker.connection, &table, &conditions_with_config, &alias)
                     .await;
                 let _ = response.send(result);
                 Ok(())

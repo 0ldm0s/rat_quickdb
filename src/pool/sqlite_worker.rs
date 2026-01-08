@@ -341,7 +341,7 @@ impl SqliteWorker {
             } => {
                 let result = self
                     .adapter
-                    .find_with_groups_with_cache_control(
+                    .find_with_groups_with_cache_control_and_config(
                         &self.connection,
                         &table,
                         &condition_groups,

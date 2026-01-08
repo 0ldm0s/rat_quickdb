@@ -1,9 +1,36 @@
 use crate::types::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 
-/// 查询条件
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// 查询条件（简化版）
+///
+/// 不包含配置选项的简化查询条件，使用默认配置（大小写敏感）。
+/// 可以通过 `.into()` 自动转换为 `QueryConditionWithConfig`。
+#[derive(Debug, Clone, PartialEq)]
 pub struct QueryCondition {
+    /// 字段名
+    pub field: String,
+    /// 操作符
+    pub operator: QueryOperator,
+    /// 值
+    pub value: DataValue,
+}
+
+impl From<QueryCondition> for QueryConditionWithConfig {
+    fn from(condition: QueryCondition) -> Self {
+        QueryConditionWithConfig {
+            field: condition.field,
+            operator: condition.operator,
+            value: condition.value,
+            case_insensitive: false,  // 默认大小写敏感
+        }
+    }
+}
+
+/// 查询条件（带配置）
+///
+/// 包含所有配置选项的完整查询条件，支持大小写不敏感查询等功能。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct QueryConditionWithConfig {
     /// 字段名
     pub field: String,
     /// 操作符
@@ -24,8 +51,10 @@ pub enum LogicalOperator {
     Or,
 }
 
-/// 查询条件组合
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// 查询条件组合（简化版）
+///
+/// 使用简化的 QueryCondition，适用于不需要额外配置的场景
+#[derive(Debug, Clone, PartialEq)]
 pub enum QueryConditionGroup {
     /// 单个条件
     Single(QueryCondition),
@@ -36,6 +65,60 @@ pub enum QueryConditionGroup {
         /// 子条件列表
         conditions: Vec<QueryConditionGroup>,
     },
+}
+
+// 支持从 QueryCondition 自动转换
+impl From<QueryCondition> for QueryConditionGroup {
+    fn from(condition: QueryCondition) -> Self {
+        QueryConditionGroup::Single(condition)
+    }
+}
+
+/// 查询条件组合（完整版）
+///
+/// 使用 QueryConditionWithConfig，支持大小写不敏感等高级配置
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum QueryConditionGroupWithConfig {
+    /// 单个条件
+    Single(QueryConditionWithConfig),
+    /// 条件组合
+    GroupWithConfig {
+        /// 逻辑操作符
+        operator: LogicalOperator,
+        /// 子条件列表
+        conditions: Vec<QueryConditionGroupWithConfig>,
+    },
+}
+
+// 支持从 QueryCondition 自动转换
+impl From<QueryCondition> for QueryConditionGroupWithConfig {
+    fn from(condition: QueryCondition) -> Self {
+        QueryConditionGroupWithConfig::Single(condition.into())
+    }
+}
+
+// 支持从 QueryConditionWithConfig 自动转换
+impl From<QueryConditionWithConfig> for QueryConditionGroupWithConfig {
+    fn from(condition: QueryConditionWithConfig) -> Self {
+        QueryConditionGroupWithConfig::Single(condition)
+    }
+}
+
+// 支持从 QueryConditionGroup 自动转换（递归转换）
+impl From<QueryConditionGroup> for QueryConditionGroupWithConfig {
+    fn from(group: QueryConditionGroup) -> Self {
+        match group {
+            QueryConditionGroup::Single(condition) => {
+                QueryConditionGroupWithConfig::Single(condition.into())
+            }
+            QueryConditionGroup::Group { operator, conditions } => {
+                QueryConditionGroupWithConfig::GroupWithConfig {
+                    operator,
+                    conditions: conditions.into_iter().map(|g| g.into()).collect(),
+                }
+            }
+        }
+    }
 }
 
 /// 查询操作符
@@ -106,7 +189,7 @@ pub struct PaginationConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct QueryOptions {
     /// 查询条件
-    pub conditions: Vec<QueryCondition>,
+    pub conditions: Vec<QueryConditionWithConfig>,
     /// 排序配置
     pub sort: Vec<SortConfig>,
     /// 分页配置
@@ -122,7 +205,7 @@ impl QueryOptions {
     }
 
     /// 设置条件
-    pub fn with_conditions(mut self, conditions: Vec<QueryCondition>) -> Self {
+    pub fn with_conditions(mut self, conditions: Vec<QueryConditionWithConfig>) -> Self {
         self.conditions = conditions;
         self
     }

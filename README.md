@@ -32,27 +32,43 @@
 
 **新功能：**
 - 🎯 **大小写不敏感查询**：所有数据库适配器现在支持大小写不敏感的字符串查询
-- 🔄 **统一API**：在 `QueryCondition` 中添加 `case_insensitive` 字段，默认为 `false`
+- 🔄 **双类型系统**：提供简化版和完整版查询条件类型，满足不同使用场景
 - 📊 **跨数据库支持**：MongoDB、MySQL、PostgreSQL、SQLite 全部支持
+- 🔄 **自动类型转换**：简化版自动转换为完整版，无需手动处理
+
+**类型说明：**
+
+本版本提供两种查询条件类型：
+
+1. **`QueryCondition`（简化版）**：适用于大多数场景
+   - 不包含 `case_insensitive` 字段
+   - 默认大小写敏感
+   - 使用更简洁，代码更清晰
+
+2. **`QueryConditionWithConfig`（完整版）**：适用于需要配置的场景
+   - 包含 `case_insensitive` 字段，可控制大小写敏感性
+   - 支持未来更多配置选项
+   - 用于需要大小写不敏感等高级功能的查询
 
 **使用示例：**
+
 ```rust
 use rat_quickdb::*;
 
-// 大小写敏感查询（默认行为）
-let sensitive_results = ModelManager::<User>::find(
+// ===== 简化版：默认大小写敏感查询（推荐用于日常使用）=====
+let results = ModelManager::<User>::find(
     vec![QueryCondition {
         field: "username".to_string(),
         operator: QueryOperator::Eq,
-        value: DataValue::String("ADMIN".to_string()),
-        case_insensitive: false,  // 默认值
+        value: DataValue::String("admin".to_string()),
+        // 无 case_insensitive 字段，默认大小写敏感
     }],
     None
 ).await?;
 
-// 大小写不敏感查询
-let insensitive_results = ModelManager::<User>::find(
-    vec![QueryCondition {
+// ===== 完整版：大小写不敏感查询 =====
+let insensitive_results = ModelManager::<User>::find_with_config(
+    vec![QueryConditionWithConfig {
         field: "username".to_string(),
         operator: QueryOperator::Eq,
         value: DataValue::String("admin".to_string()),
@@ -60,7 +76,31 @@ let insensitive_results = ModelManager::<User>::find(
     }],
     None
 ).await?;
+
+// ===== 完整版：大小写敏感查询（明确指定）=====
+let sensitive_results = ModelManager::<User>::find_with_config(
+    vec![QueryConditionWithConfig {
+        field: "username".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("ADMIN".to_string()),
+        case_insensitive: false,  // 明确禁用大小写不敏感
+    }],
+    None
+).await?;
 ```
+
+**方法对应关系：**
+
+| 简化版方法 | 完整版方法 | 说明 |
+|-----------|-----------|------|
+| `find(conditions)` | `find_with_config(conditions)` | 查找记录 |
+| `count(conditions)` | `count_with_config(conditions)` | 统计记录 |
+| `delete_many(conditions)` | `delete_many_with_config(conditions)` | 批量删除 |
+| `find_with_cache_control(conditions, options, bypass)` | （内部方法） | 缓存控制 |
+
+**自动转换机制：**
+
+所有简化版方法内部会自动将 `QueryCondition` 转换为 `QueryConditionWithConfig`（`case_insensitive` 默认为 `false`），无需手动处理。
 
 **实现方式：**
 - **MongoDB**: 使用正则表达式 `$regex: "^value$", $options: "i"`

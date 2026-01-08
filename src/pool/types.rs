@@ -42,7 +42,7 @@ pub enum DatabaseOperation {
     /// 查找记录（支持缓存控制）
     Find {
         table: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: QueryOptions,
         alias: String,
         response: oneshot::Sender<QuickDbResult<Vec<DataValue>>>,
@@ -50,7 +50,7 @@ pub enum DatabaseOperation {
     /// 查找记录（强制跳过缓存）
     FindWithBypassCache {
         table: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         options: QueryOptions,
         alias: String,
         bypass_cache: bool,
@@ -67,7 +67,7 @@ pub enum DatabaseOperation {
     /// 使用条件组合查找记录（强制跳过缓存）
     FindWithGroupsWithBypassCache {
         table: String,
-        condition_groups: Vec<QueryConditionGroup>,
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
         options: QueryOptions,
         alias: String,
         bypass_cache: bool,
@@ -76,7 +76,7 @@ pub enum DatabaseOperation {
     /// 更新记录
     Update {
         table: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         data: HashMap<String, DataValue>,
         alias: String,
         response: oneshot::Sender<QuickDbResult<u64>>,
@@ -84,7 +84,7 @@ pub enum DatabaseOperation {
     /// 使用操作数组更新记录
     UpdateWithOperations {
         table: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         operations: Vec<crate::types::UpdateOperation>,
         alias: String,
         response: oneshot::Sender<QuickDbResult<u64>>,
@@ -100,7 +100,7 @@ pub enum DatabaseOperation {
     /// 删除记录
     Delete {
         table: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         alias: String,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
@@ -114,7 +114,7 @@ pub enum DatabaseOperation {
     /// 统计记录
     Count {
         table: String,
-        conditions: Vec<QueryCondition>,
+        conditions: Vec<QueryConditionWithConfig>,
         alias: String,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },

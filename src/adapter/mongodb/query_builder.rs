@@ -21,8 +21,9 @@ fn map_field_name(field_name: &str) -> &str {
 
 /// MongoDB查询构建器
 pub struct MongoQueryBuilder {
-    conditions: Vec<QueryCondition>,
+    conditions: Vec<QueryConditionWithConfig>,
     condition_groups: Vec<QueryConditionGroup>,
+    condition_groups_with_config: Vec<QueryConditionGroupWithConfig>,
 }
 
 impl MongoQueryBuilder {
@@ -31,17 +32,18 @@ impl MongoQueryBuilder {
         Self {
             conditions: Vec::new(),
             condition_groups: Vec::new(),
+            condition_groups_with_config: Vec::new(),
         }
     }
 
     /// 添加WHERE条件
-    pub fn where_condition(mut self, condition: QueryCondition) -> Self {
+    pub fn where_condition(mut self, condition: QueryConditionWithConfig) -> Self {
         self.conditions.push(condition);
         self
     }
 
     /// 添加多个WHERE条件
-    pub fn where_conditions(mut self, conditions: &[QueryCondition]) -> Self {
+    pub fn where_conditions(mut self, conditions: &[QueryConditionWithConfig]) -> Self {
         self.conditions.extend_from_slice(conditions);
         self
     }
@@ -49,6 +51,12 @@ impl MongoQueryBuilder {
     /// 添加条件组合
     pub fn where_condition_groups(mut self, groups: &[QueryConditionGroup]) -> Self {
         self.condition_groups.extend_from_slice(groups);
+        self
+    }
+
+    /// 添加条件组合（完整版）
+    pub fn where_condition_groups_with_config(mut self, groups: &[QueryConditionGroupWithConfig]) -> Self {
+        self.condition_groups_with_config.extend_from_slice(groups);
         self
     }
 
@@ -62,8 +70,13 @@ impl MongoQueryBuilder {
         );
         let mut query_doc = Document::new();
 
-        // 优先使用条件组合
-        if !self.condition_groups.is_empty() {
+        // 优先使用条件组合（完整版）
+        if !self.condition_groups_with_config.is_empty() {
+            let groups_doc = self.build_condition_groups_with_config_document(table, alias)?;
+            if !groups_doc.is_empty() {
+                query_doc.extend(groups_doc);
+            }
+        } else if !self.condition_groups.is_empty() {
             let groups_doc = self.build_condition_groups_document(table, alias)?;
             if !groups_doc.is_empty() {
                 query_doc.extend(groups_doc);
@@ -121,7 +134,14 @@ impl MongoQueryBuilder {
     ) -> QuickDbResult<Document> {
         match group {
             QueryConditionGroup::Single(condition) => {
-                self.build_single_condition_document(table, alias, condition)
+                // 将简化版转换为完整版
+                let condition_with_config = QueryConditionWithConfig {
+                    field: condition.field.clone(),
+                    operator: condition.operator.clone(),
+                    value: condition.value.clone(),
+                    case_insensitive: false,
+                };
+                self.build_single_condition_document(table, alias, &condition_with_config)
             }
             QueryConditionGroup::Group {
                 operator,
@@ -153,12 +173,71 @@ impl MongoQueryBuilder {
         }
     }
 
+    /// 构建条件组合文档（完整版）
+    fn build_condition_groups_with_config_document(&self, table: &str, alias: &str) -> QuickDbResult<Document> {
+        let mut group_docs = Vec::new();
+
+        for group in &self.condition_groups_with_config {
+            let group_doc = self.build_single_condition_group_with_config_document(table, alias, group)?;
+            if !group_doc.is_empty() {
+                group_docs.push(group_doc);
+            }
+        }
+
+        if group_docs.len() == 1 {
+            Ok(group_docs.into_iter().next().unwrap())
+        } else {
+            Ok(doc! { "$and": group_docs })
+        }
+    }
+
+    /// 构建单个条件组合的文档（完整版）
+    fn build_single_condition_group_with_config_document(
+        &self,
+        table: &str,
+        alias: &str,
+        group: &QueryConditionGroupWithConfig,
+    ) -> QuickDbResult<Document> {
+        match group {
+            QueryConditionGroupWithConfig::Single(condition) => {
+                self.build_single_condition_document(table, alias, condition)
+            }
+            QueryConditionGroupWithConfig::GroupWithConfig {
+                operator,
+                conditions,
+            } => {
+                if conditions.is_empty() {
+                    return Ok(Document::new());
+                }
+
+                let mut condition_docs = Vec::new();
+                for condition in conditions {
+                    let doc =
+                        self.build_single_condition_group_with_config_document(table, alias, condition)?;
+                    if !doc.is_empty() {
+                        condition_docs.push(doc);
+                    }
+                }
+
+                if condition_docs.len() == 1 {
+                    Ok(condition_docs.into_iter().next().unwrap())
+                } else {
+                    let operator_key = match operator {
+                        LogicalOperator::And => "$and",
+                        LogicalOperator::Or => "$or",
+                    };
+                    Ok(doc! { operator_key: condition_docs })
+                }
+            }
+        }
+    }
+
     /// 构建单个条件的文档
     fn build_single_condition_document(
         &self,
         table: &str,
         alias: &str,
-        condition: &QueryCondition,
+        condition: &QueryConditionWithConfig,
     ) -> QuickDbResult<Document> {
         let field_name = map_field_name(&condition.field);
         let bson_value = self.data_value_to_bson(&condition.value);
@@ -502,7 +581,7 @@ impl MongoQueryBuilder {
 pub fn build_query_document(
     table: &str,
     alias: &str,
-    conditions: &[QueryCondition],
+    conditions: &[QueryConditionWithConfig],
 ) -> QuickDbResult<Document> {
     MongoQueryBuilder::new()
         .where_conditions(conditions)
@@ -512,7 +591,7 @@ pub fn build_query_document(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::QueryCondition;
+    use crate::types::QueryConditionWithConfig;
 
     #[test]
     fn test_mongo_query_builder_basic() {
