@@ -708,16 +708,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             password: Some("testdb123456".to_string()),
             auth_source: Some("testdb".to_string()),
             direct_connection: true,
-            tls_config: Some(rat_quickdb::types::TlsConfig {
-                enabled: true,
-                ca_cert_path: None,
-                client_cert_path: None,
-                client_key_path: None,
-                verify_server_cert: false,
-                verify_hostname: false,
-                min_tls_version: None,
-                cipher_suites: None,
-            }),
+            tls_config: None,
             zstd_config: Some(rat_quickdb::types::ZstdConfig {
                 enabled: true,
                 compression_level: Some(3),
