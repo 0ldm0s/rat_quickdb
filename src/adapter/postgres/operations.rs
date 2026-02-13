@@ -158,7 +158,7 @@ impl DatabaseAdapter for PostgresAdapter {
         alias: &str,
     ) -> QuickDbResult<Option<DataValue>> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
-            let condition = QueryCondition {
+            let condition = QueryConditionWithConfig {
                 field: "id".to_string(),
                 operator: QueryOperator::Eq,
                 value: id.clone(),
@@ -186,7 +186,7 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
         alias: &str,
         bypass_cache: bool,
@@ -197,24 +197,24 @@ impl DatabaseAdapter for PostgresAdapter {
         } else {
             let group_conditions = conditions
                 .iter()
-                .map(|c| QueryConditionGroup::Single(c.clone()))
+                .map(|c| QueryConditionGroupWithConfig::Single(c.clone()))
                 .collect();
-            vec![QueryConditionGroup::Group {
+            vec![QueryConditionGroupWithConfig::GroupWithConfig {
                 operator: LogicalOperator::And,
                 conditions: group_conditions,
             }]
         };
 
-        // 统一使用 find_with_groups_with_cache_control 实现
-        self.find_with_groups_with_cache_control(connection, table, &condition_groups, options, alias, bypass_cache)
+        // 统一使用 find_with_groups_with_cache_control_and_config 实现
+        self.find_with_groups_with_cache_control_and_config(connection, table, &condition_groups, options, alias, bypass_cache)
             .await
     }
 
-    async fn find_with_groups_with_cache_control(
+    async fn find_with_groups_with_cache_control_and_config(
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        condition_groups: &[QueryConditionGroup],
+        condition_groups: &[QueryConditionGroupWithConfig],
         options: &QueryOptions,
         alias: &str,
         bypass_cache: bool,
@@ -248,11 +248,54 @@ impl DatabaseAdapter for PostgresAdapter {
         }
     }
 
+    async fn find_with_groups_with_cache_control(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroup],
+        options: &QueryOptions,
+        alias: &str,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        // 将 QueryConditionGroup 转换为 QueryConditionGroupWithConfig
+        fn convert_group(group: &QueryConditionGroup) -> QueryConditionGroupWithConfig {
+            match group {
+                QueryConditionGroup::Single(c) => {
+                    QueryConditionGroupWithConfig::Single(QueryConditionWithConfig {
+                        field: c.field.clone(),
+                        operator: c.operator.clone(),
+                        value: c.value.clone(),
+                        case_insensitive: false,
+                    })
+                }
+                QueryConditionGroup::Group { operator, conditions } => {
+                    QueryConditionGroupWithConfig::GroupWithConfig {
+                        operator: operator.clone(),
+                        conditions: conditions.iter().map(convert_group).collect(),
+                    }
+                }
+            }
+        }
+
+        let condition_groups_with_config: Vec<QueryConditionGroupWithConfig> =
+            condition_groups.iter().map(convert_group).collect();
+
+        self.find_with_groups_with_cache_control_and_config(
+            connection,
+            table,
+            &condition_groups_with_config,
+            options,
+            alias,
+            bypass_cache,
+        )
+        .await
+    }
+
     async fn find(
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
         alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
@@ -274,7 +317,7 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         data: &HashMap<String, DataValue>,
         alias: &str,
     ) -> QuickDbResult<u64> {
@@ -352,7 +395,7 @@ impl DatabaseAdapter for PostgresAdapter {
         data: &HashMap<String, DataValue>,
         alias: &str,
     ) -> QuickDbResult<bool> {
-        let conditions = vec![QueryCondition {
+        let conditions = vec![QueryConditionWithConfig {
             field: "id".to_string(),
             operator: QueryOperator::Eq,
             value: id.clone(),
@@ -369,7 +412,7 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         operations: &[crate::types::UpdateOperation],
         alias: &str,
     ) -> QuickDbResult<u64> {
@@ -472,7 +515,7 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64> {
         postgres_query::delete(self, connection, table, conditions, alias).await
@@ -492,7 +535,7 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64> {
         postgres_query::count(self, connection, table, conditions, alias).await

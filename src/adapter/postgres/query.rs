@@ -14,7 +14,7 @@ pub(crate) async fn delete(
     adapter: &PostgresAdapter,
     connection: &DatabaseConnection,
     table: &str,
-    conditions: &[QueryCondition],
+    conditions: &[QueryConditionWithConfig],
     alias: &str,
 ) -> QuickDbResult<u64> {
     if let DatabaseConnection::PostgreSQL(pool) = connection {
@@ -41,7 +41,7 @@ pub(crate) async fn delete_by_id(
     id: &DataValue,
     alias: &str,
 ) -> QuickDbResult<bool> {
-    let conditions = vec![QueryCondition {
+    let conditions = vec![QueryConditionWithConfig {
         field: "id".to_string(),
         operator: QueryOperator::Eq,
         value: id.clone(),
@@ -57,7 +57,7 @@ pub(crate) async fn count(
     adapter: &PostgresAdapter,
     connection: &DatabaseConnection,
     table: &str,
-    conditions: &[QueryCondition],
+    conditions: &[QueryConditionWithConfig],
     alias: &str,
 ) -> QuickDbResult<u64> {
     if let DatabaseConnection::PostgreSQL(pool) = connection {
