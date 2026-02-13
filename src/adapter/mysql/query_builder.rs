@@ -11,12 +11,12 @@ use std::collections::HashMap;
 pub struct SqlQueryBuilder {
     query_type: QueryType,
     fields: Vec<String>,
-    conditions: Vec<QueryCondition>,
-    condition_groups: Vec<QueryConditionGroup>,
+    conditions: Vec<QueryConditionWithConfig>,
+    condition_groups: Vec<QueryConditionGroupWithConfig>,
     joins: Vec<JoinClause>,
     order_by: Vec<OrderClause>,
     group_by: Vec<String>,
-    having: Vec<QueryCondition>,
+    having: Vec<QueryConditionWithConfig>,
     limit: Option<u64>,
     offset: Option<u64>,
     values: HashMap<String, DataValue>,
@@ -103,19 +103,19 @@ impl SqlQueryBuilder {
     /// 设置表名
 
     /// 添加WHERE条件
-    pub fn where_condition(mut self, condition: QueryCondition) -> Self {
+    pub fn where_condition(mut self, condition: QueryConditionWithConfig) -> Self {
         self.conditions.push(condition);
         self
     }
 
     /// 添加多个WHERE条件
-    pub fn where_conditions(mut self, conditions: &[QueryCondition]) -> Self {
+    pub fn where_conditions(mut self, conditions: &[QueryConditionWithConfig]) -> Self {
         self.conditions.extend_from_slice(conditions);
         self
     }
 
     /// 添加条件组合（支持OR逻辑）
-    pub fn where_condition_groups(mut self, groups: &[QueryConditionGroup]) -> Self {
+    pub fn where_condition_groups(mut self, groups: &[QueryConditionGroupWithConfig]) -> Self {
         // 存储条件组合
         self.condition_groups.extend_from_slice(groups);
         // 清空简单条件，因为条件组合会覆盖简单条件
@@ -149,7 +149,7 @@ impl SqlQueryBuilder {
     }
 
     /// 添加HAVING条件
-    pub fn having(mut self, condition: QueryCondition) -> Self {
+    pub fn having(mut self, condition: QueryConditionWithConfig) -> Self {
         self.having.push(condition);
         self
     }
@@ -402,7 +402,7 @@ impl SqlQueryBuilder {
     /// 构建WHERE子句
     pub(crate) fn build_where_clause(
         &self,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         table: &str,
         alias: &str,
     ) -> QuickDbResult<(String, Vec<DataValue>)> {
@@ -412,7 +412,7 @@ impl SqlQueryBuilder {
     /// 构建WHERE子句（支持条件组合）
     pub fn build_where_clause_from_groups(
         &self,
-        groups: &[QueryConditionGroup],
+        groups: &[QueryConditionGroupWithConfig],
         table: &str,
         alias: &str,
     ) -> QuickDbResult<(String, Vec<DataValue>)> {
@@ -422,7 +422,7 @@ impl SqlQueryBuilder {
     /// 构建WHERE子句（支持条件组合），从指定的参数索引开始
     fn build_where_clause_from_groups_with_offset(
         &self,
-        groups: &[QueryConditionGroup],
+        groups: &[QueryConditionGroupWithConfig],
         start_index: usize,
         table: &str,
         alias: &str,
@@ -449,18 +449,18 @@ impl SqlQueryBuilder {
     /// 构建单个条件组合的子句
     fn build_condition_group_clause(
         &self,
-        group: &QueryConditionGroup,
+        group: &QueryConditionGroupWithConfig,
         start_index: usize,
         table: &str,
         alias: &str,
     ) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
         match group {
-            QueryConditionGroup::Single(condition) => {
+            QueryConditionGroupWithConfig::Single(condition) => {
                 let (clause, mut params, new_index) =
                     self.build_single_condition_clause(condition, start_index, table, alias)?;
                 Ok((clause, params, new_index))
             }
-            QueryConditionGroup::Group {
+            QueryConditionGroupWithConfig::GroupWithConfig {
                 operator,
                 conditions,
             } => {
@@ -505,7 +505,7 @@ impl SqlQueryBuilder {
     /// 构建单个条件的子句
     fn build_single_condition_clause(
         &self,
-        condition: &QueryCondition,
+        condition: &QueryConditionWithConfig,
         param_index: usize,
         table: &str,
         alias: &str,
@@ -758,7 +758,7 @@ impl SqlQueryBuilder {
     /// 构建WHERE子句，从指定的参数索引开始
     pub(crate) fn build_where_clause_with_offset(
         &self,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         start_index: usize,
         table: &str,
         alias: &str,

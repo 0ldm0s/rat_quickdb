@@ -14,7 +14,7 @@ pub(crate) async fn delete(
     adapter: &MysqlAdapter,
     connection: &DatabaseConnection,
     table: &str,
-    conditions: &[QueryCondition],
+    conditions: &[QueryConditionWithConfig],
     alias: &str,
 ) -> QuickDbResult<u64> {
     if let DatabaseConnection::MySQL(pool) = connection {
@@ -39,7 +39,7 @@ pub(crate) async fn delete_by_id(
     alias: &str,
 ) -> QuickDbResult<bool> {
     if let DatabaseConnection::MySQL(pool) = connection {
-        let condition = QueryCondition {
+        let condition = QueryConditionWithConfig {
             field: "id".to_string(),
             operator: QueryOperator::Eq,
             value: id.clone(),
@@ -64,7 +64,7 @@ pub(crate) async fn count(
     adapter: &MysqlAdapter,
     connection: &DatabaseConnection,
     table: &str,
-    conditions: &[QueryCondition],
+    conditions: &[QueryConditionWithConfig],
     alias: &str,
 ) -> QuickDbResult<u64> {
     if let DatabaseConnection::MySQL(pool) = connection {
