@@ -12,12 +12,12 @@ use std::collections::HashMap;
 pub struct SqlQueryBuilder {
     query_type: QueryType,
     fields: Vec<String>,
-    conditions: Vec<QueryCondition>,
+    conditions: Vec<QueryConditionWithConfig>,
     condition_groups: Vec<QueryConditionGroup>,
     joins: Vec<JoinClause>,
     order_by: Vec<OrderClause>,
     group_by: Vec<String>,
-    having: Vec<QueryCondition>,
+    having: Vec<QueryConditionWithConfig>,
     limit: Option<u64>,
     offset: Option<u64>,
     values: HashMap<String, DataValue>,
@@ -102,13 +102,13 @@ impl SqlQueryBuilder {
     }
 
     /// 添加WHERE条件
-    pub fn where_condition(mut self, condition: QueryCondition) -> Self {
+    pub fn where_condition(mut self, condition: QueryConditionWithConfig) -> Self {
         self.conditions.push(condition);
         self
     }
 
     /// 添加多个WHERE条件
-    pub fn where_conditions(mut self, conditions: &[QueryCondition]) -> Self {
+    pub fn where_conditions(mut self, conditions: &[QueryConditionWithConfig]) -> Self {
         self.conditions.extend_from_slice(conditions);
         self
     }
@@ -148,7 +148,7 @@ impl SqlQueryBuilder {
     }
 
     /// 添加HAVING条件
-    pub fn having(mut self, condition: QueryCondition) -> Self {
+    pub fn having(mut self, condition: QueryConditionWithConfig) -> Self {
         self.having.push(condition);
         self
     }
@@ -401,7 +401,7 @@ impl SqlQueryBuilder {
     /// 构建WHERE子句
     pub(crate) fn build_where_clause(
         &self,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         table: &str,
         alias: &str,
     ) -> QuickDbResult<(String, Vec<DataValue>)> {
@@ -445,6 +445,83 @@ impl SqlQueryBuilder {
         Ok((clauses.join(" AND "), params))
     }
 
+    /// 构建WHERE子句（支持条件组合 WithConfig），从指定的参数索引开始
+    fn build_where_clause_from_groups_with_config_offset(
+        &self,
+        groups: &[QueryConditionGroupWithConfig],
+        start_index: usize,
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>)> {
+        if groups.is_empty() {
+            return Ok((String::new(), Vec::new()));
+        }
+
+        let mut clauses = Vec::new();
+        let mut params = Vec::new();
+        let mut param_index = start_index;
+
+        for group in groups {
+            let (clause, group_params, new_index) =
+                self.build_condition_group_with_config_clause(group, param_index, table, alias)?;
+            clauses.push(clause);
+            params.extend(group_params);
+            param_index = new_index;
+        }
+
+        Ok((clauses.join(" AND "), params))
+    }
+
+    /// 构建单个条件组合的子句（WithConfig版本）
+    fn build_condition_group_with_config_clause(
+        &self,
+        group: &QueryConditionGroupWithConfig,
+        start_index: usize,
+        table: &str,
+        alias: &str,
+    ) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
+        match group {
+            QueryConditionGroupWithConfig::Single(condition) => {
+                let (clause, mut params, new_index) =
+                    self.build_single_condition_clause(condition, start_index, table, alias)?;
+                Ok((clause, params, new_index))
+            }
+            QueryConditionGroupWithConfig::GroupWithConfig {
+                operator,
+                conditions,
+            } => {
+                if conditions.is_empty() {
+                    return Ok((String::new(), Vec::new(), start_index));
+                }
+
+                let mut clauses = Vec::new();
+                let mut params = Vec::new();
+                let mut param_index = start_index;
+
+                for condition in conditions {
+                    let (clause, condition_params, new_index) =
+                        self.build_condition_group_with_config_clause(condition, param_index, table, alias)?;
+                    if !clause.is_empty() {
+                        clauses.push(clause);
+                        params.extend(condition_params);
+                        param_index = new_index;
+                    }
+                }
+
+                if clauses.is_empty() {
+                    return Ok((String::new(), Vec::new(), param_index));
+                }
+
+                let op_str = match operator {
+                    LogicalOperator::And => " AND ",
+                    LogicalOperator::Or => " OR ",
+                };
+                let clause = format!("({})", clauses.join(op_str));
+                Ok((clause, params, param_index))
+            }
+        }
+    }
+
     /// 构建单个条件组合的子句
     fn build_condition_group_clause(
         &self,
@@ -455,8 +532,14 @@ impl SqlQueryBuilder {
     ) -> QuickDbResult<(String, Vec<DataValue>, usize)> {
         match group {
             QueryConditionGroup::Single(condition) => {
+                let config = QueryConditionWithConfig {
+                    field: condition.field.clone(),
+                    operator: condition.operator.clone(),
+                    value: condition.value.clone(),
+                    case_insensitive: false,
+                };
                 let (clause, mut params, new_index) =
-                    self.build_single_condition_clause(condition, start_index, table, alias)?;
+                    self.build_single_condition_clause(&config, start_index, table, alias)?;
                 Ok((clause, params, new_index))
             }
             QueryConditionGroup::Group {
@@ -504,7 +587,7 @@ impl SqlQueryBuilder {
     /// 构建单个条件的子句
     fn build_single_condition_clause(
         &self,
-        condition: &QueryCondition,
+        condition: &QueryConditionWithConfig,
         param_index: usize,
         table: &str,
         alias: &str,
@@ -518,30 +601,10 @@ impl SqlQueryBuilder {
         let (clause, params) = match condition.operator {
             QueryOperator::Eq => {
                 new_index += 1;
-                // 处理大小写不敏感的等于操作
-                if condition.case_insensitive {
-                    match &condition.value {
-                        DataValue::String(_) => {
-                            // 使用LOWER函数实现大小写不敏感比较
-                            (
-                                format!("LOWER({}) = LOWER({})", safe_field, placeholder),
-                                vec![condition.value.clone()],
-                            )
-                        }
-                        _ => {
-                            // 非字符串类型，使用正常的等于比较
-                            (
-                                format!("{} = {}", safe_field, placeholder),
-                                vec![condition.value.clone()],
-                            )
-                        }
-                    }
-                } else {
-                    (
-                        format!("{} = {}", safe_field, placeholder),
-                        vec![condition.value.clone()],
-                    )
-                }
+                (
+                    format!("{} = {}", safe_field, placeholder),
+                    vec![condition.value.clone()],
+                )
             }
             QueryOperator::Ne => {
                 new_index += 1;
@@ -758,7 +821,7 @@ impl SqlQueryBuilder {
     /// 构建WHERE子句，从指定的参数索引开始
     pub(crate) fn build_where_clause_with_offset(
         &self,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         start_index: usize,
         table: &str,
         alias: &str,
@@ -779,27 +842,10 @@ impl SqlQueryBuilder {
 
             match condition.operator {
                 QueryOperator::Eq => {
-                    // 处理大小写不敏感的等于操作
-                    if condition.case_insensitive {
-                        match &condition.value {
-                            DataValue::String(_) => {
-                                // 使用LOWER函数实现大小写不敏感比较
-                                clauses.push(format!("LOWER({}) = LOWER({})", safe_field, placeholder));
-                                params.push(condition.value.clone());
-                                param_index += 1;
-                            }
-                            _ => {
-                                // 非字符串类型，使用正常的等于比较
-                                clauses.push(format!("{} = {}", safe_field, placeholder));
-                                params.push(condition.value.clone());
-                                param_index += 1;
-                            }
-                        }
-                    } else {
-                        clauses.push(format!("{} = {}", safe_field, placeholder));
-                        params.push(condition.value.clone());
-                        param_index += 1;
-                    }
+                    // SQLite 不支持大小写不敏感，直接使用正常比较
+                    clauses.push(format!("{} = {}", safe_field, placeholder));
+                    params.push(condition.value.clone());
+                    param_index += 1;
                 }
                 QueryOperator::Ne => {
                     clauses.push(format!("{} != {}", safe_field, placeholder));

@@ -247,28 +247,27 @@ impl DatabaseAdapter for SqliteAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
         alias: &str,
         bypass_cache: bool,
     ) -> QuickDbResult<Vec<DataValue>> {
-        // 将简单条件转换为条件组合（AND逻辑）
-        let condition_groups = if conditions.is_empty() {
+        // 直接传递条件给查询构建器（不做转换，让查询构建器处理 QueryConditionWithConfig）
+        let condition_groups: Vec<QueryConditionGroupWithConfig> = if conditions.is_empty() {
             vec![]
         } else {
             let group_conditions = conditions
                 .iter()
-                .map(|c| QueryConditionGroup::Single(c.clone()))
+                .map(|c| QueryConditionGroupWithConfig::Single(c.clone()))
                 .collect();
-            vec![QueryConditionGroup::Group {
+            vec![QueryConditionGroupWithConfig::GroupWithConfig {
                 operator: LogicalOperator::And,
                 conditions: group_conditions,
             }]
         };
 
-        // 统一使用 find_with_groups_with_cache_control 实现
-        self.find_with_groups_with_cache_control(connection, table, &condition_groups, options, alias, bypass_cache)
-            .await
+        // 需要调用带 WithConfig 版本，因为查询构建器现在期望 QueryConditionGroupWithConfig
+        self.find_with_groups_with_cache_control_and_config(connection, table, &condition_groups, options, alias, bypass_cache).await
     }
 
     async fn find_with_groups_with_cache_control(
@@ -367,11 +366,45 @@ impl DatabaseAdapter for SqliteAdapter {
         }
     }
 
+    async fn find_with_groups_with_cache_control_and_config(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroupWithConfig],
+        options: &QueryOptions,
+        alias: &str,
+        bypass_cache: bool,
+    ) -> QuickDbResult<Vec<DataValue>> {
+        // SQLite 不支持 case_insensitive，将 QueryConditionGroupWithConfig 转换回 QueryConditionGroup
+        fn convert_group(group: &QueryConditionGroupWithConfig) -> QueryConditionGroup {
+            match group {
+                QueryConditionGroupWithConfig::Single(c) => {
+                    QueryConditionGroup::Single(QueryCondition {
+                        field: c.field.clone(),
+                        operator: c.operator.clone(),
+                        value: c.value.clone(),
+                    })
+                }
+                QueryConditionGroupWithConfig::GroupWithConfig { operator, conditions } => {
+                    QueryConditionGroup::Group {
+                        operator: operator.clone(),
+                        conditions: conditions.iter().map(convert_group).collect(),
+                    }
+                }
+            }
+        }
+
+        let simple_groups: Vec<QueryConditionGroup> =
+            condition_groups.iter().map(convert_group).collect();
+
+        self.find_with_groups_with_cache_control(connection, table, &simple_groups, options, alias, bypass_cache).await
+    }
+
     async fn find(
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         options: &QueryOptions,
         alias: &str,
     ) -> QuickDbResult<Vec<DataValue>> {
@@ -393,7 +426,7 @@ impl DatabaseAdapter for SqliteAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         data: &HashMap<String, DataValue>,
         alias: &str,
     ) -> QuickDbResult<u64> {
@@ -509,7 +542,7 @@ impl DatabaseAdapter for SqliteAdapter {
         data: &HashMap<String, DataValue>,
         alias: &str,
     ) -> QuickDbResult<bool> {
-        let condition = QueryCondition {
+        let condition = QueryConditionWithConfig {
             field: "id".to_string(),
             operator: QueryOperator::Eq,
             value: id.clone(),
@@ -526,7 +559,7 @@ impl DatabaseAdapter for SqliteAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         operations: &[crate::types::UpdateOperation],
         alias: &str,
     ) -> QuickDbResult<u64> {
@@ -635,9 +668,10 @@ impl DatabaseAdapter for SqliteAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64> {
+        // 将 QueryConditionWithConfig 转换回 QueryCondition（忽略 case_insensitive）
         sqlite_query::delete(self, connection, table, conditions, alias).await
     }
 
@@ -655,7 +689,7 @@ impl DatabaseAdapter for SqliteAdapter {
         &self,
         connection: &DatabaseConnection,
         table: &str,
-        conditions: &[QueryCondition],
+        conditions: &[QueryConditionWithConfig],
         alias: &str,
     ) -> QuickDbResult<u64> {
         sqlite_query::count(self, connection, table, conditions, alias).await
