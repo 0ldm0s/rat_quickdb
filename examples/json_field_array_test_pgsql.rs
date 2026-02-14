@@ -228,7 +228,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_config = DatabaseConfig::builder()
         .db_type(DatabaseType::PostgreSQL)
         .connection(ConnectionConfig::PostgreSQL {
-            host: "172.16.0.23".to_string(),
+            host: "172.16.0.96".to_string(),
             port: 5432,
             database: "testdb".to_string(),
             username: "testdb".to_string(),
@@ -284,7 +284,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n✅ 测试完成，数据已保留在数据库中供验证");
     println!("可用以下命令查看测试结果:");
-    println!("psql -h 172.16.0.23 -U testdb -d testdb -c \"SELECT * FROM json_array_test;\"");
+    println!("psql -h 172.16.0.96 -U testdb -d testdb -c \"SELECT * FROM json_array_test;\"");
 
     Ok(())
 }

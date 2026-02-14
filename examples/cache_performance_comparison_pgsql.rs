@@ -186,7 +186,7 @@ impl PgCachePerformanceTest {
         let db_config = DatabaseConfig {
             db_type: DatabaseType::PostgreSQL,
             connection: ConnectionConfig::PostgreSQL {
-                host: "172.16.0.23".to_string(),
+                host: "172.16.0.96".to_string(),
                 port: 5432,
                 database: "testdb".to_string(),
                 username: "testdb".to_string(),
@@ -227,7 +227,7 @@ impl PgCachePerformanceTest {
         DatabaseConfig {
             db_type: DatabaseType::PostgreSQL,
             connection: ConnectionConfig::PostgreSQL {
-                host: "172.16.0.23".to_string(),
+                host: "172.16.0.96".to_string(),
                 port: 5432,
                 database: "testdb".to_string(),
                 username: "testdb".to_string(),
