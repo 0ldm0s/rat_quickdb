@@ -1329,10 +1329,10 @@ rat_quickdb采用现代化架构设计：
 - `boolean_field` - 布尔字段
 - `datetime_field` - 日期时间字段
 - `uuid_field` - UUID字段
-- `json_field` - JSON字段
-- `array_field` - 数组字段
+- `json_field` - JSON字段（支持任意JSON数据，包括对象和数组）
+- `array_field` - 数组字段（支持同类型元素数组）
 - `list_field` - 列表字段（array_field的别名）
-- `dict_field` - 字典/对象字段（基于Object类型）
+- `dict_field` - ~~字典/对象字段（已废弃，请使用 json_field 替代）~~
 - `reference_field` - 引用字段（外键）
 
 ### ⚠️ 字段使用限制和最佳实践

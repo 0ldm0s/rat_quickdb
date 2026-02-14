@@ -91,6 +91,25 @@ pub fn json_field() -> FieldDefinition {
 }
 
 /// 便捷函数：创建字典字段（基于Object类型）
+///
+/// # 废弃说明
+/// 此函数已废弃，请使用 `json_field()` 替代。
+///
+/// `json_field()` 可以存储任意 JSON 数据（包括对象和数组），
+/// 并且在所有数据库中都正常工作。
+///
+/// # 示例
+/// ```rust
+/// // 旧方式（已废弃）
+/// // config: dict_field({...})
+///
+/// // 新方式（推荐）
+/// // config: json_field()
+/// ```
+#[deprecated(
+    since = "0.5.0",
+    note = "请使用 json_field() 替代。json_field 支持存储任意 JSON 对象，并且在所有数据库中正常工作。"
+)]
 pub fn dict_field(fields: HashMap<String, FieldDefinition>) -> FieldDefinition {
     FieldDefinition::new(FieldType::Object { fields })
 }

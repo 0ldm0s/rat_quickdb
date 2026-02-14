@@ -1086,10 +1086,10 @@ Application Layer → Model Operations → ODM Layer → Message Queue → Conne
 - `boolean_field` - Boolean fields
 - `datetime_field` - Date-time fields
 - `uuid_field` - UUID fields
-- `json_field` - JSON fields
-- `array_field` - Array fields
+- `json_field` - JSON fields (supports any JSON data, including objects and arrays)
+- `array_field` - Array fields (supports homogeneous element arrays)
 - `list_field` - List fields (array_field alias)
-- `dict_field` - Dictionary/Object fields (based on Object type)
+- `dict_field` - ~~Dictionary/Object fields (deprecated, please use json_field instead)~~
 - `reference_field` - Reference fields (foreign keys)
 
 ## 📝 Index Support

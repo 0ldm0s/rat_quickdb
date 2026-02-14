@@ -1,57 +1,33 @@
 //! 字段类型验证测试 - SQLite
 //!
-//! 验证 array_field、dict_field 和 json_field 在 SQLite 中的使用
+//! 验证 array_field 和 json_field 在 SQLite 中的使用
+//! 注意：dict_field 已废弃，请使用 json_field 替代
 
 use rat_logger::{LevelFilter, LoggerBuilder, handler::term::TermConfig};
 use rat_quickdb::types::*;
 use rat_quickdb::*;
 use rat_quickdb::{
     ModelManager, ModelOperations,
-    array_field, dict_field, json_field, string_field, integer_field,
+    array_field, json_field, string_field,
 };
-use std::collections::HashMap;
 
-// 测试模型1 - 只包含 array_field 和 json_field（用于验证这两个是否正常）
+// 测试模型 - 包含 array_field 和 json_field
 define_model! {
-    struct ArrayJsonTest {
+    struct FieldTypesTest {
         id: String,
         name: String,
         // 数组字段
         tags: Vec<String>,
-        // JSON字段
-        metadata: serde_json::Value,
+        // JSON字段 - 可存储任意JSON数据
+        config: serde_json::Value,
     }
-    collection = "array_json_test",
+    collection = "field_types_test",
     database = "main",
     fields = {
         id: string_field(None, None, None).required().unique(),
         name: string_field(Some(100), None, None).required(),
         tags: array_field(field_types!(string), None, None),
-        metadata: json_field(),
-    }
-    indexes = [],
-}
-
-// 测试模型2 - 包含 dict_field（用于验证 dict_field 的问题）
-define_model! {
-    struct DictFieldTest {
-        id: String,
-        name: String,
-        // 字典字段 - 使用 HashMap<String, DataValue>
-        config: HashMap<String, DataValue>,
-    }
-    collection = "dict_field_test",
-    database = "main",
-    fields = {
-        id: string_field(None, None, None).required().unique(),
-        name: string_field(Some(100), None, None).required(),
-        config: dict_field({
-            let mut fields = HashMap::new();
-            fields.insert("theme".to_string(), string_field(None, None, None));
-            fields.insert("language".to_string(), string_field(None, None, None));
-            fields.insert("count".to_string(), integer_field(None, None));
-            fields
-        }),
+        config: json_field(),
     }
     indexes = [],
 }
@@ -94,23 +70,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 清理旧表
     println!("\n清理旧测试表...");
-    let _ = drop_table("main", "array_json_test").await;
-    let _ = drop_table("main", "dict_field_test").await;
+    let _ = drop_table("main", "field_types_test").await;
 
     // ============================================================
-    // 测试1: array_field 和 json_field（这两个应该正常工作）
+    // 测试: array_field 和 json_field
     // ============================================================
     println!("\n========================================");
-    println!("测试1: array_field 和 json_field");
+    println!("测试: array_field 和 json_field");
     println!("========================================\n");
 
-    let test_record = ArrayJsonTest {
+    let test_record = FieldTypesTest {
         id: String::new(),
         name: "测试记录1".to_string(),
         tags: vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()],
-        metadata: serde_json::json!({
-            "version": "1.0",
-            "author": "测试者",
+        config: serde_json::json!({
+            "theme": "dark",
+            "language": "zh-CN",
             "count": 42,
             "nested": {
                 "key": "value",
@@ -131,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // 查询并验证
-    match ModelManager::<ArrayJsonTest>::find_by_id(&record_id).await {
+    match ModelManager::<FieldTypesTest>::find_by_id(&record_id).await {
         Ok(Some(record)) => {
             println!("✅ 数据查询成功");
             println!("   ID: {}", record.id);
@@ -148,8 +123,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // 验证 json_field
             println!("\n   [json_field 验证]");
-            println!("   metadata: {}", serde_json::to_string_pretty(&record.metadata).unwrap());
-            if record.metadata["version"] == "1.0" && record.metadata["count"] == 42 {
+            println!("   config: {}", serde_json::to_string_pretty(&record.config).unwrap());
+            if record.config["theme"] == "dark" && record.config["count"] == 42 {
                 println!("   ✅ json_field 正常工作");
             } else {
                 println!("   ❌ json_field 数据有问题");
@@ -160,66 +135,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             println!("❌ 查询失败: {}", e);
-            println!("\n⚠️  这就是 json_field 在 SQLite 中的问题!");
-        }
-    }
-
-    // ============================================================
-    // 测试2: dict_field（预期会失败）
-    // ============================================================
-    println!("\n========================================");
-    println!("测试2: dict_field（预期会有问题）");
-    println!("========================================\n");
-
-    let mut config_map = HashMap::new();
-    config_map.insert("theme".to_string(), DataValue::String("dark".to_string()));
-    config_map.insert("language".to_string(), DataValue::String("zh-CN".to_string()));
-    config_map.insert("count".to_string(), DataValue::Int(42));
-
-    let dict_record = DictFieldTest {
-        id: String::new(),
-        name: "dict测试记录".to_string(),
-        config: config_map,
-    };
-
-    let dict_record_id = match dict_record.save().await {
-        Ok(id) => {
-            println!("✅ dict_field 数据插入成功, ID: {}", id);
-            id
-        }
-        Err(e) => {
-            println!("❌ dict_field 数据插入失败: {}", e);
-            "N/A".to_string()
-        }
-    };
-
-    if dict_record_id != "N/A" {
-        match ModelManager::<DictFieldTest>::find_by_id(&dict_record_id).await {
-            Ok(Some(record)) => {
-                println!("✅ dict_field 数据查询成功");
-                println!("   config: {:?}", record.config);
-
-                if record.config.contains_key("theme") && record.config.contains_key("count") {
-                    println!("   ✅ dict_field 正常工作");
-                    if let Some(DataValue::Int(count)) = record.config.get("count") {
-                        println!("      count = {}", count);
-                    }
-                } else {
-                    println!("   ❌ dict_field 数据丢失");
-                }
-            }
-            Ok(None) => {
-                println!("❌ dict_field 数据未找到");
-            }
-            Err(e) => {
-                println!("❌ dict_field 查询失败: {}", e);
-                println!("\n⚠️  dict_field 在 SQLite 中存在反序列化问题!");
-                println!("   问题原因: DataValue 反序列化时，serde 无法将原始值(如42)转换为 DataValue 枚举");
-            }
         }
     }
 
     println!("\n=== 测试完成 ===");
+    println!("\n说明：dict_field 已废弃，请使用 json_field 替代。");
+    println!("json_field 可以存储任意 JSON 数据，包括对象和数组。");
+
     rat_quickdb::manager::shutdown().await?;
 
     Ok(())

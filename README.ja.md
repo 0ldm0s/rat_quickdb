@@ -1086,10 +1086,10 @@ rat_quickdbはモダンアーキテクチャ設計を採用：
 - `boolean_field` - ブールフィールド
 - `datetime_field` - 日時フィールド
 - `uuid_field` - UUIDフィールド
-- `json_field` - JSONフィールド
-- `array_field` - 配列フィールド
+- `json_field` - JSONフィールド（オブジェクトや配列を含む任意のJSONデータをサポート）
+- `array_field` - 配列フィールド（同種の要素配列をサポート）
 - `list_field` - リストフィールド（array_fieldのエイリアス）
-- `dict_field` - 辞書/オブジェクトフィールド（Objectタイプベース）
+- `dict_field` - ~~辞書/オブジェクトフィールド（非推奨、json_fieldを使用してください）~~
 - `reference_field` - 参照フィールド（外部キー）
 
 ## 📝 インデックスサポート
