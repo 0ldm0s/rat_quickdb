@@ -7,7 +7,7 @@ use rat_logger::{LevelFilter, LoggerBuilder, handler::term::TermConfig};
 use rat_quickdb::types::*;
 use rat_quickdb::*;
 use rat_quickdb::{
-    ModelManager, ModelOperations,
+    ModelManager, ModelOperations, QueryCondition, QueryOperator,
     array_field, json_field, string_field,
 };
 
@@ -135,6 +135,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             println!("❌ 查询失败: {}", e);
+        }
+    }
+
+    // ============================================================
+    // 测试: json_field 条件查询 (JsonContains)
+    // ============================================================
+    println!("\n========================================");
+    println!("测试: json_field 条件查询");
+    println!("========================================\n");
+
+    // 使用 JsonContains 查询
+    let conditions = vec![
+        QueryCondition {
+            field: "config".to_string(),
+            operator: QueryOperator::JsonContains,
+            value: DataValue::String(r#"{"theme": "dark"}"#.to_string()),
+        },
+    ];
+
+    match ModelManager::<FieldTypesTest>::find(conditions, None).await {
+        Ok(results) => {
+            println!("✅ JsonContains 查询成功");
+            println!("   查询条件: config 包含 {{\"theme\": \"dark\"}}");
+            println!("   找到 {} 条记录", results.len());
+            if !results.is_empty() {
+                println!("   ✅ json_field 条件查询正常工作");
+            } else {
+                println!("   ❌ json_field 条件查询未找到预期数据");
+            }
+        }
+        Err(e) => {
+            // SQLite 不支持 JsonContains，这是预期行为
+            println!("⚠️  JsonContains 查询不支持: {}", e);
+            println!("   说明: SQLite 不支持 JSON 字段的 JsonContains 操作");
+            println!("   建议: 如需 JSON 查询功能，请使用 PostgreSQL、MySQL 或 MongoDB");
         }
     }
 
