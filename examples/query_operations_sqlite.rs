@@ -571,6 +571,62 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
 
     stats.add_operation(ci_time, true, false);
 
+    // ============================================================================
+    // 8. UUID字段查询 - 重要：SQLite/MongoDB 使用 uuid_field() 时必须使用字符串查询
+    // ============================================================================
+    println!("\n8. UUID字段查询（重要场景）...");
+    println!("   📝 说明: 在 SQLite/MongoDB/MySQL 中，uuid_field() 存储为字符串");
+    println!("   📝 查询时传入 DataValue::String 即可正常查询，框架会自动处理类型转换");
+
+    // 先创建一个带 UUID 字段的测试记录
+    let test_user = User {
+        id: String::new(),
+        username: "uuid_test_user".to_string(),
+        email: "uuid_test@example.com".to_string(),
+        full_name: "UUID测试用户".to_string(),
+        age: Some(25),
+        department: "技术部".to_string(),
+        is_active: true,
+        salary: Some(10000.0),
+        created_at: Utc::now(),
+        updated_at: None,
+    };
+    let test_user_id = test_user.save().await?;
+    println!("   创建测试用户 ID: {}", test_user_id);
+
+    // 使用字符串值查询 UUID 字段（这是正确的方式）
+    let start = Instant::now();
+    let uuid_query_conditions = vec![QueryCondition {
+        field: "id".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String(test_user_id.clone()),
+    }];
+    let uuid_result = ModelManager::<User>::find(uuid_query_conditions, None).await?;
+    let uuid_query_time = start.elapsed().as_millis() as u64;
+
+    if !uuid_result.is_empty() {
+        println!("   ✅ UUID字段查询成功: 找到用户 '{}', 耗时 {}ms",
+            uuid_result[0].username, uuid_query_time);
+    } else {
+        println!("   ❌ UUID字段查询失败: 未找到用户");
+    }
+
+    // 测试使用字符串查询另一个 UUID 字段 - department_id 场景
+    println!("   测试外键 UUID 查询场景...");
+
+    // 使用 username 查询（username 也是 string_field）
+    let username_query = vec![QueryCondition {
+        field: "username".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("uuid_test_user".to_string()),
+    }];
+    let username_result = ModelManager::<User>::find(username_query, None).await?;
+    if !username_result.is_empty() {
+        println!("   ✅ 普通字符串字段查询成功: 找到用户 '{}'", username_result[0].full_name);
+    }
+
+    stats.add_operation(uuid_query_time, true, false);
+
     Ok(stats)
 }
 

@@ -6,6 +6,7 @@ use crate::adapter::get_field_type;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::security::DatabaseSecurityValidator;
 use crate::types::*;
+use rat_logger::debug;
 use std::collections::HashMap;
 
 /// SQLite查询构建器
@@ -598,25 +599,43 @@ impl SqlQueryBuilder {
         let safe_field = self
             .security_validator
             .get_safe_field_identifier(&condition.field)?;
+
+        // 检查字段类型，如果是 UUID 类型且传入的是字符串，保持为字符串查询
+        // 这是因为 MongoDB/MySQL/SQLite 存储 UUID 为字符串，只有 PostgreSQL 使用原生 UUID 类型
+        let field_type = get_field_type(table, alias, &condition.field);
+        let is_uuid_field = field_type.map(|ft| matches!(ft, crate::model::FieldType::Uuid)).unwrap_or(false);
+
+        // 对于 UUID 字段，如果是字符串值，保持为字符串传递
+        let query_value = if is_uuid_field {
+            if let DataValue::String(ref s) = condition.value {
+                debug!("[SQLite] UUID字段 '{}' 使用字符串查询: {}", condition.field, s);
+                condition.value.clone()
+            } else {
+                condition.value.clone()
+            }
+        } else {
+            condition.value.clone()
+        };
+
         let (clause, params) = match condition.operator {
             QueryOperator::Eq => {
                 new_index += 1;
                 (
                     format!("{} = {}", safe_field, placeholder),
-                    vec![condition.value.clone()],
+                    vec![query_value.clone()],
                 )
             }
             QueryOperator::Ne => {
                 new_index += 1;
                 (
                     format!("{} != {}", safe_field, placeholder),
-                    vec![condition.value.clone()],
+                    vec![query_value.clone()],
                 )
             }
             QueryOperator::Gt => {
                 new_index += 1;
                 let processed_value =
-                    process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    process_range_query_value(table, alias, &condition.field, &query_value)?;
                 (
                     format!("{} > {}", safe_field, placeholder),
                     vec![processed_value],
@@ -625,7 +644,7 @@ impl SqlQueryBuilder {
             QueryOperator::Gte => {
                 new_index += 1;
                 let processed_value =
-                    process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    process_range_query_value(table, alias, &condition.field, &query_value)?;
                 (
                     format!("{} >= {}", safe_field, placeholder),
                     vec![processed_value],
@@ -634,7 +653,7 @@ impl SqlQueryBuilder {
             QueryOperator::Lt => {
                 new_index += 1;
                 let processed_value =
-                    process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    process_range_query_value(table, alias, &condition.field, &query_value)?;
                 (
                     format!("{} < {}", safe_field, placeholder),
                     vec![processed_value],
@@ -643,7 +662,7 @@ impl SqlQueryBuilder {
             QueryOperator::Lte => {
                 new_index += 1;
                 let processed_value =
-                    process_range_query_value(table, alias, &condition.field, &condition.value)?;
+                    process_range_query_value(table, alias, &condition.field, &query_value)?;
                 (
                     format!("{} <= {}", safe_field, placeholder),
                     vec![processed_value],

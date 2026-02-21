@@ -107,7 +107,7 @@ pub fn json_field() -> FieldDefinition {
 /// // config: json_field()
 /// ```
 #[deprecated(
-    since = "0.5.0",
+    since = "0.5.5",
     note = "请使用 json_field() 替代。json_field 支持存储任意 JSON 对象，并且在所有数据库中正常工作。"
 )]
 pub fn dict_field(fields: HashMap<String, FieldDefinition>) -> FieldDefinition {

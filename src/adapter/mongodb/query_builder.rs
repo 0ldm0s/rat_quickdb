@@ -240,7 +240,24 @@ impl MongoQueryBuilder {
         condition: &QueryConditionWithConfig,
     ) -> QuickDbResult<Document> {
         let field_name = map_field_name(&condition.field);
-        let bson_value = self.data_value_to_bson(&condition.value);
+
+        // 检查字段类型，如果是 UUID 类型且传入的是字符串，保持为字符串查询
+        // 这是因为 MongoDB/MySQL/SQLite 存储 UUID 为字符串，只有 PostgreSQL 使用原生 UUID 类型
+        let field_type = get_field_type(table, alias, &condition.field);
+        let is_uuid_field = field_type.map(|ft| matches!(ft, crate::model::FieldType::Uuid)).unwrap_or(false);
+
+        // 如果是 UUID 字段但传入的是字符串，直接作为字符串处理
+        let bson_value = if is_uuid_field {
+            if let DataValue::String(ref s) = condition.value {
+                // UUID 字段在非 PostgreSQL 数据库中存储为字符串，直接使用字符串值
+                debug!("[MongoDB] UUID字段 '{}' 使用字符串查询: {}", field_name, s);
+                Bson::String(s.clone())
+            } else {
+                self.data_value_to_bson(&condition.value)
+            }
+        } else {
+            self.data_value_to_bson(&condition.value)
+        };
 
         debug!(
             "[MongoDB] 处理条件: {} (原始: {}) {:?} {:?}",
