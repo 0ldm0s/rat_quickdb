@@ -244,7 +244,10 @@ impl MongoQueryBuilder {
         // 检查字段类型，如果是 UUID 类型且传入的是字符串，保持为字符串查询
         // 这是因为 MongoDB/MySQL/SQLite 存储 UUID 为字符串，只有 PostgreSQL 使用原生 UUID 类型
         let field_type = get_field_type(table, alias, &condition.field);
-        let is_uuid_field = field_type.map(|ft| matches!(ft, crate::model::FieldType::Uuid)).unwrap_or(false);
+        let is_uuid_field = field_type.as_ref().map(|ft| matches!(ft, crate::model::FieldType::Uuid)).unwrap_or(false);
+
+        debug!("[MongoDB] 字段 '{}' (映射为 '{}') 类型: {:?}, is_uuid: {}",
+            condition.field, field_name, field_type.as_ref(), is_uuid_field);
 
         // 如果是 UUID 字段但传入的是字符串，直接作为字符串处理
         let bson_value = if is_uuid_field {

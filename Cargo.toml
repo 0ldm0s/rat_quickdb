@@ -20,7 +20,7 @@ categories = [
 
 [dependencies]
 # 日志系统 - 使用 rat_logger
-rat_logger = "0.3.3"
+rat_logger = "0.3"
 
 # 多语言支持系统
 rat_embed_lang = "0.1.1"

@@ -1381,6 +1381,46 @@ deep_nested: json_field(), // {"level1": {"level2": {"level3": {"data": "value"}
 2. **类型明确**：数组用Array字段，配置用JSON字段，对象用专门模型
 3. **查询友好**：设计时考虑后续查询需求，避免无法查询的结构
 4. **性能考虑**：复杂嵌套结构会显著影响查询和索引性能
+5. **基础类型**：模型字段必须使用 Rust 基础类型（String、i32、f64、bool 等），禁止使用枚举类型
+
+#### ⚠️ 禁止使用枚举类型作为模型字段
+```rust
+// ❌ 错误：使用枚举类型作为模型字段
+#[derive(Debug, Clone, Serialize, Deserialize)]
+enum UserRole {
+    Admin,
+    User,
+    Guest,
+}
+
+define_model! {
+    struct User {
+        id: String,
+        role: UserRole,  // 禁止使用枚举！
+    }
+    fields = {
+        id: uuid_field().unique(),
+        role: ???,  // 无法定义！
+    }
+}
+
+// ✅ 正确：使用字符串类型
+define_model! {
+    struct User {
+        id: String,
+        role: String,
+    }
+    fields = {
+        id: uuid_field().unique(),
+        role: string_field(None, None, None),
+    }
+}
+```
+
+**原因**：
+- rat_quickdb 只能处理基础数据类型（String、i32、f64、bool 等）
+- 枚举类型会导致序列化/反序列化问题，查询时无法正确匹配
+- 如需使用枚举，应在业务逻辑层进行转换，不要在模型定义中使用
 
 #### 替代方案推荐
 ```rust
