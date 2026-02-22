@@ -1,6 +1,6 @@
 [package]
 name = "rat_quickdb"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 authors = ["0ldm0s <oldmos@gmail.com>"]
 description = "强大的跨数据库ODM库，支持自动索引创建、统一接口和现代异步架构"
@@ -74,7 +74,7 @@ bytes = "1.0"
 # 缓存支持
 # rat_memcache 的 full-features 特性已经包含了 L1（内存）和 L2（磁盘）缓存功能
 # 因此用户无需启用额外的特性即可使用完整的缓存功能
-rat_memcache = { version = "0.2.4", features = ["full-features"] }
+rat_memcache = { version = "0.2.8", features = ["full-features"] }
 # 雪花算法ID生成
 snowflake = { version = "1.3" }
 
