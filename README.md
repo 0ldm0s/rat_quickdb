@@ -28,7 +28,7 @@
 
 ## 🔄 版本变更说明
 
-### v0.4.7 (当前版本) - 大小写不敏感查询支持
+### v0.5.1 - 版本更新
 
 **新功能：**
 - 🎯 **大小写不敏感查询**：所有数据库适配器现在支持大小写不敏感的字符串查询
@@ -220,7 +220,7 @@ let pool_config = PoolConfig::builder()
 
 ```toml
 [dependencies]
-rat_quickdb = "0.4.7"
+rat_quickdb = "0.5.1"
 ```
 
 ### 🔧 特性控制
@@ -229,7 +229,7 @@ rat_quickdb 使用 Cargo 特性来控制不同数据库的支持和功能。默�
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.4.7", features = [
+rat_quickdb = { version = "0.5.1", features = [
     "sqlite-support",    # 支持SQLite数据库
     "postgres-support",  # 支持PostgreSQL数据库
     "mysql-support",     # 支持MySQL数据库
@@ -270,19 +270,19 @@ rat_quickdb = { version = "0.4.7", features = [
 **仅使用SQLite**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.4.7", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.5.1", features = ["sqlite-support"] }
 ```
 
 **使用PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.4.7", features = ["postgres-support"] }
+rat_quickdb = { version = "0.5.1", features = ["postgres-support"] }
 ```
 
 **使用所有数据库**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.4.7", features = ["full"] }
+rat_quickdb = { version = "0.5.1", features = ["full"] }
 ```
 
 **L2缓存配置注意事项**:
@@ -1689,11 +1689,12 @@ let offset_seconds = parse_timezone_offset_to_seconds("+09:30")?;  // 34200
 
 ## 🌟 版本信息
 
-**当前版本**: 0.4.7
+**当前版本**: 0.5.1
 
 **支持Rust版本**: 1.70+
 
 **重要更新**:
+- v0.5.1: 版本更新，升级 rat_memcache 至 0.2.8
 - v0.4.7: 新增大小写不敏感查询支持
 - v0.3.0: 强制使用define_model!宏定义模型，修复重大架构问题，提升类型安全性！
 

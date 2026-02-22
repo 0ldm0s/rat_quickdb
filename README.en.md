@@ -28,7 +28,168 @@
 
 ## 🔄 Version Changes
 
-### v0.3.6 (Current Version) - Stored Procedure Virtual Table System
+### v0.5.1 - Version Update
+
+**New Features:**
+- 🎯 **Case-Insensitive Query**: All database adapters now support case-insensitive string queries
+- 🔄 **Dual Type System**: Provides simplified and full query condition types to meet different usage scenarios
+- 📊 **Cross-Database Support**: MongoDB, MySQL, PostgreSQL, SQLite all supported
+- 🔄 **Automatic Type Conversion**: Simplified version automatically converted to full version, no manual handling required
+
+**Type Description:**
+
+This version provides two query condition types:
+
+1. **`QueryCondition` (Simplified)**: Suitable for most scenarios
+   - Does not contain `case_insensitive` field
+   - Default case-sensitive
+   - Simpler to use, clearer code
+
+2. **`QueryConditionWithConfig` (Full)**: Suitable for scenarios requiring configuration
+   - Contains `case_insensitive` field to control case sensitivity
+   - Supports more configuration options for the future
+   - Used for queries requiring advanced features like case-insensitive matching
+
+**Usage Examples:**
+
+```rust
+use rat_quickdb::*;
+
+// ===== Simplified: Default case-sensitive query (recommended for daily use) =====
+let results = ModelManager::<User>::find(
+    vec![QueryCondition {
+        field: "username".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("admin".to_string()),
+        // No case_insensitive field, default case-sensitive
+    }],
+    None
+).await?;
+
+// ===== Full: Case-insensitive query =====
+let insensitive_results = ModelManager::<User>::find_with_config(
+    vec![QueryConditionWithConfig {
+        field: "username".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("admin".to_string()),
+        case_insensitive: true,  // Enable case-insensitive
+    }],
+    None
+).await?;
+
+// ===== Full: Case-sensitive query (explicit) =====
+let sensitive_results = ModelManager::<User>::find_with_config(
+    vec![QueryConditionWithConfig {
+        field: "username".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("ADMIN".to_string()),
+        case_insensitive: false,  // Explicitly disable case-insensitive
+    }],
+    None
+).await?;
+```
+
+**Method Correspondence:**
+
+| Simplified Method | Full Method | Description |
+|------------------|-------------|-------------|
+| `find(conditions)` | `find_with_config(conditions)` | Find records |
+| `count(conditions)` | `count_with_config(conditions)` | Count records |
+| `delete_many(conditions)` | `delete_many_with_config(conditions)` | Batch delete |
+| `find_with_cache_control(conditions, options, bypass)` | (internal method) | Cache control |
+
+**Automatic Conversion Mechanism:**
+
+All simplified methods internally convert `QueryCondition` to `QueryConditionWithConfig` (`case_insensitive` defaults to `false`), no manual handling required.
+
+**Implementation:**
+- **MongoDB**: Uses regex `$regex: "^value$", $options: "i"`
+- **MySQL**: Uses `LOWER(field) = LOWER(value)`
+- **PostgreSQL**: Uses `LOWER(field) = LOWER(value)`
+- **SQLite**: Uses `LOWER(field) = LOWER(value)`
+
+**Use Cases:**
+- 📧 Username/email query (users may input any case)
+- 🔍 Product name search (case-insensitive)
+- 🏷️ Tag and category query (improved query friendliness)
+- 🌍 Multi-language text search (adapts to different language case rules)
+
+**Performance Notes:**
+- Enabling case-insensitive queries on string fields slightly reduces query performance
+- Recommended for fuzzy match fields, keep default case-sensitive for exact match fields
+- Can optimize performance by creating functional indexes (e.g., `LOWER(field)`)
+
+**Testing:**
+```bash
+# MongoDB
+cargo run --example query_operations_mongodb --features mongodb-support
+
+# MySQL
+cargo run --example query_operations_mysql --features mysql-support
+
+# PostgreSQL
+cargo run --example query_operations_pgsql --features postgres-support
+
+# SQLite
+cargo run --example query_operations_sqlite --features sqlite-support
+```
+
+### v0.4.5 - Unified Table Not Exist Error Handling
+
+**New Features:**
+- 🎯 **Unified TableNotExistError**: All database adapters now provide consistent table-not-exist error recognition
+- 🔄 **MongoDB Special Handling**: Pragmatic strategy for MongoDB's collection auto-creation feature
+- 📊 **Unified Interface**: Callers don't need to distinguish database types, get consistent error handling experience
+- 🎛️ **Business-Friendly**: Clear error expectations, easy for business logic handling
+
+**Core Improvements:**
+```rust
+// Unified table not exist error handling
+match ModelManager::<User>::find_by_id("non-existent-id").await {
+    Err(QuickDbError::TableNotExistError { table, message }) => {
+        println!("Table does not exist: {}", table);
+        // Caller knows explicitly that data needs to be initialized
+    }
+    // ... other error handling
+}
+```
+
+**MongoDB Special Strategy:**
+- Querying non-existent collection or empty collection returns `TableNotExistError`
+- After caller receives error, inserting data will automatically create collection
+- Provides unified error interface, hiding MongoDB semantic differences
+
+### v0.4.2 - Cache Bypass Feature
+
+**New Features:**
+- 🎯 **Cache Bypass Support**: New `find_with_cache_control` method, supports forced cache skip query
+- 🔄 **Backward Compatibility**: Original `find` method remains unchanged, acts as wrapper for new method
+- 📊 **Performance Comparison**: Provides cache bypass performance test examples, showing actual performance differences
+- 🎛️ **Flexible Control**: Can choose to use cache or force database query based on business needs
+
+**Usage Examples:**
+```rust
+// Force skip cache query (suitable for real-time data scenarios like finance)
+let results = ModelManager::<User>::find_with_cache_control(
+    conditions,
+    None,
+    true  // bypass_cache = true
+).await?;
+
+// Normal cache query (default behavior)
+let results = ModelManager::<User>::find(conditions, None).await?;
+```
+
+**Performance Test Examples:**
+```bash
+# Run cache bypass performance tests
+cargo run --example cache_bypass_comparison_mysql --features mysql-support
+cargo run --example cache_bypass_comparison_pgsql --features postgres-support
+cargo run --example cache_bypass_comparison_sqlite --features sqlite-support
+cargo run --example cache_bypass_comparison_mongodb --features mongodb-support
+```
+
+### v0.3.6 - Stored Procedure Virtual Table System
 
 ⚠️ **Important Change: Connection Pool Configuration Parameter Unit Changes**
 
@@ -59,7 +220,7 @@ Add dependency in `Cargo.toml`:
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.6"
+rat_quickdb = "0.5.1"
 ```
 
 ### 🔧 Feature Control
@@ -68,7 +229,7 @@ rat_quickdb uses Cargo features to control different database support and functi
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = [
+rat_quickdb = { version = "0.5.1", features = [
     "sqlite-support",    # Support SQLite database
     "postgres-support",  # Support PostgreSQL database
     "mysql-support",     # Support MySQL database
@@ -93,19 +254,19 @@ rat_quickdb = { version = "0.3.6", features = [
 **SQLite only**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.5.1", features = ["sqlite-support"] }
 ```
 
 **PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["postgres-support"] }
+rat_quickdb = { version = "0.5.1", features = ["postgres-support"] }
 ```
 
 **All databases**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["full"] }
+rat_quickdb = { version = "0.5.1", features = ["full"] }
 ```
 
 **L2 Cache Configuration Notes**:
@@ -1102,7 +1263,7 @@ Application Layer → Model Operations → ODM Layer → Message Queue → Conne
 
 ## 🌟 Version Information
 
-**Current Version**: 0.3.4
+**Current Version**: 0.5.1
 
 **Supported Rust Version**: 1.70+
 

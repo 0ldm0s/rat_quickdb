@@ -28,7 +28,168 @@
 
 ## 🔄 バージョン変更
 
-### v0.3.6（現在のバージョン） - ストアドプロシージャ仮想テーブルシステム
+### v0.5.1 - バージョン更新
+
+**新機能：**
+- 🎯 **大文字小文字を区別しないクエリ**：すべてのデータベースアダプタが大文字小文字を区別しない文字列クエリをサポート
+- 🔄 **ダブルタイプシステム**：シンプル版とフル版のクエリ条件タイプを提供し、異なる使用シナリオに対応
+- 📊 **クロスデータベースサポート**：MongoDB、MySQL、PostgreSQL、SQLiteすべてサポート
+- 🔄 **自動タイプ変換**：シンプル版はフル版に自動変換され、手動処理は不要
+
+**タイプ説明：**
+
+このバージョンには2種類のクエリ条件タイプがあります：
+
+1. **`QueryCondition`（シンプル版）**：ほとんどのシナリオに適合
+   - `case_insensitive`フィールドを含まない
+   - デフォルトでは大文字小文字を区別
+   - 使用が簡潔で、コードが清晰
+
+2. **`QueryConditionWithConfig`（フル版）**：設定が必要なシナリオに適合
+   - `case_insensitive`フィールドを含み、大文字小文字の区別を制御可能
+   - 将来のより多くの設定オプションをサポート
+   - 大文字小文字を区別しないなどの高度な機能が必要なクエリに使用
+
+**使用例：**
+
+```rust
+use rat_quickdb::*;
+
+// ===== シンプル版：デフォルト大文字小文字を区別するクエリ（日常使用に推奨）=====
+let results = ModelManager::<User>::find(
+    vec![QueryCondition {
+        field: "username".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("admin".to_string()),
+        // case_insensitive フィールドなし、デフォルトでは大文字小文字を区別
+    }],
+    None
+).await?;
+
+// ===== フル版：大文字小文字を区別しないクエリ =====
+let insensitive_results = ModelManager::<User>::find_with_config(
+    vec![QueryConditionWithConfig {
+        field: "username".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("admin".to_string()),
+        case_insensitive: true,  // 大文字小文字を区別しないを有効化
+    }],
+    None
+).await?;
+
+// ===== フル版：大文字小文字を区別するクエリ（明示的）=====
+let sensitive_results = ModelManager::<User>::find_with_config(
+    vec![QueryConditionWithConfig {
+        field: "username".to_string(),
+        operator: QueryOperator::Eq,
+        value: DataValue::String("ADMIN".to_string()),
+        case_insensitive: false,  // 明示的に大文字小文字を区別しないを無効化
+    }],
+    None
+).await?;
+```
+
+**メソッド対応関係：**
+
+| シンプル版メソッド | フル版メソッド | 説明 |
+|------------------|-------------|------|
+| `find(conditions)` | `find_with_config(conditions)` | レコードを検索 |
+| `count(conditions)` | `count_with_config(conditions)` | レコードをカウント |
+| `delete_many(conditions)` | `delete_many_with_config(conditions)` | バッチ削除 |
+| `find_with_cache_control(conditions, options, bypass)` | （内部メソッド） | キャッシュ制御 |
+
+**自動変換メカニズム：**
+
+すべてのシンプル版メソッドは内部で`QueryCondition`を`QueryConditionWithConfig`に変換します（`case_insensitive`はデフォルトで`false`）。手動処理は不要です。
+
+**実装方法：**
+- **MongoDB**: 正規表現 `$regex: "^value$", $options: "i"` を使用
+- **MySQL**: `LOWER(field) = LOWER(value)` を使用
+- **PostgreSQL**: `LOWER(field) = LOWER(value)` を使用
+- **SQLite**: `LOWER(field) = LOWER(value)` を使用
+
+**適用シナリオ：**
+- 📧 ユーザー名/メール検索（ユーザーが任意の大文字小文字を入力する可能性がある）
+- 🔍 製品名検索（大文字小文字を区別しない）
+- 🏷️ タグとカテゴリ検索（クエリの使いやすさを向上）
+- 🌍 多言語テキスト検索（異なる言語の大文字小文字ルールに対応）
+
+**パフォーマンスについて：**
+- 文字列フィールドで 大文字小文字 を区別しないクエリを有効にすると、クエリパフォーマンスがわずかに低下します
+- ファジーマッチが必要なフィールドに使用し、正確な一致が必要なフィールドはデフォルトの大文字小文字を区別を維持してください
+- 関数インデックス（例：`LOWER(field)`）を作成してパフォーマンスを最適化できます
+
+**テスト検証：**
+```bash
+# MongoDB
+cargo run --example query_operations_mongodb --features mongodb-support
+
+# MySQL
+cargo run --example query_operations_mysql --features mysql-support
+
+# PostgreSQL
+cargo run --example query_operations_pgsql --features postgres-support
+
+# SQLite
+cargo run --example query_operations_sqlite --features sqlite-support
+```
+
+### v0.4.5 - 統一テーブル不存在エラー処理
+
+**新機能：**
+- 🎯 **統一TableNotExistError**：すべてのデータベースアダプタが一貫したテーブル不存在エラー認識を提供
+- 🔄 **MongoDB特殊処理**：MongoDBのコレクション自動作成機能に対して実用的戦略を採用
+- 📊 **統一インターフェース**：呼び出し元はデータベースタイプを区別する必要がなく、一貫したエラー処理体験可以获得
+- 🎛️ **ビジネスフレンドリー**：明確なエラー予測により、ビジネスロジック処理が容易
+
+**コア改善：**
+```rust
+// 統一テーブル不存在エラー処理
+match ModelManager::<User>::find_by_id("non-existent-id").await {
+    Err(QuickDbError::TableNotExistError { table, message }) => {
+        println!("テーブルが存在しません: {}", table);
+        // 呼び出し元はデータを初期化する必要があることを明確に把握
+    }
+    // ... その他のエラー処理
+}
+```
+
+**MongoDB特殊戦略：**
+- 存在しないコレクションまたは空のコレクションをクエリすると `TableNotExistError` を返す
+- 呼び出し元がエラーを受け取った後、データを挿入すると自動的にコレクションが作成される
+- 統一エラーインターフェースを提供し、MongoDBのセマンティックな差異を隠す
+
+### v0.4.2 - キャッシュバイパス機能
+
+**新機能：**
+- 🎯 **キャッシュバイパスサポート**：新しい `find_with_cache_control` メソッドが追加され、強制キャッシュスキップクエリをサポート
+- 🔄 **後方互換性**：元の `find` メソッドは変更なしで、新メソッドのラッパーとして機能
+- 📊 **パフォーマンス比較**：キャッシュバイパス性能テスト例を提供し、実際の性能差を示す
+- 🎛️ **柔軟コントロール**：ビジネスのニーズに基づいてキャッシュを使用するか強制データベースクエリを選択可能
+
+**使用例：**
+```rust
+// キャッシュを強制スキップするクエリ（金融などのリアルタイムデータシナリオに適合）
+let results = ModelManager::<User>::find_with_cache_control(
+    conditions,
+    None,
+    true  // bypass_cache = true
+).await?;
+
+// 通常のキャッシュクエリ（デフォルト動作）
+let results = ModelManager::<User>::find(conditions, None).await?;
+```
+
+**性能テスト例：**
+```bash
+# キャッシュバイパス性能テストを実行
+cargo run --example cache_bypass_comparison_mysql --features mysql-support
+cargo run --example cache_bypass_comparison_pgsql --features postgres-support
+cargo run --example cache_bypass_comparison_sqlite --features sqlite-support
+cargo run --example cache_bypass_comparison_mongodb --features mongodb-support
+```
+
+### v0.3.6 - ストアドプロシージャ仮想テーブルシステム
 
 ⚠️ **重要な変更：接続プール設定パラメータ単位の変更**
 
@@ -59,7 +220,7 @@ let pool_config = PoolConfig::builder()
 
 ```toml
 [dependencies]
-rat_quickdb = "0.3.6"
+rat_quickdb = "0.5.1"
 ```
 
 ### 🔧 特性制御
@@ -68,7 +229,7 @@ rat_quickdbはCargo機能を使用して異なるデータベースサポート�
 
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = [
+rat_quickdb = { version = "0.5.1", features = [
     "sqlite-support",    # SQLiteデータベースサポート
     "postgres-support",  # PostgreSQLデータベースサポート
     "mysql-support",     # MySQLデータベースサポート
@@ -93,19 +254,19 @@ rat_quickdb = { version = "0.3.6", features = [
 **SQLiteのみ**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["sqlite-support"] }
+rat_quickdb = { version = "0.5.1", features = ["sqlite-support"] }
 ```
 
 **PostgreSQL**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["postgres-support"] }
+rat_quickdb = { version = "0.5.1", features = ["postgres-support"] }
 ```
 
 **すべてのデータベース**:
 ```toml
 [dependencies]
-rat_quickdb = { version = "0.3.6", features = ["full"] }
+rat_quickdb = { version = "0.5.1", features = ["full"] }
 ```
 
 **L2キャッシュ設定に関する注意事項**:
@@ -1102,7 +1263,7 @@ rat_quickdbはモダンアーキテクチャ設計を採用：
 
 ## 🌟 バージョン情報
 
-**現在のバージョン**: 0.3.4
+**現在のバージョン**: 0.5.1
 
 **サポートRustバージョン**: 1.70+
 
