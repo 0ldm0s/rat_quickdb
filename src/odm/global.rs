@@ -229,6 +229,23 @@ pub async fn count(
     manager.count(collection, conditions, alias).await
 }
 
+/// 便捷函数：使用条件组统计记录数量
+///
+/// 【注意】这是一个内部函数，建议通过ModelManager或模型的count_with_groups方法进行操作
+/// 除非您明确知道自己在做什么，否则不要直接调用此函数
+#[doc(hidden)]
+pub async fn count_with_groups(
+    collection: &str,
+    condition_groups: Vec<QueryConditionGroupWithConfig>,
+    alias: Option<&str>,
+) -> QuickDbResult<u64> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
+    let manager = get_odm_manager().await;
+    manager.count_with_groups_with_config(collection, condition_groups, alias).await
+}
+
 /// 获取数据库服务器版本信息
 pub async fn get_server_version(alias: Option<&str>) -> QuickDbResult<String> {
     // 锁定全局操作

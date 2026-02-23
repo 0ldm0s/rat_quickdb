@@ -89,6 +89,12 @@ pub enum OdmRequest {
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
+    CountWithGroups {
+        collection: String,
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
+        alias: Option<String>,
+        response: oneshot::Sender<QuickDbResult<u64>>,
+    },
     GetServerVersion {
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<String>>,

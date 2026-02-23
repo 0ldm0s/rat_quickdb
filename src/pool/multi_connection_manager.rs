@@ -534,6 +534,19 @@ impl MultiConnectionManager {
                 let _ = response.send(result);
                 Ok(())
             }
+            DatabaseOperation::CountWithGroups {
+                table,
+                condition_groups,
+                alias,
+                response,
+            } => {
+                let result = worker
+                    .adapter
+                    .count_with_groups(&worker.connection, &table, &condition_groups, &alias)
+                    .await;
+                let _ = response.send(result);
+                Ok(())
+            }
             DatabaseOperation::CreateTable {
                 table,
                 fields,

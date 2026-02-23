@@ -394,7 +394,7 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
     };
 
     let complex_result =
-        ModelManager::<Product>::find_with_groups(vec![complex_condition], None).await?;
+        ModelManager::<Product>::find_with_groups(vec![complex_condition.clone()], None).await?;
     let complex_time = start.elapsed().as_millis() as u64;
     println!(
         "✅ AND/OR混用查询: {} 条记录，耗时 {}ms",
@@ -402,6 +402,25 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
         complex_time
     );
     stats.add_operation(complex_time, true, false);
+
+    // 2.5. 使用 count_with_groups 统计符合条件的记录数（与上面相同的条件）
+    println!("\n2.5. 使用 count_with_groups 统计...");
+    let start = Instant::now();
+
+    // 使用与上面相同的条件进行计数
+    let count_result =
+        ModelManager::<Product>::count_with_groups(vec![complex_condition]).await?;
+    let count_time = start.elapsed().as_millis() as u64;
+    println!(
+        "✅ count_with_groups: {} 条记录，耗时 {}ms",
+        count_result, count_time
+    );
+    println!(
+        "   验证: find_with_groups 返回 {} 条，count_with_groups 返回 {} 条",
+        complex_result.len(),
+        count_result
+    );
+    stats.add_operation(count_time, true, false);
 
     // 3. 排序查询
     println!("\n3. 排序查询...");

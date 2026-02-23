@@ -90,3 +90,37 @@ pub(crate) async fn count(
         })
     }
 }
+
+/// MySQL条件组合计数操作
+pub(crate) async fn count_with_groups(
+    adapter: &MysqlAdapter,
+    connection: &DatabaseConnection,
+    table: &str,
+    condition_groups: &[QueryConditionGroupWithConfig],
+    alias: &str,
+) -> QuickDbResult<u64> {
+    if let DatabaseConnection::MySQL(pool) = connection {
+        let (sql, params) = SqlQueryBuilder::new()
+            .select(&["COUNT(*) as count"])
+            .where_condition_groups(condition_groups)
+            .build(table, alias)?;
+
+        debug!("执行MySQL条件组合计数: {}", sql);
+
+        let results = adapter.execute_query(pool, &sql, &params, table).await?;
+
+        if let Some(result) = results.first() {
+            if let DataValue::Object(map) = result {
+                if let Some(DataValue::Int(count)) = map.get("count") {
+                    return Ok(*count as u64);
+                }
+            }
+        }
+
+        Ok(0)
+    } else {
+        Err(QuickDbError::ConnectionError {
+            message: "连接类型不匹配，期望MySQL连接".to_string(),
+        })
+    }
+}

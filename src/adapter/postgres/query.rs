@@ -84,3 +84,36 @@ pub(crate) async fn count(
         })
     }
 }
+
+/// PostgreSQL条件组合计数操作
+pub(crate) async fn count_with_groups(
+    adapter: &PostgresAdapter,
+    connection: &DatabaseConnection,
+    table: &str,
+    condition_groups: &[QueryConditionGroupWithConfig],
+    alias: &str,
+) -> QuickDbResult<u64> {
+    if let DatabaseConnection::PostgreSQL(pool) = connection {
+        let (sql, params) = SqlQueryBuilder::new()
+            .select(&["COUNT(*) as count"])
+            .where_condition_groups(condition_groups)
+            .build(table, alias)?;
+
+        debug!("执行PostgreSQL条件组合计数: {}", sql);
+
+        let results = super::utils::execute_query(adapter, pool, &sql, &params, table).await?;
+        if let Some(result) = results.first() {
+            if let DataValue::Object(obj) = result {
+                if let Some(DataValue::Int(count)) = obj.get("count") {
+                    return Ok(*count as u64);
+                }
+            }
+        }
+
+        Ok(0)
+    } else {
+        Err(QuickDbError::ConnectionError {
+            message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
+        })
+    }
+}

@@ -611,6 +611,16 @@ impl DatabaseAdapter for MongoAdapter {
         mongodb_query::count(self, connection, table, conditions, alias).await
     }
 
+    async fn count_with_groups(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroupWithConfig],
+        alias: &str,
+    ) -> QuickDbResult<u64> {
+        mongodb_query::count_with_groups(self, connection, table, condition_groups, alias).await
+    }
+
     async fn create_table(
         &self,
         connection: &DatabaseConnection,

@@ -145,6 +145,28 @@ pub trait OdmOperations {
         alias: Option<&str>,
     ) -> QuickDbResult<u64>;
 
+    /// 使用条件组合统计记录数量（支持复杂OR/AND逻辑）- 简化版
+    async fn count_with_groups(
+        &self,
+        collection: &str,
+        condition_groups: Vec<QueryConditionGroup>,
+        alias: Option<&str>,
+    ) -> QuickDbResult<u64> {
+        let condition_groups_with_config: Vec<crate::types::QueryConditionGroupWithConfig> = condition_groups
+            .into_iter()
+            .map(|g| g.into())
+            .collect();
+        self.count_with_groups_with_config(collection, condition_groups_with_config, alias).await
+    }
+
+    /// 使用条件组合统计记录数量（支持复杂OR/AND逻辑）- 完整版
+    async fn count_with_groups_with_config(
+        &self,
+        collection: &str,
+        condition_groups: Vec<crate::types::QueryConditionGroupWithConfig>,
+        alias: Option<&str>,
+    ) -> QuickDbResult<u64>;
+
     /// 获取数据库服务器版本信息
     async fn get_server_version(&self, alias: Option<&str>) -> QuickDbResult<String>;
 

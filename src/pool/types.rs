@@ -118,6 +118,13 @@ pub enum DatabaseOperation {
         alias: String,
         response: oneshot::Sender<QuickDbResult<u64>>,
     },
+    /// 使用条件组合统计记录（支持OR逻辑）
+    CountWithGroups {
+        table: String,
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
+        alias: String,
+        response: oneshot::Sender<QuickDbResult<u64>>,
+    },
     /// 创建表
     CreateTable {
         table: String,

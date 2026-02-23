@@ -440,6 +440,19 @@ impl SqliteWorker {
                 let _ = response.send(result);
                 Ok(())
             }
+            DatabaseOperation::CountWithGroups {
+                table,
+                condition_groups,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .count_with_groups(&self.connection, &table, &condition_groups, &alias)
+                    .await;
+                let _ = response.send(result);
+                Ok(())
+            }
             DatabaseOperation::CreateTable {
                 table,
                 fields,

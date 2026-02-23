@@ -308,3 +308,41 @@ pub(crate) async fn count(
         })
     }
 }
+
+/// MongoDB条件组合计数操作
+pub(crate) async fn count_with_groups(
+    adapter: &MongoAdapter,
+    connection: &DatabaseConnection,
+    table: &str,
+    condition_groups: &[QueryConditionGroupWithConfig],
+    alias: &str,
+) -> QuickDbResult<u64> {
+    if let DatabaseConnection::MongoDB(db) = connection {
+        let collection = crate::adapter::mongodb::utils::get_collection(adapter, db, table);
+
+        let query = crate::adapter::mongodb::query_builder::MongoQueryBuilder::new()
+            .where_condition_groups_with_config(condition_groups)
+            .build(table, alias)?;
+
+        debug!("执行MongoDB条件组合计数: {:?}", query);
+
+        let count = collection.count_documents(query, None).await.map_err(|e| {
+            if check_collection_not_exist_error(&e, table) {
+                QuickDbError::TableNotExistError {
+                    table: table.to_string(),
+                    message: format!("MongoDB集合 '{}' 不存在", table),
+                }
+            } else {
+                QuickDbError::QueryError {
+                    message: format!("MongoDB条件组合计数失败: {}", e),
+                }
+            }
+        })?;
+
+        Ok(count)
+    } else {
+        Err(QuickDbError::ConnectionError {
+            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+        })
+    }
+}

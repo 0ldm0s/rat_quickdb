@@ -190,6 +190,15 @@ pub trait DatabaseAdapter: Send + Sync {
         alias: &str,
     ) -> QuickDbResult<u64>;
 
+    /// 使用条件组合统计记录数量（支持复杂OR/AND逻辑）
+    async fn count_with_groups(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroupWithConfig],
+        alias: &str,
+    ) -> QuickDbResult<u64>;
+
     /// 创建表/集合
     async fn create_table(
         &self,

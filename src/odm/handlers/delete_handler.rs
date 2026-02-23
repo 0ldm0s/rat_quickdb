@@ -181,6 +181,63 @@ impl AsyncOdmManager {
         Ok(count)
     }
 
+    /// 处理条件组合计数请求
+    #[doc(hidden)]
+    pub async fn handle_count_with_groups(
+        collection: &str,
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
+        alias: Option<String>,
+    ) -> QuickDbResult<u64> {
+        let manager = get_global_pool_manager();
+        let actual_alias = match alias {
+            Some(a) => a,
+            None => manager
+                .get_default_alias()
+                .await
+                .unwrap_or_else(|| "default".to_string()),
+        };
+        debug!(
+            "处理条件组合计数请求: collection={}, alias={}",
+            collection, actual_alias
+        );
+
+        let manager = get_global_pool_manager();
+        let connection_pools = manager.get_connection_pools();
+        let connection_pool =
+            connection_pools
+                .get(&actual_alias)
+                .ok_or_else(|| QuickDbError::AliasNotFound {
+                    alias: actual_alias.clone(),
+                })?;
+
+        // 创建oneshot通道用于接收响应
+        let (response_tx, response_rx) = oneshot::channel();
+
+        // 发送DatabaseOperation::CountWithGroups请求到连接池
+        let operation = DatabaseOperation::CountWithGroups {
+            table: collection.to_string(),
+            condition_groups,
+            alias: actual_alias.clone(),
+            response: response_tx,
+        };
+
+        connection_pool
+            .operation_sender
+            .send(operation)
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "连接池操作通道已关闭".to_string(),
+            })?;
+
+        // 等待响应
+        let count = response_rx
+            .await
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: "等待连接池响应超时".to_string(),
+            })??;
+
+        Ok(count)
+    }
+
     /// 处理获取服务器版本请求
     #[doc(hidden)]
     pub async fn handle_get_server_version(alias: Option<String>) -> QuickDbResult<String> {

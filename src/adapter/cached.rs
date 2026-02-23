@@ -418,6 +418,18 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         self.inner.count(connection, table, conditions, alias).await
     }
 
+    /// 使用条件组合统计记录数量 - 直接调用内部适配器，不缓存统计结果
+    async fn count_with_groups(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        condition_groups: &[QueryConditionGroupWithConfig],
+        alias: &str,
+    ) -> QuickDbResult<u64> {
+        // 统计操作不缓存，直接调用内部适配器
+        self.inner.count_with_groups(connection, table, condition_groups, alias).await
+    }
+
     /// 创建表/集合 - 直接调用内部适配器
     async fn create_table(
         &self,

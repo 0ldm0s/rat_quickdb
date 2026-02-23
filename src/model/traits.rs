@@ -375,6 +375,26 @@ pub trait ModelOperations<T: Model> {
     /// 统计记录数量（完整版）
     async fn count_with_config(conditions: Vec<QueryConditionWithConfig>) -> QuickDbResult<u64>;
 
+    /// 使用条件组统计记录数量（支持复杂的AND/OR逻辑组合）- 简化版
+    ///
+    /// 接受 `QueryConditionGroup`，自动转换为 `QueryConditionGroupWithConfig`
+    async fn count_with_groups(
+        condition_groups: Vec<QueryConditionGroup>,
+    ) -> QuickDbResult<u64> {
+        let condition_groups_with_config: Vec<QueryConditionGroupWithConfig> = condition_groups
+            .into_iter()
+            .map(|g| g.into())
+            .collect();
+        Self::count_with_groups_with_config(condition_groups_with_config).await
+    }
+
+    /// 使用条件组统计记录数量（支持复杂的AND/OR逻辑组合）- 完整版
+    ///
+    /// 接受 `QueryConditionGroupWithConfig`，支持大小写不敏感等高级配置
+    async fn count_with_groups_with_config(
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
+    ) -> QuickDbResult<u64>;
+
     /// 使用条件组查找多条记录（支持复杂的AND/OR逻辑组合）- 简化版
     ///
     /// 接受 `QueryConditionGroup`，自动转换为 `QueryConditionGroupWithConfig`

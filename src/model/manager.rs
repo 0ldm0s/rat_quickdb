@@ -99,6 +99,24 @@ impl<T: Model> ModelManager<T> {
         <Self as ModelOperations<T>>::count_with_config(conditions).await
     }
 
+    /// 使用条件组统计模型数量（简化版）
+    ///
+    /// 接受 `Vec<QueryConditionGroup>`，支持复杂的AND/OR逻辑组合
+    pub async fn count_with_groups(
+        condition_groups: Vec<QueryConditionGroup>,
+    ) -> QuickDbResult<u64> {
+        <Self as ModelOperations<T>>::count_with_groups(condition_groups).await
+    }
+
+    /// 使用条件组统计模型数量（完整版）
+    ///
+    /// 接受 `Vec<QueryConditionGroupWithConfig>`，支持大小写不敏感等高级配置
+    pub async fn count_with_groups_with_config(
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
+    ) -> QuickDbResult<u64> {
+        <Self as ModelOperations<T>>::count_with_groups_with_config(condition_groups).await
+    }
+
     /// 批量删除模型（带配置）
     ///
     /// 接受 `Vec<QueryConditionWithConfig>`，支持大小写不敏感等高级配置
@@ -241,6 +259,17 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         debug!("统计模型数量: collection={}", collection_name);
 
         odm::count(&collection_name, conditions, database_alias.as_deref()).await
+    }
+
+    async fn count_with_groups_with_config(
+        condition_groups: Vec<QueryConditionGroupWithConfig>,
+    ) -> QuickDbResult<u64> {
+        let collection_name = T::collection_name();
+        let database_alias = T::database_alias();
+
+        debug!("使用条件组统计模型数量: collection={}", collection_name);
+
+        odm::count_with_groups(&collection_name, condition_groups, database_alias.as_deref()).await
     }
 
     async fn find_with_groups_with_cache_control(

@@ -174,6 +174,15 @@ impl AsyncOdmManager {
                     let result = Self::handle_count(&collection, conditions, alias).await;
                     let _ = response.send(result);
                 }
+                OdmRequest::CountWithGroups {
+                    collection,
+                    condition_groups,
+                    alias,
+                    response,
+                } => {
+                    let result = Self::handle_count_with_groups(&collection, condition_groups, alias).await;
+                    let _ = response.send(result);
+                }
                 OdmRequest::GetServerVersion { alias, response } => {
                     let result = Self::handle_get_server_version(alias).await;
                     let _ = response.send(result);
