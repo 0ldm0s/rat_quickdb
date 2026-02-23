@@ -668,75 +668,169 @@ impl SqlQueryBuilder {
             }
             QueryOperator::In => {
                 if let DataValue::Array(values) = &condition.value {
-                    // 检查查询值是否为支持的类型
-                    for value in values {
-                        match value {
-                            DataValue::String(_)
-                            | DataValue::Int(_)
-                            | DataValue::Float(_)
-                            | DataValue::Uuid(_) => {
-                                // 支持的类型
+                    // 检查字段类型，区分 Array 字段和普通字段
+                    let field_type = self.get_field_type(table, &condition.field);
+
+                    if let Some(ft) = field_type {
+                        if matches!(ft, crate::model::FieldType::Array { .. }) {
+                            // Array 字段：使用 JSON_CONTAINS 查询
+                            // 检查查询值是否为支持的类型
+                            for value in values {
+                                match value {
+                                    DataValue::String(_)
+                                    | DataValue::Int(_)
+                                    | DataValue::UInt(_)
+                                    | DataValue::Float(_)
+                                    | DataValue::Uuid(_) => {
+                                        // 支持的类型
+                                    }
+                                    _ => {
+                                        return Err(QuickDbError::ValidationError {
+                                            field: condition.field.clone(),
+                                            message: format!(
+                                                "Array字段的IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                                value
+                                            ),
+                                        });
+                                    }
+                                }
                             }
-                            _ => {
-                                return Err(QuickDbError::ValidationError {
-                                    field: condition.field.clone(),
-                                    message: format!(
-                                        "Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}",
-                                        value
-                                    ),
+
+                            if values.len() == 1 {
+                                // 单个值，使用JSON_CONTAINS查询
+                                // 将值转换为JSON字符串格式
+                                let json_param = match &values[0] {
+                                    DataValue::String(s) => {
+                                        serde_json::to_string(&s).unwrap_or_else(|_| "\"\"".to_string())
+                                    }
+                                    DataValue::Int(i) => {
+                                        serde_json::to_string(&i).unwrap_or_else(|_| "0".to_string())
+                                    }
+                                    DataValue::UInt(u) => {
+                                        serde_json::to_string(&u).unwrap_or_else(|_| "0".to_string())
+                                    }
+                                    DataValue::Float(f) => {
+                                        serde_json::to_string(&f).unwrap_or_else(|_| "0.0".to_string())
+                                    }
+                                    DataValue::Uuid(uuid) => {
+                                        serde_json::to_string(&uuid).unwrap_or_else(|_| "\"\"".to_string())
+                                    }
+                                    _ => unreachable!(), // 已经检查过
+                                };
+                                new_index += 1;
+                                (
+                                    format!("JSON_CONTAINS({}, ?)", safe_field),
+                                    vec![DataValue::String(json_param)],
+                                )
+                            } else {
+                                // 多个值，使用OR连接的JSON_CONTAINS查询
+                                let mut json_conditions = Vec::new();
+                                let mut json_params = Vec::new();
+
+                                for value in values {
+                                    json_conditions.push(format!("JSON_CONTAINS({}, ?)", safe_field));
+                                    // 将值转换为JSON字符串格式，与单值查询保持一致
+                                    let json_param =
+                                        match value {
+                                            DataValue::String(s) => serde_json::to_string(&s)
+                                                .unwrap_or_else(|_| "\"\"".to_string()),
+                                            DataValue::Int(i) => serde_json::to_string(&i)
+                                                .unwrap_or_else(|_| "0".to_string()),
+                                            DataValue::UInt(u) => serde_json::to_string(&u)
+                                                .unwrap_or_else(|_| "0".to_string()),
+                                            DataValue::Float(f) => serde_json::to_string(&f)
+                                                .unwrap_or_else(|_| "0.0".to_string()),
+                                            DataValue::Uuid(uuid) => serde_json::to_string(&uuid)
+                                                .unwrap_or_else(|_| "\"\"".to_string()),
+                                            _ => continue, // 跳过不支持的类型
+                                        };
+                                    json_params.push(DataValue::String(json_param));
+                                    new_index += 1;
+                                }
+
+                                (format!("({})", json_conditions.join(" OR ")), json_params)
+                            }
+                        } else {
+                            // 普通字段：使用传统 IN (?, ?, ...) 查询
+                            if values.is_empty() {
+                                return Err(QuickDbError::QueryError {
+                                    message: "IN 操作符需要非空数组".to_string(),
                                 });
                             }
-                        }
-                    }
 
-                    if values.len() == 1 {
-                        // 单个值，使用JSON_CONTAINS查询
-                        // 将值转换为JSON字符串格式
-                        let json_param = match &values[0] {
-                            DataValue::String(s) => {
-                                serde_json::to_string(&s).unwrap_or_else(|_| "\"\"".to_string())
-                            }
-                            DataValue::Int(i) => {
-                                serde_json::to_string(&i).unwrap_or_else(|_| "0".to_string())
-                            }
-                            DataValue::Float(f) => {
-                                serde_json::to_string(&f).unwrap_or_else(|_| "0.0".to_string())
-                            }
-                            DataValue::Uuid(uuid) => {
-                                serde_json::to_string(&uuid).unwrap_or_else(|_| "\"\"".to_string())
-                            }
-                            _ => unreachable!(), // 已经检查过
-                        };
-                        new_index += 1;
-                        (
-                            format!("JSON_CONTAINS({}, ?)", safe_field),
-                            vec![DataValue::String(json_param)],
-                        )
-                    } else {
-                        // 多个值，使用OR连接的JSON_CONTAINS查询
-                        let mut json_conditions = Vec::new();
-                        let mut json_params = Vec::new();
-
-                        for value in values {
-                            json_conditions.push(format!("JSON_CONTAINS({}, ?)", safe_field));
-                            // 将值转换为JSON字符串格式，与单值查询保持一致
-                            let json_param =
+                            // 验证普通字段IN操作的数据类型
+                            for value in values {
                                 match value {
-                                    DataValue::String(s) => serde_json::to_string(&s)
-                                        .unwrap_or_else(|_| "\"\"".to_string()),
-                                    DataValue::Int(i) => serde_json::to_string(&i)
-                                        .unwrap_or_else(|_| "0".to_string()),
-                                    DataValue::Float(f) => serde_json::to_string(&f)
-                                        .unwrap_or_else(|_| "0.0".to_string()),
-                                    DataValue::Uuid(uuid) => serde_json::to_string(&uuid)
-                                        .unwrap_or_else(|_| "\"\"".to_string()),
-                                    _ => continue, // 跳过不支持的类型
-                                };
-                            json_params.push(DataValue::String(json_param));
-                            new_index += 1;
+                                    DataValue::String(_)
+                                    | DataValue::Int(_)
+                                    | DataValue::UInt(_)
+                                    | DataValue::Float(_)
+                                    | DataValue::Uuid(_) => {
+                                        // 支持的类型
+                                    }
+                                    _ => {
+                                        return Err(QuickDbError::ValidationError {
+                                            field: condition.field.clone(),
+                                            message: format!(
+                                                "IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                                value
+                                            ),
+                                        });
+                                    }
+                                }
+                            }
+
+                            // 使用传统 IN 查询
+                            let mut placeholders = Vec::new();
+                            for i in 0..values.len() {
+                                placeholders.push(self.get_placeholder(new_index + i));
+                            }
+                            let params = values.clone();
+                            (
+                                format!("{} IN ({})", safe_field, placeholders.join(", ")),
+                                params,
+                            )
+                        }
+                    } else {
+                        // 无法确定字段类型，默认使用传统 IN 查询
+                        if values.is_empty() {
+                            return Err(QuickDbError::QueryError {
+                                message: "IN 操作符需要非空数组".to_string(),
+                            });
                         }
 
-                        (format!("({})", json_conditions.join(" OR ")), json_params)
+                        // 验证数据类型
+                        for value in values {
+                            match value {
+                                DataValue::String(_)
+                                | DataValue::Int(_)
+                                | DataValue::UInt(_)
+                                | DataValue::Float(_)
+                                | DataValue::Uuid(_) => {
+                                    // 支持的类型
+                                }
+                                _ => {
+                                    return Err(QuickDbError::ValidationError {
+                                        field: condition.field.clone(),
+                                        message: format!(
+                                            "IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                            value
+                                        ),
+                                    });
+                                }
+                            }
+                        }
+
+                        // 使用传统 IN 查询
+                        let mut placeholders = Vec::new();
+                        for i in 0..values.len() {
+                            placeholders.push(self.get_placeholder(new_index + i));
+                        }
+                        let params = values.clone();
+                        (
+                            format!("{} IN ({})", safe_field, placeholders.join(", ")),
+                            params,
+                        )
                     }
                 } else {
                     return Err(QuickDbError::QueryError {
@@ -925,63 +1019,160 @@ impl SqlQueryBuilder {
                 }
                 QueryOperator::In => {
                     if let DataValue::Array(values) = &condition.value {
-                        // 检查查询值是否为支持的类型
-                        for value in values {
-                            match value {
-                                DataValue::String(_)
-                                | DataValue::Int(_)
-                                | DataValue::Float(_)
-                                | DataValue::Uuid(_) => {
-                                    // 支持的类型
+                        // 检查字段类型，区分 Array 字段和普通字段
+                        let field_type = self.get_field_type(table, &condition.field);
+
+                        if let Some(ft) = field_type {
+                            if matches!(ft, crate::model::FieldType::Array { .. }) {
+                                // Array 字段：使用 JSON_CONTAINS 查询
+                                // 检查查询值是否为支持的类型
+                                for value in values {
+                                    match value {
+                                        DataValue::String(_)
+                                        | DataValue::Int(_)
+                                        | DataValue::UInt(_)
+                                        | DataValue::Float(_)
+                                        | DataValue::Uuid(_) => {
+                                            // 支持的类型
+                                        }
+                                        _ => {
+                                            return Err(QuickDbError::ValidationError {
+                                                field: condition.field.clone(),
+                                                message: format!(
+                                                    "Array字段的IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                                    value
+                                                ),
+                                            });
+                                        }
+                                    }
                                 }
-                                _ => {
-                                    return Err(QuickDbError::ValidationError {
-                                        field: condition.field.clone(),
-                                        message: format!(
-                                            "Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}",
-                                            value
-                                        ),
+
+                                if values.len() == 1 {
+                                    // 单个值，使用JSON_CONTAINS查询
+                                    // 将值转换为JSON字符串格式
+                                    let json_param =
+                                        match &values[0] {
+                                            DataValue::String(s) => serde_json::to_string(&s)
+                                                .unwrap_or_else(|_| "\"\"".to_string()),
+                                            DataValue::Int(i) => serde_json::to_string(&i)
+                                                .unwrap_or_else(|_| "0".to_string()),
+                                            DataValue::UInt(u) => serde_json::to_string(&u)
+                                                .unwrap_or_else(|_| "0".to_string()),
+                                            DataValue::Float(f) => serde_json::to_string(&f)
+                                                .unwrap_or_else(|_| "0.0".to_string()),
+                                            DataValue::Uuid(uuid) => serde_json::to_string(&uuid)
+                                                .unwrap_or_else(|_| "\"\"".to_string()),
+                                            _ => unreachable!(), // 已经检查过
+                                        };
+                                    clauses.push(format!("JSON_CONTAINS({}, ?)", condition.field));
+                                    params.push(DataValue::String(json_param));
+                                    param_index += 1;
+                                } else {
+                                    // 多个值，使用OR连接的JSON_CONTAINS查询
+                                    for value in values {
+                                        let json_param = match value {
+                                            DataValue::String(s) => serde_json::to_string(&s)
+                                                .unwrap_or_else(|_| "\"\"".to_string()),
+                                            DataValue::Int(i) => serde_json::to_string(&i)
+                                                .unwrap_or_else(|_| "0".to_string()),
+                                            DataValue::UInt(u) => serde_json::to_string(&u)
+                                                .unwrap_or_else(|_| "0".to_string()),
+                                            DataValue::Float(f) => serde_json::to_string(&f)
+                                                .unwrap_or_else(|_| "0.0".to_string()),
+                                            DataValue::Uuid(uuid) => serde_json::to_string(&uuid)
+                                                .unwrap_or_else(|_| "\"\"".to_string()),
+                                            _ => unreachable!(), // 已经检查过
+                                        };
+                                        clauses.push(format!("JSON_CONTAINS({}, ?)", condition.field));
+                                        params.push(DataValue::String(json_param));
+                                        param_index += 1;
+                                    }
+                                }
+                            } else {
+                                // 普通字段：使用传统 IN (?, ?, ...) 查询
+                                if values.is_empty() {
+                                    return Err(QuickDbError::QueryError {
+                                        message: "IN 操作符需要非空数组".to_string(),
                                     });
                                 }
-                            }
-                        }
 
-                        if values.len() == 1 {
-                            // 单个值，使用JSON_CONTAINS查询
-                            // 将值转换为JSON字符串格式
-                            let json_param =
-                                match &values[0] {
-                                    DataValue::String(s) => serde_json::to_string(&s)
-                                        .unwrap_or_else(|_| "\"\"".to_string()),
-                                    DataValue::Int(i) => serde_json::to_string(&i)
-                                        .unwrap_or_else(|_| "0".to_string()),
-                                    DataValue::Float(f) => serde_json::to_string(&f)
-                                        .unwrap_or_else(|_| "0.0".to_string()),
-                                    DataValue::Uuid(uuid) => serde_json::to_string(&uuid)
-                                        .unwrap_or_else(|_| "\"\"".to_string()),
-                                    _ => unreachable!(), // 已经检查过
-                                };
-                            clauses.push(format!("JSON_CONTAINS({}, ?)", condition.field));
-                            params.push(DataValue::String(json_param));
-                            param_index += 1;
+                                // 验证普通字段IN操作的数据类型
+                                for value in values {
+                                    match value {
+                                        DataValue::String(_)
+                                        | DataValue::Int(_)
+                                        | DataValue::UInt(_)
+                                        | DataValue::Float(_)
+                                        | DataValue::Uuid(_) => {
+                                            // 支持的类型
+                                        }
+                                        _ => {
+                                            return Err(QuickDbError::ValidationError {
+                                                field: condition.field.clone(),
+                                                message: format!(
+                                                    "IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                                    value
+                                                ),
+                                            });
+                                        }
+                                    }
+                                }
+
+                                // 使用传统 IN 查询
+                                let mut placeholders = Vec::new();
+                                for _ in 0..values.len() {
+                                    placeholders.push(self.get_placeholder(param_index));
+                                    param_index += 1;
+                                }
+                                clauses.push(format!(
+                                    "{} IN ({})",
+                                    condition.field,
+                                    placeholders.join(", ")
+                                ));
+                                params.extend(values.clone());
+                            }
                         } else {
-                            // 多个值，使用OR连接的JSON_CONTAINS查询
+                            // 无法确定字段类型，默认使用传统 IN 查询
+                            if values.is_empty() {
+                                return Err(QuickDbError::QueryError {
+                                    message: "IN 操作符需要非空数组".to_string(),
+                                });
+                            }
+
+                            // 验证数据类型
                             for value in values {
-                                let json_param = match value {
-                                    DataValue::String(s) => serde_json::to_string(&s)
-                                        .unwrap_or_else(|_| "\"\"".to_string()),
-                                    DataValue::Int(i) => serde_json::to_string(&i)
-                                        .unwrap_or_else(|_| "0".to_string()),
-                                    DataValue::Float(f) => serde_json::to_string(&f)
-                                        .unwrap_or_else(|_| "0.0".to_string()),
-                                    DataValue::Uuid(uuid) => serde_json::to_string(&uuid)
-                                        .unwrap_or_else(|_| "\"\"".to_string()),
-                                    _ => unreachable!(), // 已经检查过
-                                };
-                                clauses.push(format!("JSON_CONTAINS({}, ?)", condition.field));
-                                params.push(DataValue::String(json_param));
+                                match value {
+                                    DataValue::String(_)
+                                    | DataValue::Int(_)
+                                    | DataValue::UInt(_)
+                                    | DataValue::Float(_)
+                                    | DataValue::Uuid(_) => {
+                                        // 支持的类型
+                                    }
+                                    _ => {
+                                        return Err(QuickDbError::ValidationError {
+                                            field: condition.field.clone(),
+                                            message: format!(
+                                                "IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                                value
+                                            ),
+                                        });
+                                    }
+                                }
+                            }
+
+                            // 使用传统 IN 查询
+                            let mut placeholders = Vec::new();
+                            for _ in 0..values.len() {
+                                placeholders.push(self.get_placeholder(param_index));
                                 param_index += 1;
                             }
+                            clauses.push(format!(
+                                "{} IN ({})",
+                                condition.field,
+                                placeholders.join(", ")
+                            ));
+                            params.extend(values.clone());
                         }
                     } else {
                         return Err(QuickDbError::QueryError {

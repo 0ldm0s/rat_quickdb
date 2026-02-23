@@ -651,40 +651,129 @@ impl SqlQueryBuilder {
             }
             QueryOperator::In => {
                 if let DataValue::Array(values) = &condition.value {
-                    // 验证Array字段IN操作的数据类型
-                    for value in values {
-                        match value {
-                            DataValue::String(_)
-                            | DataValue::Int(_)
-                            | DataValue::Float(_)
-                            | DataValue::Uuid(_) => {
-                                // 支持的类型
+                    // 检查字段类型，区分 Array 字段和普通字段
+                    let field_type = get_field_type(table, alias, &condition.field);
+
+                    if let Some(ft) = field_type {
+                        if matches!(ft, crate::model::FieldType::Array { .. }) {
+                            // Array 字段：使用 JSONB contains 查询
+                            // 验证Array字段IN操作的数据类型
+                            for value in values {
+                                match value {
+                                    DataValue::String(_)
+                                    | DataValue::Int(_)
+                                    | DataValue::UInt(_)
+                                    | DataValue::Float(_)
+                                    | DataValue::Uuid(_) => {
+                                        // 支持的类型
+                                    }
+                                    _ => {
+                                        return Err(QuickDbError::ValidationError {
+                                            field: condition.field.clone(),
+                                            message: format!(
+                                                "Array字段的IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                                value
+                                            ),
+                                        });
+                                    }
+                                }
                             }
-                            _ => {
-                                return Err(QuickDbError::ValidationError {
-                                    field: condition.field.clone(),
-                                    message: format!(
-                                        "Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}",
-                                        value
-                                    ),
+
+                            // Array字段使用JSONB contains查询：检查数组中是否包含指定值
+                            if values.len() == 1 {
+                                // 单个值：使用 @> 操作符
+                                let json_value = values[0].to_json_value().to_string();
+                                (format!("{} @> '{}'::jsonb", safe_field, json_value), vec![])
+                            } else {
+                                // 多个值：使用 OR 组合多个 @> 查询
+                                let mut clauses = Vec::new();
+                                for value in values {
+                                    let json_value = value.to_json_value().to_string();
+                                    clauses.push(format!("{} @> '{}'::jsonb", safe_field, json_value));
+                                }
+                                (format!("({})", clauses.join(" OR ")), vec![])
+                            }
+                        } else {
+                            // 普通字段：使用传统 IN (?, ?, ...) 查询
+                            if values.is_empty() {
+                                return Err(QuickDbError::QueryError {
+                                    message: "IN 操作符需要非空数组".to_string(),
                                 });
                             }
-                        }
-                    }
 
-                    // Array字段使用JSONB contains查询：检查数组中是否包含指定值
-                    if values.len() == 1 {
-                        // 单个值：使用 @> 操作符
-                        let json_value = values[0].to_json_value().to_string();
-                        (format!("{} @> '{}'::jsonb", safe_field, json_value), vec![])
-                    } else {
-                        // 多个值：使用 OR 组合多个 @> 查询
-                        let mut clauses = Vec::new();
-                        for value in values {
-                            let json_value = value.to_json_value().to_string();
-                            clauses.push(format!("{} @> '{}'::jsonb", safe_field, json_value));
+                            // 验证普通字段IN操作的数据类型
+                            for value in values {
+                                match value {
+                                    DataValue::String(_)
+                                    | DataValue::Int(_)
+                                    | DataValue::UInt(_)
+                                    | DataValue::Float(_)
+                                    | DataValue::Uuid(_) => {
+                                        // 支持的类型
+                                    }
+                                    _ => {
+                                        return Err(QuickDbError::ValidationError {
+                                            field: condition.field.clone(),
+                                            message: format!(
+                                                "IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                                value
+                                            ),
+                                        });
+                                    }
+                                }
+                            }
+
+                            // 使用传统 IN 查询
+                            let mut placeholders = Vec::new();
+                            for i in 0..values.len() {
+                                placeholders.push(self.get_placeholder(new_index + i));
+                            }
+                            let params = values.clone();
+                            (
+                                format!("{} IN ({})", safe_field, placeholders.join(", ")),
+                                params,
+                            )
                         }
-                        (format!("({})", clauses.join(" OR ")), vec![])
+                    } else {
+                        // 无法确定字段类型，默认使用传统 IN 查询
+                        if values.is_empty() {
+                            return Err(QuickDbError::QueryError {
+                                message: "IN 操作符需要非空数组".to_string(),
+                            });
+                        }
+
+                        // 验证数据类型
+                        for value in values {
+                            match value {
+                                DataValue::String(_)
+                                | DataValue::Int(_)
+                                | DataValue::UInt(_)
+                                | DataValue::Float(_)
+                                | DataValue::Uuid(_) => {
+                                    // 支持的类型
+                                }
+                                _ => {
+                                    return Err(QuickDbError::ValidationError {
+                                        field: condition.field.clone(),
+                                        message: format!(
+                                            "IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                            value
+                                        ),
+                                    });
+                                }
+                            }
+                        }
+
+                        // 使用传统 IN 查询
+                        let mut placeholders = Vec::new();
+                        for i in 0..values.len() {
+                            placeholders.push(self.get_placeholder(new_index + i));
+                        }
+                        let params = values.clone();
+                        (
+                            format!("{} IN ({})", safe_field, placeholders.join(", ")),
+                            params,
+                        )
                     }
                 } else {
                     return Err(QuickDbError::QueryError {
@@ -891,43 +980,136 @@ impl SqlQueryBuilder {
                 }
                 QueryOperator::In => {
                     if let DataValue::Array(values) = &condition.value {
-                        // 验证Array字段IN操作的数据类型
-                        for value in values {
-                            match value {
-                                DataValue::String(_)
-                                | DataValue::Int(_)
-                                | DataValue::Float(_)
-                                | DataValue::Uuid(_) => {
-                                    // 支持的类型
+                        // 检查字段类型，区分 Array 字段和普通字段
+                        let field_type = get_field_type(table, alias, &condition.field);
+
+                        if let Some(ft) = field_type {
+                            if matches!(ft, crate::model::FieldType::Array { .. }) {
+                                // Array 字段：使用 JSONB contains 查询
+                                // 验证Array字段IN操作的数据类型
+                                for value in values {
+                                    match value {
+                                        DataValue::String(_)
+                                        | DataValue::Int(_)
+                                        | DataValue::UInt(_)
+                                        | DataValue::Float(_)
+                                        | DataValue::Uuid(_) => {
+                                            // 支持的类型
+                                        }
+                                        _ => {
+                                            return Err(QuickDbError::ValidationError {
+                                                field: condition.field.clone(),
+                                                message: format!(
+                                                    "Array字段的IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                                    value
+                                                ),
+                                            });
+                                        }
+                                    }
                                 }
-                                _ => {
-                                    return Err(QuickDbError::ValidationError {
-                                        field: condition.field.clone(),
-                                        message: format!(
-                                            "Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}",
-                                            value
-                                        ),
+
+                                // Array字段使用JSONB contains查询：检查数组中是否包含指定值
+                                if values.len() == 1 {
+                                    // 单个值：使用 @> 操作符
+                                    let json_value = values[0].to_json_value().to_string();
+                                    clauses.push(format!("{} @> '{}'::jsonb", condition.field, json_value));
+                                } else {
+                                    // 多个值：使用 OR 组合多个 @> 查询
+                                    let mut sub_clauses = Vec::new();
+                                    for value in values {
+                                        let json_value = value.to_json_value().to_string();
+                                        sub_clauses.push(format!(
+                                            "{} @> '{}'::jsonb",
+                                            condition.field, json_value
+                                        ));
+                                    }
+                                    clauses.push(format!("({})", sub_clauses.join(" OR ")));
+                                }
+                            } else {
+                                // 普通字段：使用传统 IN (?, ?, ...) 查询
+                                if values.is_empty() {
+                                    return Err(QuickDbError::QueryError {
+                                        message: "IN 操作符需要非空数组".to_string(),
                                     });
                                 }
-                            }
-                        }
 
-                        // Array字段使用JSONB contains查询：检查数组中是否包含指定值
-                        if values.len() == 1 {
-                            // 单个值：使用 @> 操作符
-                            let json_value = values[0].to_json_value().to_string();
-                            clauses.push(format!("{} @> '{}'::jsonb", condition.field, json_value));
-                        } else {
-                            // 多个值：使用 OR 组合多个 @> 查询
-                            let mut sub_clauses = Vec::new();
-                            for value in values {
-                                let json_value = value.to_json_value().to_string();
-                                sub_clauses.push(format!(
-                                    "{} @> '{}'::jsonb",
-                                    condition.field, json_value
+                                // 验证普通字段IN操作的数据类型
+                                for value in values {
+                                    match value {
+                                        DataValue::String(_)
+                                        | DataValue::Int(_)
+                                        | DataValue::UInt(_)
+                                        | DataValue::Float(_)
+                                        | DataValue::Uuid(_) => {
+                                            // 支持的类型
+                                        }
+                                        _ => {
+                                            return Err(QuickDbError::ValidationError {
+                                                field: condition.field.clone(),
+                                                message: format!(
+                                                    "IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                                    value
+                                                ),
+                                            });
+                                        }
+                                    }
+                                }
+
+                                // 使用传统 IN 查询
+                                let mut placeholders = Vec::new();
+                                for _ in 0..values.len() {
+                                    placeholders.push(self.get_placeholder(param_index));
+                                    param_index += 1;
+                                }
+                                clauses.push(format!(
+                                    "{} IN ({})",
+                                    condition.field,
+                                    placeholders.join(", ")
                                 ));
+                                params.extend(values.clone());
                             }
-                            clauses.push(format!("({})", sub_clauses.join(" OR ")));
+                        } else {
+                            // 无法确定字段类型，默认使用传统 IN 查询
+                            if values.is_empty() {
+                                return Err(QuickDbError::QueryError {
+                                    message: "IN 操作符需要非空数组".to_string(),
+                                });
+                            }
+
+                            // 验证数据类型
+                            for value in values {
+                                match value {
+                                    DataValue::String(_)
+                                    | DataValue::Int(_)
+                                    | DataValue::UInt(_)
+                                    | DataValue::Float(_)
+                                    | DataValue::Uuid(_) => {
+                                        // 支持的类型
+                                    }
+                                    _ => {
+                                        return Err(QuickDbError::ValidationError {
+                                            field: condition.field.clone(),
+                                            message: format!(
+                                                "IN操作只支持String、Int、UInt、Float、Uuid类型，不支持: {:?}",
+                                                value
+                                            ),
+                                        });
+                                    }
+                                }
+                            }
+
+                            // 使用传统 IN 查询
+                            let mut placeholders = Vec::new();
+                            for _ in 0..values.len() {
+                                placeholders.push(self.get_placeholder(param_index));
+                                param_index += 1;
+                            }
+                            clauses.push(format!(
+                                "{} IN ({})",
+                                condition.field,
+                                placeholders.join(", ")
+                            ));
+                            params.extend(values.clone());
                         }
                     } else {
                         return Err(QuickDbError::QueryError {

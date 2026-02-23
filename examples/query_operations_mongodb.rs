@@ -549,6 +549,64 @@ async fn demonstrate_complex_queries() -> Result<QueryStats, Box<dyn std::error:
     }
     stats.add_operation(in_time, true, false);
 
+    // 6.1 IN查询 - 普通字段（string_field）
+    // 注意：从 v0.5.2 开始，IN查询支持普通字段（非Array字段）
+    // MongoDB 使用 $in 操作符，天然支持所有字段类型
+    println!("\n6.1 IN查询 (普通字段)...");
+    let start = Instant::now();
+
+    // 使用 category 字段（string_field）进行 IN 查询
+    let in_string_conditions = vec![QueryCondition {
+        field: "category".to_string(),
+        operator: QueryOperator::In,
+        value: DataValue::Array(vec![
+            DataValue::String("电子产品".to_string()),
+            DataValue::String("家居用品".to_string()),
+            DataValue::String("图书".to_string()),
+        ]),
+    }];
+
+    let in_string_result = ModelManager::<Product>::find(in_string_conditions, None).await?;
+    let in_string_time = start.elapsed().as_millis() as u64;
+    println!(
+        "✅ IN查询(普通string字段): {} 条记录，耗时 {}ms",
+        in_string_result.len(),
+        in_string_time
+    );
+    println!("   包含'电子产品'、'家居用品'或'图书'分类的产品:");
+    for (i, product) in in_string_result.iter().take(3).enumerate() {
+        println!("   {}. {} - 分类: {:?}", i + 1, product.name, product.category);
+    }
+    stats.add_operation(in_string_time, true, false);
+
+    // 6.2 IN查询 - 普通字段（integer_field）
+    println!("\n6.2 IN查询 (普通整数字段)...");
+    let start = Instant::now();
+
+    // 使用 stock 字段（integer_field）进行 IN 查询
+    let in_int_conditions = vec![QueryCondition {
+        field: "stock".to_string(),
+        operator: QueryOperator::In,
+        value: DataValue::Array(vec![
+            DataValue::Int(10),
+            DataValue::Int(20),
+            DataValue::Int(30),
+        ]),
+    }];
+
+    let in_int_result = ModelManager::<Product>::find(in_int_conditions, None).await?;
+    let in_int_time = start.elapsed().as_millis() as u64;
+    println!(
+        "✅ IN查询(普通int字段): {} 条记录，耗时 {}ms",
+        in_int_result.len(),
+        in_int_time
+    );
+    println!("   库存为10、20、30的产品:");
+    for (i, product) in in_int_result.iter().take(3).enumerate() {
+        println!("   {}. {} - 库存: {:?}", i + 1, product.name, product.stock);
+    }
+    stats.add_operation(in_int_time, true, false);
+
     // 7. 大小写不敏感查询测试
     println!("\n7. 大小写不敏感查询测试...");
     let start = Instant::now();
