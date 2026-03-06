@@ -66,6 +66,23 @@ pub enum QuickDbError {
     /// 表或集合不存在错误
     #[error("表或集合 '{table}' 不存在: {message}")]
     TableNotExistError { table: String, message: String },
+
+    /// 版本管理错误
+    #[error("版本管理操作失败: {message}")]
+    VersionError { message: String },
+
+    /// 数据未找到错误
+    #[error("数据未找到: {message}")]
+    NotFound { message: String },
+}
+
+// 实现 From<sled::Error> 以支持 ? 操作符
+impl From<sled::Error> for QuickDbError {
+    fn from(err: sled::Error) -> Self {
+        QuickDbError::VersionError {
+            message: err.to_string(),
+        }
+    }
 }
 
 /// QuickDB 结果类型别名

@@ -26,6 +26,7 @@ pub mod table;
 
 // 条件编译的模块
 pub mod cache;
+pub mod field_versioning;
 pub mod id_generator;
 pub mod join_macro;
 pub mod stored_procedure;
