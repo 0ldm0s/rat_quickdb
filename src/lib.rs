@@ -83,6 +83,9 @@ pub use id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 // 导出存储过程相关类型
 pub use stored_procedure::*;
 
+// 导出字段版本管理相关类型
+pub use field_versioning::{FieldVersionManager, ModelVersionMeta, VersionChange, VersionUpgradeResult};
+
 // ODM 操作函数改为内部公开，仅用于框架内部使用
 pub(crate) use odm::{
     count, create, delete, delete_by_id, find, find_by_id, find_with_groups, update, update_by_id,

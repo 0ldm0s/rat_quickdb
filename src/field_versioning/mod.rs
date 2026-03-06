@@ -7,4 +7,4 @@ pub mod manager;
 pub mod types;
 
 pub use manager::FieldVersionManager;
-pub use types::{ModelVersionMeta, VersionChange};
+pub use types::{ModelVersionMeta, VersionChange, VersionUpgradeResult};
