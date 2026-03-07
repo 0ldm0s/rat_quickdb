@@ -166,6 +166,8 @@ impl DatabaseConfigBuilder {
             alias,
             cache: self.cache,
             id_strategy,
+            version_storage_path: None,
+            enable_versioning: None,
         })
     }
 

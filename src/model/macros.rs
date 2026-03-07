@@ -105,6 +105,9 @@ macro_rules! define_model {
         $(
             database = $database:expr,
         )?
+        $(
+            version = $version:expr,
+        )?
         fields = {
             $(
                 $field_name:ident: $field_def:expr,
@@ -151,6 +154,7 @@ macro_rules! define_model {
                     fields,
                     indexes,
                     description: None,
+                    version: None $(.or(Some($version)))?,
                 };
 
                 // 自动注册模型元数据（仅在首次调用时注册）

@@ -1713,6 +1713,10 @@ let offset_seconds = parse_timezone_offset_to_seconds("+09:30")?;  // 34200
 - **[MySQL 限制说明](docs/mysql_limitations.md)** - 必须遵守的索引长度限制
 - **[PostgreSQL 限制说明](docs/postgresql_limitations.md)** - 必须遵守的UUID类型处理要求
 
+### 功能指南
+
+- **[字段版本管理](docs/field_versioning.md)** - 模型版本追踪、升级/回滚、DDL生成
+
 ### 其他文档
 
 - **[迁移指南](MIGRATION_GUIDE_0_3_0.md)** - v0.3.0 迁移指南

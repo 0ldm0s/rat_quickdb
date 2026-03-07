@@ -1,4 +1,4 @@
-//! RatQuickDB MySQL 查询操作完整演示
+//! RatQuickDB PostgreSQL 查询操作完整演示
 //!
 //! 本示例展示了 RatQuickDB 的完整查询操作能力，包括：
 //! - 高效批量操作（批量创建、更新、删除）
@@ -7,12 +7,12 @@
 //! - 条件查询、排序、分页组合
 //! - 数据更新和删除策略
 //!
-//! 📊 MySQL 查询优化特点：
+//! 📊 PostgreSQL 查询优化特点：
 //! - 原生批量操作，高性能处理
 //! - 事务ACID保证数据一致性
 //! - 索引优化和查询计划缓存
 //! - 连接池管理，高并发支持
-//! - 存储引擎选择（InnoDB/MyISAM）
+//! - JSONB高级查询支持
 
 use chrono::Utc;
 use rat_logger::{LevelFilter, LoggerBuilder, debug, handler::term::TermConfig};
@@ -805,7 +805,7 @@ async fn create_performance_test_data(count: usize) -> Result<(), Box<dyn std::e
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== RatQuickDB MySQL 查询操作完整演示 ===");
+    println!("=== RatQuickDB PostgreSQL 查询操作完整演示 ===");
 
     // 初始化日志
     LoggerBuilder::new()

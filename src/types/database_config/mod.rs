@@ -54,6 +54,10 @@ pub struct DatabaseConfig {
     pub cache: Option<CacheConfig>,
     /// ID 生成策略
     pub id_strategy: IdStrategy,
+    /// 版本管理存储路径（可选，默认为 ~/.rat_quickdb/{alias}/）
+    pub version_storage_path: Option<String>,
+    /// 是否启用版本管理（默认 false）
+    pub enable_versioning: Option<bool>,
 }
 
 /// 连接配置

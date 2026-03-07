@@ -26,6 +26,7 @@ pub mod table;
 
 // 条件编译的模块
 pub mod cache;
+pub mod field_versioning;
 pub mod id_generator;
 pub mod join_macro;
 pub mod stored_procedure;
@@ -81,6 +82,9 @@ pub use id_generator::{IdGenerator, MongoAutoIncrementGenerator};
 
 // 导出存储过程相关类型
 pub use stored_procedure::*;
+
+// 导出字段版本管理相关类型
+pub use field_versioning::{FieldVersionManager, ModelVersionMeta, VersionChange, VersionUpgradeResult};
 
 // ODM 操作函数改为内部公开，仅用于框架内部使用
 pub(crate) use odm::{

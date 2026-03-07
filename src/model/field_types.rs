@@ -612,6 +612,8 @@ pub struct ModelMeta {
     pub indexes: Vec<IndexDefinition>,
     /// 模型描述
     pub description: Option<String>,
+    /// 模型版本号（用于字段版本控制）
+    pub version: Option<u32>,
 }
 
 /// 索引定义
