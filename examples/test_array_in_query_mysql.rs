@@ -1,4 +1,4 @@
-//! SQLite Array 字段的 IN 查询功能测试示例
+//! MySQL Array 字段的 IN 查询功能测试示例
 //!
 //! 测试 Array 字段的存储、查询和类型转换功能
 
