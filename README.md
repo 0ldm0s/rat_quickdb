@@ -1349,6 +1349,32 @@ updates.insert("username".to_string(), DataValue::String("新名字".to_string()
 complete_user.update(updates).await?;  // 返回 bool
 ```
 
+#### ⚠️ DataValue 类型匹配要求
+
+**重要**：更新和查询时，DataValue 类型必须与字段类型严格匹配
+
+| 字段类型 | 必须使用的 DataValue | 错误用法 |
+|---------|---------------------|----------|
+| `integer_field()` | `DataValue::Int` | ❌ `DataValue::String` |
+| `float_field()` | `DataValue::Float` | ❌ `DataValue::String` |
+| `datetime_field()` | `DataValue::DateTimeUTC` | ❌ `DataValue::String` |
+| `boolean_field()` | `DataValue::Bool` | ❌ `DataValue::Int` |
+
+**常见错误**：将所有值都转换为字符串 `DataValue::String(value.to_string())`
+
+**正确示例**：
+```rust
+let mut updates = HashMap::new();
+updates.insert("count".to_string(), DataValue::Int(100));  // ✅ 整数用 Int
+updates.insert("price".to_string(), DataValue::Float(99.99));  // ✅ 浮点用 Float
+updates.insert("name".to_string(), DataValue::String("test".to_string()));  // ✅ 字符串用 String
+updates.insert("active".to_string(), DataValue::Bool(true));  // ✅ 布尔用 Bool
+updates.insert("updated_at".to_string(), DataValue::DateTimeUTC(chrono::Utc::now()));  // ✅ 时间用 DateTimeUTC
+model.update(updates).await?;
+```
+
+📖 **详细说明**：[DataValue 类型使用指南](docs/datatype_guide.md)
+
 ### ODM操作（底层接口）
 - `create(collection, data, alias)` - 创建记录
 - `find_by_id(collection, id, alias)` - 根据ID查找
@@ -1813,6 +1839,7 @@ let offset_seconds = parse_timezone_offset_to_seconds("+09:30")?;  // 34200
 
 ### 功能指南
 
+- **[DataValue 类型使用指南](docs/datatype_guide.md)** - ⚠️ **重要**：DataValue 类型匹配规则和常见错误
 - **[字段版本管理](docs/field_versioning.md)** - 模型版本追踪、升级/回滚、DDL生成
 
 ### 其他文档
