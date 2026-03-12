@@ -636,7 +636,18 @@ mod tests {
             value: crate::types::DataValue::String("test_id".to_string()),
         }];
 
-        let result = build_query_document("users", "test", &conditions);
+        // 转换为 QueryConditionWithConfig
+        let conditions_with_config: Vec<QueryConditionWithConfig> = conditions
+            .into_iter()
+            .map(|c| QueryConditionWithConfig {
+                field: c.field,
+                operator: c.operator,
+                value: c.value,
+                case_insensitive: false,
+            })
+            .collect();
+
+        let result = build_query_document("users", "test", &conditions_with_config);
         assert!(result.is_ok());
 
         let doc = result.unwrap();
