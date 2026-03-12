@@ -785,6 +785,43 @@ define_model! {
 - 考虑使用编译时类型推导减少这种不一致性
 - 提供更清晰的编译时错误提示
 
+#### 🔍 UUID 字段查询：跨数据库注意事项
+
+**重要**：不同数据库中 `uuid_field()` 的查询方式不同
+
+| 数据库 | 存储类型 | 查询时使用的 DataValue | 说明 |
+|--------|----------|----------------------|------|
+| **PostgreSQL** | 原生 UUID | `DataValue::String` | 框架自动转换为 UUID 类型 |
+| **MongoDB** | String | `DataValue::String` | ⚠️ 必须使用字符串，**不可用** `DataValue::Uuid` |
+| **MySQL** | String | `DataValue::String` | ⚠️ 必须使用字符串，**不可用** `DataValue::Uuid` |
+| **SQLite** | String | `DataValue::String` | ⚠️ 必须使用字符串，**不可用** `DataValue::Uuid` |
+
+**错误示例**：
+```rust
+// ❌ 错误：在 MongoDB/MySQL/SQLite 中使用 DataValue::Uuid
+let conditions = vec![QueryCondition {
+    field: "account_id".to_string(),
+    operator: QueryOperator::Eq,
+    value: DataValue::Uuid(uuid),  // 在 MongoDB/MySQL/SQLite 中查询不到结果！
+}];
+```
+
+**正确示例**：
+```rust
+// ✅ 正确：统一使用 DataValue::String
+let uuid_str = "550e8400-e29b-41d4-a716-446655440000";
+let conditions = vec![QueryCondition {
+    field: "account_id".to_string(),
+    operator: QueryOperator::Eq,
+    value: DataValue::String(uuid_str.to_string()),  // 所有数据库都支持
+}];
+```
+
+**设计原因**：
+- MongoDB/MySQL/SQLite 没有原生的 UUID 类型，`uuid_field()` 在这些数据库中存储为字符串
+- 为保持 API 一致性，所有数据库的 UUID 字段查询统一使用 `DataValue::String`
+- PostgreSQL 适配器会自动将字符串转换为其原生的 UUID 类型
+
 ### Snowflake（雪花算法）
 ```rust
 DatabaseConfig::builder()
@@ -1286,6 +1323,32 @@ let updated = user.update(updates).await?;
 let deleted = user.delete().await?;
 ```
 
+#### ⚠️ save() 与 update() 方法区别
+
+**重要**：这两个方法有明确的职责划分，请勿混用
+
+| 方法 | 用途 | 返回值 | 注意事项 |
+|------|------|--------|----------|
+| `save()` | **仅插入新数据** | 返回新记录的 **ID 字符串**（不是完整对象） | • 如果 `id` 字段为空，自动生成新 ID<br>• 如果 `id` 字段有值，使用该 ID 插入（可能主键冲突）<br>• 无论何种情况都执行 INSERT 操作<br>• 如需完整对象，请用 `find_by_id(id)` 再次查询 |
+| `update()` | **仅更新已存在的记录** | 返回 `bool`（成功/失败） | • 根据实例的 `id` 定位记录<br>• 只更新参数中指定的字段<br>• 如果记录不存在会返回错误<br>• 不是 UPSERT 操作 |
+
+**常见错误**：
+- ❌ 试图用 `save()` 更新已存在的记录 → 会造成主键冲突或重复插入
+- ❌ 试图用 `update()` 插入新记录 → 会因记录不存在而失败
+
+**正确用法**：
+```rust
+// ✅ 插入新记录
+let new_user = User { /* ... */ };
+let user_id = new_user.save().await?;  // 返回 ID 字符串
+let complete_user = ModelManager::<User>::find_by_id(&user_id).await?.unwrap();
+
+// ✅ 更新已存在的记录
+let mut updates = HashMap::new();
+updates.insert("username".to_string(), DataValue::String("新名字".to_string()));
+complete_user.update(updates).await?;  // 返回 bool
+```
+
 ### ODM操作（底层接口）
 - `create(collection, data, alias)` - 创建记录
 - `find_by_id(collection, id, alias)` - 根据ID查找
@@ -1333,7 +1396,42 @@ rat_quickdb采用现代化架构设计：
 - `array_field` - 数组字段（支持同类型元素数组）
 - `list_field` - 列表字段（array_field的别名）
 - `dict_field` - ~~字典/对象字段（已废弃，请使用 json_field 替代）~~
-- `reference_field` - 引用字段（外键）
+- `reference_field` - 引用字段（外键，声明用途，实际存储为字符串）
+
+#### 关联字段（外键）使用说明
+
+`reference_field` 用于声明字段的外键引用关系，但在实际使用中需要配合具体的 ID 类型字段：
+
+```rust
+// ✅ 正确：使用 uuid_field 定义关联字段
+define_model! {
+    struct Employee {
+        id: String,
+        name: String,
+        department_id: String,  // 关联字段
+    }
+    fields = {
+        id: uuid_field().required().unique(),
+        name: string_field(None, None, None).required(),
+        department_id: uuid_field().required(),  // 使用 uuid_field，不是 reference_field
+    }
+}
+
+// 查询关联字段
+let conditions = vec![QueryCondition {
+    field: "department_id".to_string(),
+    operator: QueryOperator::Eq,
+    value: DataValue::String(dept_id.to_string()),  // 所有数据库都使用 String
+}];
+```
+
+**重要说明**：
+- `reference_field()` 仅用于**声明**字段的引用关系，不指定存储类型
+- 实际定义关联字段时，**必须使用具体的 ID 类型**（如 `uuid_field()`）
+- MongoDB/MySQL/SQLite 中的 UUID 关联字段查询使用 `DataValue::String`
+- PostgreSQL 中的 UUID 关联字段查询也使用 `DataValue::String`（框架自动转换）
+
+**完整的关联查询示例**请参考：`examples/reference_query_mongodb.rs`
 
 ### ⚠️ 字段使用限制和最佳实践
 
