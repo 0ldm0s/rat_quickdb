@@ -40,7 +40,7 @@ impl DatabaseType {
 }
 
 /// 数据库连接配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DatabaseConfig {
     /// 数据库类型
     pub db_type: DatabaseType,
@@ -58,6 +58,145 @@ pub struct DatabaseConfig {
     pub version_storage_path: Option<String>,
     /// 是否启用版本管理（默认 false）
     pub enable_versioning: Option<bool>,
+}
+
+// 手动实现序列化，以支持 PoolConfig 字段私有化
+impl Serialize for DatabaseConfig {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("DatabaseConfig", 8)?;
+        state.serialize_field("db_type", &self.db_type)?;
+        state.serialize_field("connection", &self.connection)?;
+        state.serialize_field("pool", &self.pool)?;
+        state.serialize_field("alias", &self.alias)?;
+        state.serialize_field("cache", &self.cache)?;
+        state.serialize_field("id_strategy", &self.id_strategy)?;
+        state.serialize_field("version_storage_path", &self.version_storage_path)?;
+        state.serialize_field("enable_versioning", &self.enable_versioning)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for DatabaseConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, MapAccess, Visitor};
+        use std::fmt;
+
+        struct DatabaseConfigVisitor;
+
+        impl<'de> Visitor<'de> for DatabaseConfigVisitor {
+            type Value = DatabaseConfig;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct DatabaseConfig")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<DatabaseConfig, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut db_type = None;
+                let mut connection = None;
+                let mut pool = None;
+                let mut alias = None;
+                let mut cache = None;
+                let mut id_strategy = None;
+                let mut version_storage_path = None;
+                let mut enable_versioning = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        "db_type" => {
+                            if db_type.is_some() {
+                                return Err(de::Error::duplicate_field("db_type"));
+                            }
+                            db_type = Some(map.next_value()?);
+                        }
+                        "connection" => {
+                            if connection.is_some() {
+                                return Err(de::Error::duplicate_field("connection"));
+                            }
+                            connection = Some(map.next_value()?);
+                        }
+                        "pool" => {
+                            if pool.is_some() {
+                                return Err(de::Error::duplicate_field("pool"));
+                            }
+                            pool = Some(map.next_value()?);
+                        }
+                        "alias" => {
+                            if alias.is_some() {
+                                return Err(de::Error::duplicate_field("alias"));
+                            }
+                            alias = Some(map.next_value()?);
+                        }
+                        "cache" => {
+                            if cache.is_some() {
+                                return Err(de::Error::duplicate_field("cache"));
+                            }
+                            cache = Some(map.next_value()?);
+                        }
+                        "id_strategy" => {
+                            if id_strategy.is_some() {
+                                return Err(de::Error::duplicate_field("id_strategy"));
+                            }
+                            id_strategy = Some(map.next_value()?);
+                        }
+                        "version_storage_path" => {
+                            if version_storage_path.is_some() {
+                                return Err(de::Error::duplicate_field("version_storage_path"));
+                            }
+                            version_storage_path = Some(map.next_value()?);
+                        }
+                        "enable_versioning" => {
+                            if enable_versioning.is_some() {
+                                return Err(de::Error::duplicate_field("enable_versioning"));
+                            }
+                            enable_versioning = Some(map.next_value()?);
+                        }
+                        _ => {
+                            let _ = map.next_value::<serde_json::Value>()?;
+                        }
+                    }
+                }
+
+                let db_type = db_type.ok_or_else(|| de::Error::missing_field("db_type"))?;
+                let connection = connection.ok_or_else(|| de::Error::missing_field("connection"))?;
+                let pool = pool.ok_or_else(|| de::Error::missing_field("pool"))?;
+                let alias = alias.ok_or_else(|| de::Error::missing_field("alias"))?;
+                let id_strategy = id_strategy.ok_or_else(|| de::Error::missing_field("id_strategy"))?;
+
+                Ok(DatabaseConfig {
+                    db_type,
+                    connection,
+                    pool,
+                    alias,
+                    cache,
+                    id_strategy,
+                    version_storage_path,
+                    enable_versioning,
+                })
+            }
+        }
+
+        const FIELDS: &'static [&'static str] = &[
+            "db_type",
+            "connection",
+            "pool",
+            "alias",
+            "cache",
+            "id_strategy",
+            "version_storage_path",
+            "enable_versioning",
+        ];
+        deserializer.deserialize_struct("DatabaseConfig", FIELDS, DatabaseConfigVisitor)
+    }
 }
 
 /// 连接配置
@@ -260,26 +399,182 @@ impl ZstdConfig {
 }
 
 /// 连接池配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// ⚠️ **重要**：所有字段仅在 crate 内可见，外部代码**必须通过 `PoolConfig::builder()` 创建**
+/// 直接构造结构体会导致编译错误
+#[derive(Debug, Clone)]
 pub struct PoolConfig {
     /// 最小连接数
-    pub min_connections: u32,
+    pub(crate) min_connections: u32,
     /// 最大连接数
-    pub max_connections: u32,
+    pub(crate) max_connections: u32,
     /// 连接超时时间（秒）
-    pub connection_timeout: u64,
+    pub(crate) connection_timeout: u64,
     /// 空闲连接超时时间（秒）
-    pub idle_timeout: u64,
+    pub(crate) idle_timeout: u64,
     /// 连接最大生存时间（秒）
-    pub max_lifetime: u64,
+    pub(crate) max_lifetime: u64,
     /// 最大重试次数
-    pub max_retries: u32,
+    pub(crate) max_retries: u32,
     /// 重试间隔（毫秒）
-    pub retry_interval_ms: u64,
+    pub(crate) retry_interval_ms: u64,
     /// 保活检测间隔（秒）
-    pub keepalive_interval_sec: u64,
+    pub(crate) keepalive_interval_sec: u64,
     /// 连接健康检查超时（秒）
-    pub health_check_timeout_sec: u64,
+    pub(crate) health_check_timeout_sec: u64,
+}
+
+// 手动实现序列化，以支持字段私有化
+impl Serialize for PoolConfig {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("PoolConfig", 9)?;
+        state.serialize_field("min_connections", &self.min_connections)?;
+        state.serialize_field("max_connections", &self.max_connections)?;
+        state.serialize_field("connection_timeout", &self.connection_timeout)?;
+        state.serialize_field("idle_timeout", &self.idle_timeout)?;
+        state.serialize_field("max_lifetime", &self.max_lifetime)?;
+        state.serialize_field("max_retries", &self.max_retries)?;
+        state.serialize_field("retry_interval_ms", &self.retry_interval_ms)?;
+        state.serialize_field("keepalive_interval_sec", &self.keepalive_interval_sec)?;
+        state.serialize_field("health_check_timeout_sec", &self.health_check_timeout_sec)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for PoolConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, MapAccess, Visitor};
+        use std::fmt;
+
+        struct PoolConfigVisitor;
+
+        impl<'de> Visitor<'de> for PoolConfigVisitor {
+            type Value = PoolConfig;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct PoolConfig")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<PoolConfig, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut min_connections = None;
+                let mut max_connections = None;
+                let mut connection_timeout = None;
+                let mut idle_timeout = None;
+                let mut max_lifetime = None;
+                let mut max_retries = None;
+                let mut retry_interval_ms = None;
+                let mut keepalive_interval_sec = None;
+                let mut health_check_timeout_sec = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        "min_connections" => {
+                            if min_connections.is_some() {
+                                return Err(de::Error::duplicate_field("min_connections"));
+                            }
+                            min_connections = Some(map.next_value()?);
+                        }
+                        "max_connections" => {
+                            if max_connections.is_some() {
+                                return Err(de::Error::duplicate_field("max_connections"));
+                            }
+                            max_connections = Some(map.next_value()?);
+                        }
+                        "connection_timeout" => {
+                            if connection_timeout.is_some() {
+                                return Err(de::Error::duplicate_field("connection_timeout"));
+                            }
+                            connection_timeout = Some(map.next_value()?);
+                        }
+                        "idle_timeout" => {
+                            if idle_timeout.is_some() {
+                                return Err(de::Error::duplicate_field("idle_timeout"));
+                            }
+                            idle_timeout = Some(map.next_value()?);
+                        }
+                        "max_lifetime" => {
+                            if max_lifetime.is_some() {
+                                return Err(de::Error::duplicate_field("max_lifetime"));
+                            }
+                            max_lifetime = Some(map.next_value()?);
+                        }
+                        "max_retries" => {
+                            if max_retries.is_some() {
+                                return Err(de::Error::duplicate_field("max_retries"));
+                            }
+                            max_retries = Some(map.next_value()?);
+                        }
+                        "retry_interval_ms" => {
+                            if retry_interval_ms.is_some() {
+                                return Err(de::Error::duplicate_field("retry_interval_ms"));
+                            }
+                            retry_interval_ms = Some(map.next_value()?);
+                        }
+                        "keepalive_interval_sec" => {
+                            if keepalive_interval_sec.is_some() {
+                                return Err(de::Error::duplicate_field("keepalive_interval_sec"));
+                            }
+                            keepalive_interval_sec = Some(map.next_value()?);
+                        }
+                        "health_check_timeout_sec" => {
+                            if health_check_timeout_sec.is_some() {
+                                return Err(de::Error::duplicate_field("health_check_timeout_sec"));
+                            }
+                            health_check_timeout_sec = Some(map.next_value()?);
+                        }
+                        _ => {
+                            let _ = map.next_value::<serde_json::Value>()?;
+                        }
+                    }
+                }
+
+                let min_connections = min_connections.ok_or_else(|| de::Error::missing_field("min_connections"))?;
+                let max_connections = max_connections.ok_or_else(|| de::Error::missing_field("max_connections"))?;
+                let connection_timeout = connection_timeout.ok_or_else(|| de::Error::missing_field("connection_timeout"))?;
+                let idle_timeout = idle_timeout.ok_or_else(|| de::Error::missing_field("idle_timeout"))?;
+                let max_lifetime = max_lifetime.ok_or_else(|| de::Error::missing_field("max_lifetime"))?;
+                let max_retries = max_retries.ok_or_else(|| de::Error::missing_field("max_retries"))?;
+                let retry_interval_ms = retry_interval_ms.ok_or_else(|| de::Error::missing_field("retry_interval_ms"))?;
+                let keepalive_interval_sec = keepalive_interval_sec.ok_or_else(|| de::Error::missing_field("keepalive_interval_sec"))?;
+                let health_check_timeout_sec = health_check_timeout_sec.ok_or_else(|| de::Error::missing_field("health_check_timeout_sec"))?;
+
+                Ok(PoolConfig {
+                    min_connections,
+                    max_connections,
+                    connection_timeout,
+                    idle_timeout,
+                    max_lifetime,
+                    max_retries,
+                    retry_interval_ms,
+                    keepalive_interval_sec,
+                    health_check_timeout_sec,
+                })
+            }
+        }
+
+        const FIELDS: &'static [&'static str] = &[
+            "min_connections",
+            "max_connections",
+            "connection_timeout",
+            "idle_timeout",
+            "max_lifetime",
+            "max_retries",
+            "retry_interval_ms",
+            "keepalive_interval_sec",
+            "health_check_timeout_sec",
+        ];
+        deserializer.deserialize_struct("PoolConfig", FIELDS, PoolConfigVisitor)
+    }
 }
 
 impl Default for PoolConfig {

@@ -161,13 +161,6 @@ impl GlobalConfig {
     }
 }
 
-impl AppConfig {
-    /// 创建应用配置构建器
-    pub fn builder() -> super::builders::AppConfigBuilder {
-        super::builders::AppConfigBuilder::new()
-    }
-}
-
 impl Serialize for GlobalConfig {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -259,3 +252,11 @@ impl<'de> Deserialize<'de> for GlobalConfig {
         deserializer.deserialize_struct("GlobalConfig", FIELDS, GlobalConfigVisitor)
     }
 }
+
+impl AppConfig {
+    /// 创建应用配置构建器
+    pub fn builder() -> super::builders::AppConfigBuilder {
+        super::builders::AppConfigBuilder::new()
+    }
+}
+
