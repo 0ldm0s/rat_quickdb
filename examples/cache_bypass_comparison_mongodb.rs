@@ -186,17 +186,18 @@ impl MongoCacheBypassTest {
         DatabaseConfig {
             db_type: DatabaseType::MongoDB,
             connection: builder.build(),
-            pool: PoolConfig {
-                min_connections: 1,
-                max_connections: 1,
-                connection_timeout: 10000, // 10秒
-                idle_timeout: 600,         // 10分钟
-                max_lifetime: 1800,        // 30分钟
-                max_retries: 3,
-                retry_interval_ms: 1000,
-                keepalive_interval_sec: 60,
-                health_check_timeout_sec: 10,
-            },
+            pool: PoolConfig::builder()
+                .min_connections(1)
+                .max_connections(1)
+                .connection_timeout(10)      // 10秒
+                .idle_timeout(600)           // 10分钟
+                .max_lifetime(1800)          // 30分钟
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()
+                .expect("PoolConfig 构建失败"),
             alias: "cached_mongodb".to_string(),
             cache: Some(cache_config),
             id_strategy: IdStrategy::Uuid,

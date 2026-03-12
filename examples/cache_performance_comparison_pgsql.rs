@@ -203,17 +203,18 @@ impl PgCachePerformanceTest {
                     cipher_suites: None,
                 }),
             },
-            pool: PoolConfig {
-                min_connections: 1,
-                max_connections: 1,
-                connection_timeout: 10000, // 增加到10秒
-                idle_timeout: 600,
-                max_lifetime: 3600,
-                max_retries: 5,               // 增加重试次数
-                retry_interval_ms: 500,       // 减少重试间隔
-                keepalive_interval_sec: 60,   // 增加保活间隔
-                health_check_timeout_sec: 10, // 增加健康检查超时
-            },
+            pool: PoolConfig::builder()
+                .min_connections(1)
+                .max_connections(1)
+                .connection_timeout(10)       // 增加到10秒
+                .idle_timeout(600)
+                .max_lifetime(3600)
+                .max_retries(5)               // 增加重试次数
+                .retry_interval_ms(500)       // 减少重试间隔
+                .keepalive_interval_sec(60)   // 增加保活间隔
+                .health_check_timeout_sec(10) // 增加健康检查超时
+                .build()
+                .expect("PoolConfig 构建失败"),
             alias: "cached_db".to_string(),
             cache: Some(cache_config),
             id_strategy: IdStrategy::Uuid,
@@ -244,17 +245,18 @@ impl PgCachePerformanceTest {
                     cipher_suites: None,
                 }),
             },
-            pool: PoolConfig {
-                min_connections: 1,
-                max_connections: 1,
-                connection_timeout: 10000, // 增加到10秒
-                idle_timeout: 600,
-                max_lifetime: 3600,
-                max_retries: 5,               // 增加重试次数
-                retry_interval_ms: 500,       // 减少重试间隔
-                keepalive_interval_sec: 60,   // 增加保活间隔
-                health_check_timeout_sec: 10, // 增加健康检查超时
-            },
+            pool: PoolConfig::builder()
+                .min_connections(1)
+                .max_connections(1)
+                .connection_timeout(10)       // 增加到10秒
+                .idle_timeout(600)
+                .max_lifetime(3600)
+                .max_retries(5)               // 增加重试次数
+                .retry_interval_ms(500)       // 减少重试间隔
+                .keepalive_interval_sec(60)   // 增加保活间隔
+                .health_check_timeout_sec(10) // 增加健康检查超时
+                .build()
+                .expect("PoolConfig 构建失败"),
             alias: "non_cached_db".to_string(),
             cache: None, // 明确禁用缓存
             id_strategy: IdStrategy::Uuid,
