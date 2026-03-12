@@ -357,8 +357,11 @@ mod tests {
                 },
                 required: true,
                 unique: true,
-                default_value: None,
+                default: None,
                 description: None,
+                indexed: false,
+                validator: None,
+                sqlite_compatibility: false,
             },
         );
         fields.insert(
@@ -371,8 +374,11 @@ mod tests {
                 },
                 required: true,
                 unique: false,
-                default_value: None,
+                default: None,
                 description: None,
+                indexed: false,
+                validator: None,
+                sqlite_compatibility: false,
             },
         );
 
