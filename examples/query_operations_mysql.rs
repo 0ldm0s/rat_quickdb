@@ -817,7 +817,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_config = DatabaseConfig::builder()
         .db_type(DatabaseType::MySQL)
         .connection(ConnectionConfig::MySQL {
-            host: "172.16.0.24".to_string(),
+            host: "172.16.0.97".to_string(),
             port: 3306,
             database: "testdb".to_string(),
             username: "testdb".to_string(),

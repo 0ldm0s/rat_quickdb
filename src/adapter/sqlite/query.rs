@@ -7,11 +7,20 @@ use rat_logger::debug;
 use sqlx::{Column, Row, sqlite::SqliteRow};
 
 /// 检查SQLite错误是否为表不存在错误
-fn check_table_not_exist_error(error: &sqlx::Error, table: &str) -> bool {
-    let error_string = error.to_string().to_lowercase();
-    error_string.contains("no such table") ||
-    error_string.contains(&format!("no such table: {}", table.to_lowercase())) ||
-    error_string.contains("table") && error_string.contains("not found")
+/// SQLite 错误码 1 是 SQLITE_ERROR（通用错误），需要结合错误消息判断
+fn check_table_not_exist_error(error: &sqlx::Error, _table: &str) -> bool {
+    // 使用错误码 + 错误消息检测
+    if let Some(db_err) = error.as_database_error() {
+        // SQLite 错误码 1 = SQLITE_ERROR
+        if let Some(code) = db_err.code() {
+            if code.as_ref() == "1" {
+                // 结合错误消息判断是否为 "no such table"
+                let error_message = db_err.message().to_lowercase();
+                return error_message.contains("no such table");
+            }
+        }
+    }
+    false
 }
 
 /// SQLite删除操作

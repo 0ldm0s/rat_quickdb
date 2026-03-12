@@ -547,18 +547,20 @@ impl MysqlAdapter {
             .fetch_all(pool)
             .await
             .map_err(|e| {
-                let error_string = e.to_string().to_lowercase();
-                if error_string.contains("table") && error_string.contains("doesn't exist") ||
-                   error_string.contains("base table") && error_string.contains("not found") ||
-                   error_string.contains("table") && error_string.contains("unknown") {
-                    QuickDbError::TableNotExistError {
-                        table: table.to_string(),
-                        message: format!("MySQL表 '{}' 不存在", table),
+                // 使用错误码检测表不存在，避免受语言影响
+                // 42S02 是 MySQL/MariaDB 中 "base table or view not found" 的标准错误码
+                if let Some(db_err) = e.as_database_error() {
+                    if let Some(code) = db_err.code() {
+                        if code.as_ref() == "42S02" {
+                            return QuickDbError::TableNotExistError {
+                                table: table.to_string(),
+                                message: format!("MySQL表 '{}' 不存在", table),
+                            };
+                        }
                     }
-                } else {
-                    QuickDbError::QueryError {
-                        message: format!("执行MySQL查询失败: {}", e),
-                    }
+                }
+                QuickDbError::QueryError {
+                    message: format!("执行MySQL查询失败: {}", e),
                 }
             })?;
 
@@ -661,18 +663,20 @@ impl MysqlAdapter {
             .execute(pool)
             .await
             .map_err(|e| {
-                let error_string = e.to_string().to_lowercase();
-                if error_string.contains("table") && error_string.contains("doesn't exist") ||
-                   error_string.contains("base table") && error_string.contains("not found") ||
-                   error_string.contains("table") && error_string.contains("unknown") {
-                    QuickDbError::TableNotExistError {
-                        table: table.to_string(),
-                        message: format!("MySQL表 '{}' 不存在", table),
+                // 使用错误码检测表不存在，避免受语言影响
+                // 42S02 是 MySQL/MariaDB 中 "base table or view not found" 的标准错误码
+                if let Some(db_err) = e.as_database_error() {
+                    if let Some(code) = db_err.code() {
+                        if code.as_ref() == "42S02" {
+                            return QuickDbError::TableNotExistError {
+                                table: table.to_string(),
+                                message: format!("MySQL表 '{}' 不存在", table),
+                            };
+                        }
                     }
-                } else {
-                    QuickDbError::QueryError {
-                        message: format!("执行MySQL更新失败: {}", e),
-                    }
+                }
+                QuickDbError::QueryError {
+                    message: format!("执行MySQL更新失败: {}", e),
                 }
             })?;
 
