@@ -208,6 +208,28 @@ let pool_config = PoolConfig::builder()
     .build()?;
 ```
 
+⚠️ **重要变更：强制使用 Builder 模式**
+
+**v0.5.3+** 强制要求使用 `PoolConfig::builder()` 创建连接池配置，**禁止直接构造结构体**：
+
+```rust
+// ✅ 正确：使用 builder 模式
+let pool_config = PoolConfig::builder()
+    .max_connections(10)
+    .min_connections(2)
+    .connection_timeout(30)
+    .build()?;
+
+// ❌ 错误：直接构造结构体会导致编译错误
+// let pool_config = PoolConfig {
+//     max_connections: 10,
+//     min_connections: 2,
+//     ...
+// };
+```
+
+**原因**：builder 模式确保所有配置参数都经过验证，避免使用无效的配置值。
+
 **新功能：**
 - 🎯 **存储过程虚拟表系统**：跨四种数据库的统一存储过程API
 - 🔗 **多表JOIN支持**：自动生成JOIN语句和聚合管道
