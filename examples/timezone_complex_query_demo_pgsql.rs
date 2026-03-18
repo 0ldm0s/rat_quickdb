@@ -27,34 +27,43 @@ async fn main() -> QuickDbResult<()> {
     rat_quickdb::init();
     println!("=== PostgreSQL 时区复杂查询示例 ===");
 
-    // 创建数据库配置 - PostgreSQL配置（从id_strategy_test_pgsql.rs复制）
-    let config = DatabaseConfig {
-        db_type: DatabaseType::PostgreSQL,
-        connection: ConnectionConfig::PostgreSQL {
+    // 创建数据库配置 - PostgreSQL配置
+    let config = DatabaseConfig::builder()
+        .db_type(DatabaseType::PostgreSQL)
+        .connection(ConnectionConfig::PostgreSQL {
             host: "172.16.0.96".to_string(),
             port: 5432,
             database: "testdb".to_string(),
             username: "testdb".to_string(),
-            password: "testdb123456".to_string(),
+            password: "testdb".to_string(),
             ssl_mode: Some("prefer".to_string()),
-            tls_config: None,
-        },
-        pool: PoolConfig::builder()
-            .max_connections(10)
-            .min_connections(2)
-            .connection_timeout(30)
-            .idle_timeout(300)
-            .max_lifetime(1800)
-            .max_retries(3)
-            .retry_interval_ms(1000)
-            .keepalive_interval_sec(60)
-            .health_check_timeout_sec(10)
-            .build()
-            .unwrap(),
-        alias: "default".to_string(),
-        cache: None,
-        id_strategy: IdStrategy::Uuid,
-    };
+            tls_config: Some(rat_quickdb::types::TlsConfig {
+                enabled: true,
+                ca_cert_path: None,
+                client_cert_path: None,
+                client_key_path: None,
+                verify_server_cert: false,
+                verify_hostname: false,
+                min_tls_version: None,
+                cipher_suites: None,
+            }),
+        })
+        .pool(
+            PoolConfig::builder()
+                .max_connections(10)
+                .min_connections(2)
+                .connection_timeout(30)
+                .idle_timeout(300)
+                .max_lifetime(1800)
+                .max_retries(3)
+                .retry_interval_ms(1000)
+                .keepalive_interval_sec(60)
+                .health_check_timeout_sec(10)
+                .build()?,
+        )
+        .alias("default")
+        .id_strategy(IdStrategy::Uuid)
+        .build()?;
 
     // 初始化数据库
     add_database(config).await?;
@@ -210,12 +219,12 @@ async fn main() -> QuickDbResult<()> {
                             QueryConditionGroup::Single(QueryCondition {
                                 field: "start_time".to_string(),
                                 operator: QueryOperator::Gte,
-                                value: DataValue::DateTime(current_time - Duration::hours(3)),
+                                value: DataValue::DateTimeUTC(current_time - Duration::hours(3)),
                             }),
                             QueryConditionGroup::Single(QueryCondition {
                                 field: "start_time".to_string(),
                                 operator: QueryOperator::Lte,
-                                value: DataValue::DateTime(current_time),
+                                value: DataValue::DateTimeUTC(current_time),
                             }),
                         ],
                     },
@@ -226,12 +235,12 @@ async fn main() -> QuickDbResult<()> {
                             QueryConditionGroup::Single(QueryCondition {
                                 field: "start_time".to_string(),
                                 operator: QueryOperator::Gt,
-                                value: DataValue::DateTime(current_time),
+                                value: DataValue::DateTimeUTC(current_time),
                             }),
                             QueryConditionGroup::Single(QueryCondition {
                                 field: "start_time".to_string(),
                                 operator: QueryOperator::Lte,
-                                value: DataValue::DateTime(current_time + Duration::hours(2)),
+                                value: DataValue::DateTimeUTC(current_time + Duration::hours(2)),
                             }),
                         ],
                     },
@@ -492,7 +501,7 @@ async fn main() -> QuickDbResult<()> {
                 conditions: vec![QueryConditionGroup::Single(QueryCondition {
                     field: "end_time".to_string(),
                     operator: QueryOperator::Gt,
-                    value: DataValue::DateTime(Utc::now() - Duration::days(1)), // 确保结束时间有意义
+                    value: DataValue::DateTimeUTC(Utc::now() - Duration::days(1)), // 确保结束时间有意义
                 })],
             },
         ],
@@ -615,6 +624,7 @@ define_model! {
         updated_at: Option<chrono::DateTime<chrono::Utc>>,
     }
     collection = "timezone_events",
+    database = "default",
     fields = {
         id: string_field(None, None, None).required().unique(),
         event_name: string_field(Some(200), Some(1), None).required(),
@@ -780,19 +790,19 @@ async fn insert_test_data() -> QuickDbResult<()> {
             } else {
                 "".to_string()
             },
-            event_time: if let Some(DataValue::DateTime(dt)) = event_data.get("event_time") {
+            event_time: if let Some(DataValue::DateTimeUTC(dt)) = event_data.get("event_time") {
                 *dt
             } else {
                 Utc::now()
             },
-            start_time: if let Some(DataValue::DateTime(dt)) = event_data.get("start_time") {
+            start_time: if let Some(DataValue::DateTimeUTC(dt)) = event_data.get("start_time") {
                 *dt
             } else {
                 Utc::now()
             },
             end_time: if let Some(end_time_data) = event_data.get("end_time") {
                 match end_time_data {
-                    DataValue::DateTime(dt) => Some(*dt),
+                    DataValue::DateTimeUTC(dt) => Some(*dt),
                     _ => None,
                 }
             } else {
@@ -815,7 +825,7 @@ async fn insert_test_data() -> QuickDbResult<()> {
             } else {
                 1
             },
-            created_at: if let Some(DataValue::DateTime(dt)) = event_data.get("created_at") {
+            created_at: if let Some(DataValue::DateTimeUTC(dt)) = event_data.get("created_at") {
                 *dt
             } else {
                 Utc::now()
@@ -883,12 +893,12 @@ fn create_timezone_event(
         "timezone".to_string(),
         DataValue::String(timezone.to_string()),
     );
-    event_data.insert("event_time".to_string(), DataValue::DateTime(event_time));
-    event_data.insert("start_time".to_string(), DataValue::DateTime(start_time));
+    event_data.insert("event_time".to_string(), DataValue::DateTimeUTC(event_time));
+    event_data.insert("start_time".to_string(), DataValue::DateTimeUTC(start_time));
 
     // 只有在有结束时间时才设置end_time字段
     if let Some(end_time) = end_time {
-        event_data.insert("end_time".to_string(), DataValue::DateTime(end_time));
+        event_data.insert("end_time".to_string(), DataValue::DateTimeUTC(end_time));
         debug!(
             "事件 '{}' 设置了结束时间: {}",
             name,
@@ -904,6 +914,6 @@ fn create_timezone_event(
     );
     event_data.insert("is_active".to_string(), DataValue::Bool(is_active));
     event_data.insert("priority".to_string(), DataValue::Int(priority as i64));
-    event_data.insert("created_at".to_string(), DataValue::DateTime(Utc::now()));
+    event_data.insert("created_at".to_string(), DataValue::DateTimeUTC(Utc::now()));
     event_data
 }

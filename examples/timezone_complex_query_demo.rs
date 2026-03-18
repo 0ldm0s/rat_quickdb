@@ -205,12 +205,12 @@ async fn main() -> QuickDbResult<()> {
                             QueryConditionGroup::Single(QueryCondition {
                                 field: "start_time".to_string(),
                                 operator: QueryOperator::Gte,
-                                value: DataValue::DateTime(current_time - Duration::hours(3)),
+                                value: DataValue::DateTimeUTC(current_time - Duration::hours(3)),
                             }),
                             QueryConditionGroup::Single(QueryCondition {
                                 field: "start_time".to_string(),
                                 operator: QueryOperator::Lte,
-                                value: DataValue::DateTime(current_time),
+                                value: DataValue::DateTimeUTC(current_time),
                             }),
                         ],
                     },
@@ -221,12 +221,12 @@ async fn main() -> QuickDbResult<()> {
                             QueryConditionGroup::Single(QueryCondition {
                                 field: "start_time".to_string(),
                                 operator: QueryOperator::Gt,
-                                value: DataValue::DateTime(current_time),
+                                value: DataValue::DateTimeUTC(current_time),
                             }),
                             QueryConditionGroup::Single(QueryCondition {
                                 field: "start_time".to_string(),
                                 operator: QueryOperator::Lte,
-                                value: DataValue::DateTime(current_time + Duration::hours(2)),
+                                value: DataValue::DateTimeUTC(current_time + Duration::hours(2)),
                             }),
                         ],
                     },
@@ -487,7 +487,7 @@ async fn main() -> QuickDbResult<()> {
                 conditions: vec![QueryConditionGroup::Single(QueryCondition {
                     field: "end_time".to_string(),
                     operator: QueryOperator::Gt,
-                    value: DataValue::DateTime(Utc::now() - Duration::days(1)), // 确保结束时间有意义
+                    value: DataValue::DateTimeUTC(Utc::now() - Duration::days(1)), // 确保结束时间有意义
                 })],
             },
         ],
@@ -610,6 +610,7 @@ define_model! {
         updated_at: Option<chrono::DateTime<chrono::Utc>>,
     }
     collection = "timezone_events",
+    database = "default",
     fields = {
         id: string_field(None, None, None).required().unique(),
         event_name: string_field(Some(200), Some(1), None).required(),
@@ -775,19 +776,19 @@ async fn insert_test_data() -> QuickDbResult<()> {
             } else {
                 "".to_string()
             },
-            event_time: if let Some(DataValue::DateTime(dt)) = event_data.get("event_time") {
+            event_time: if let Some(DataValue::DateTimeUTC(dt)) = event_data.get("event_time") {
                 *dt
             } else {
                 Utc::now()
             },
-            start_time: if let Some(DataValue::DateTime(dt)) = event_data.get("start_time") {
+            start_time: if let Some(DataValue::DateTimeUTC(dt)) = event_data.get("start_time") {
                 *dt
             } else {
                 Utc::now()
             },
             end_time: if let Some(end_time_data) = event_data.get("end_time") {
                 match end_time_data {
-                    DataValue::DateTime(dt) => Some(*dt),
+                    DataValue::DateTimeUTC(dt) => Some(*dt),
                     _ => None,
                 }
             } else {
@@ -810,7 +811,7 @@ async fn insert_test_data() -> QuickDbResult<()> {
             } else {
                 1
             },
-            created_at: if let Some(DataValue::DateTime(dt)) = event_data.get("created_at") {
+            created_at: if let Some(DataValue::DateTimeUTC(dt)) = event_data.get("created_at") {
                 *dt
             } else {
                 Utc::now()
@@ -879,12 +880,12 @@ fn create_timezone_event(
         "timezone".to_string(),
         DataValue::String(timezone.to_string()),
     );
-    event_data.insert("event_time".to_string(), DataValue::DateTime(event_time));
-    event_data.insert("start_time".to_string(), DataValue::DateTime(start_time));
+    event_data.insert("event_time".to_string(), DataValue::DateTimeUTC(event_time));
+    event_data.insert("start_time".to_string(), DataValue::DateTimeUTC(start_time));
 
     // 只有在有结束时间时才设置end_time字段
     if let Some(end_time) = end_time {
-        event_data.insert("end_time".to_string(), DataValue::DateTime(end_time));
+        event_data.insert("end_time".to_string(), DataValue::DateTimeUTC(end_time));
         debug!(
             "事件 '{}' 设置了结束时间: {}",
             name,
@@ -900,6 +901,6 @@ fn create_timezone_event(
     );
     event_data.insert("is_active".to_string(), DataValue::Bool(is_active));
     event_data.insert("priority".to_string(), DataValue::Int(priority as i64));
-    event_data.insert("created_at".to_string(), DataValue::DateTime(Utc::now()));
+    event_data.insert("created_at".to_string(), DataValue::DateTimeUTC(Utc::now()));
     event_data
 }
