@@ -3,9 +3,6 @@
 use rat_quickdb::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化rat_quickdb，包括多语言错误消息系统
-    rat_quickdb::init();
-
     println!("=== 多语言错误消息系统测试 ===\n");
 
     // 测试中文错误消息

@@ -4,13 +4,43 @@
 
 use rat_embed_lang::register_translations;
 use std::collections::HashMap;
+use std::sync::OnceLock;
+
+/// i18n 初始化锁（确保只执行一次）
+static INIT: OnceLock<()> = OnceLock::new();
 
 /// 错误消息翻译注册器
 pub struct ErrorMessageI18n;
 
 impl ErrorMessageI18n {
+
+    /// 初始化错误消息多语言支持（懒加载，只执行一次）
+    ///
+    /// 此函数会自动从环境变量读取语言设置（RAT_LANG 或 LANG），
+    /// 并注册所有错误消息的翻译。
+    ///
+    /// 注意：此函数是线程安全的，且只在首次调用时执行初始化。
+    pub(crate) fn init_i18n() {
+        INIT.get_or_init(|| {
+            Self::register_all_translations();
+
+            let lang = std::env::var("RAT_LANG")
+                .or_else(|_| std::env::var("LANG"))
+                .unwrap_or_else(|_| "zh-CN".to_string());
+
+            use rat_embed_lang::normalize_language_code;
+            let normalized_lang = normalize_language_code(&lang);
+            set_language(&normalized_lang);
+        });
+    }
+
+    /// 确保i18n已初始化（内部辅助函数）
+    #[inline]
+    fn ensure_initialized() {
+        Self::init_i18n();
+    }
     /// 注册所有错误消息翻译
-    pub fn register_all_translations() {
+    pub(crate) fn register_all_translations() {
         let mut translations = HashMap::new();
 
         // 数据库连接错误
@@ -546,22 +576,9 @@ impl ErrorMessageI18n {
         // 注册所有翻译
         register_translations(translations);
     }
-
-    /// 初始化错误消息多语言支持
-    pub fn init() {
-        Self::register_all_translations();
-
-        // 从环境变量获取语言设置，默认为zh-CN
-        let lang = std::env::var("RAT_LANG")
-            .or_else(|_| std::env::var("LANG"))
-            .unwrap_or_else(|_| "zh-CN".to_string());
-
-        // 标准化语言代码
-        use rat_embed_lang::normalize_language_code;
-        let normalized_lang = normalize_language_code(&lang);
-        set_language(&normalized_lang);
-    }
 }
 
 /// 重新导出rat_embed_lang的核心函数
+///
+/// 这些函数会自动触发i18n初始化（懒加载）
 pub use rat_embed_lang::{current_language, set_language, t, tf};

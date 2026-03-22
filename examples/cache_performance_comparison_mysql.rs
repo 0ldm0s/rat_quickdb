@@ -123,8 +123,6 @@ impl CachePerformanceTest {
             .init()
             .expect("日志初始化失败");
 
-        rat_quickdb::init();
-
         // 创建带缓存的数据库配置（L1 + L2）
         let cached_config = Self::create_cached_database_config();
 

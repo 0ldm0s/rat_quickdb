@@ -118,17 +118,15 @@ macro_rules! debug_log {
     };
 }
 
-/// 初始化rat_quickdb库
+/// 初始化 rat_quickdb 库
 ///
-/// 这个函数会初始化rat_quickdb库，包括多语言错误消息系统
+/// 此函数会初始化库的各个子系统，包括：
+/// - i18n 多语言错误消息系统
 ///
 /// 注意：日志系统由调用者自行初始化，本库不再自动初始化日志
 pub fn init() {
     // 初始化多语言错误消息系统
-    i18n::ErrorMessageI18n::init();
-
-    // 库的基本初始化逻辑
-    // 日志系统由调用者负责初始化
+    i18n::ErrorMessageI18n::init_i18n();
 }
 
 /// 生成ObjectId字符串
@@ -320,11 +318,12 @@ pub fn process_data_fields_from_metadata(
 
 /// 初始化rat_quickdb库
 ///
-/// 注意：此函数已弃用，请使用init()
+/// 注意：此函数已弃用，i18n系统现已自动懒加载
 /// 日志系统由调用者自行初始化
-#[deprecated(since = "0.2.0", note = "请使用init()，日志系统由调用者自行初始化")]
+#[deprecated(since = "0.2.0", note = "i18n系统现已自动懒加载，无需手动初始化")]
 pub fn init_with_log_level(_level: rat_logger::LevelFilter) {
-    init();
+    // i18n 系统现已自动懒加载，此函数保留仅为兼容性
+    // 实际上不再需要做任何操作
 }
 
 /// 库版本信息

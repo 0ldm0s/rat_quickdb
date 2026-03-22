@@ -8,8 +8,6 @@ use rat_quickdb::*;
 
 #[tokio::main]
 async fn main() -> QuickDbResult<()> {
-    rat_quickdb::init();
-
     // 创建数据库配置，使用已有的数据库文件
     let config = DatabaseConfig::builder()
         .db_type(DatabaseType::SQLite)

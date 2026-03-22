@@ -83,9 +83,6 @@ define_model! {
 async fn main() -> QuickDbResult<()> {
     println!("=== SQLite时区和范围查询演示 ===");
 
-    // 初始化系统
-    rat_quickdb::init();
-
     // 清理旧的测试数据
     match std::fs::remove_file("./timezone_range_demo.db") {
         Ok(_) => println!("✅ 成功清理旧的数据库文件"),

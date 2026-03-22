@@ -24,7 +24,6 @@ async fn main() -> QuickDbResult<()> {
         .init()
         .expect("日志初始化失败");
 
-    rat_quickdb::init();
     println!("=== SQLite 时区复杂查询示例 ===");
 
     // 创建数据库配置 - SQLite配置（从complex_query_demo.rs复制）

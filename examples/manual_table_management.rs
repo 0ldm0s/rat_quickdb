@@ -50,7 +50,6 @@ async fn main() -> QuickDbResult<()> {
         .init()
         .expect("日志初始化失败");
 
-    rat_quickdb::init();
     println!("=== SQLite 手动表管理示例 ===");
 
     // 创建数据库配置
