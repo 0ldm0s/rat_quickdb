@@ -51,6 +51,11 @@ pub fn integer_field(min_value: Option<i64>, max_value: Option<i64>) -> FieldDef
     })
 }
 
+/// 便捷函数：创建大整数字段（i64 / BIGINT）
+pub fn bigint_field() -> FieldDefinition {
+    FieldDefinition::new(FieldType::BigInteger)
+}
+
 /// 便捷函数：创建浮点数字段
 pub fn float_field(min_value: Option<f64>, max_value: Option<f64>) -> FieldDefinition {
     FieldDefinition::new(FieldType::Float {
