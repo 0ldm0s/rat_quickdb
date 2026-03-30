@@ -80,7 +80,7 @@ pub fn build_json_query_condition(
 
             let json_val = serde_json::Value::Number(serde_json::Number::from(*i));
             Ok((
-                format!("{} @> ?", field_name),
+                format!("{} @> {}", field_name, placeholder),
                 DataValue::Json(json_val)
             ))
         }
@@ -91,7 +91,7 @@ pub fn build_json_query_condition(
 
             let json_val = serde_json::Value::Number(serde_json::Number::from(*u));
             Ok((
-                format!("{} @> ?", field_name),
+                format!("{} @> {}", field_name, placeholder),
                 DataValue::Json(json_val)
             ))
         }

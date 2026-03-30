@@ -573,6 +573,62 @@ impl ErrorMessageI18n {
         );
         translations.insert("error.serialize".to_string(), serialize_failed);
 
+        // 事务操作错误
+        let mut transaction_errors = HashMap::new();
+        transaction_errors.insert("zh-CN".to_string(), "事务操作失败: {message}".to_string());
+        transaction_errors.insert("en-US".to_string(), "Transaction operation failed: {message}".to_string());
+        transaction_errors.insert("ja-JP".to_string(), "トランザクション操作が失敗しました: {message}".to_string());
+        translations.insert("error.transaction".to_string(), transaction_errors);
+
+        // 任务执行错误
+        let mut task_execution_errors = HashMap::new();
+        task_execution_errors.insert("zh-CN".to_string(), "任务执行失败: {message}".to_string());
+        task_execution_errors.insert("en-US".to_string(), "Task execution failed: {message}".to_string());
+        task_execution_errors.insert("ja-JP".to_string(), "タスク実行が失敗しました: {message}".to_string());
+        translations.insert("error.task_execution".to_string(), task_execution_errors);
+
+        // IO 操作错误
+        let mut io_errors = HashMap::new();
+        io_errors.insert("zh-CN".to_string(), "IO 操作失败: {message}".to_string());
+        io_errors.insert("en-US".to_string(), "IO operation failed: {message}".to_string());
+        io_errors.insert("ja-JP".to_string(), "IO操作が失敗しました: {message}".to_string());
+        translations.insert("error.io".to_string(), io_errors);
+
+        // JSON 处理错误
+        let mut json_errors = HashMap::new();
+        json_errors.insert("zh-CN".to_string(), "JSON 处理失败: {message}".to_string());
+        json_errors.insert("en-US".to_string(), "JSON processing failed: {message}".to_string());
+        json_errors.insert("ja-JP".to_string(), "JSON処理が失敗しました: {message}".to_string());
+        translations.insert("error.json".to_string(), json_errors);
+
+        // 通用操作错误
+        let mut other_errors = HashMap::new();
+        other_errors.insert("zh-CN".to_string(), "操作失败: {message}".to_string());
+        other_errors.insert("en-US".to_string(), "Operation failed: {message}".to_string());
+        other_errors.insert("ja-JP".to_string(), "操作が失敗しました: {message}".to_string());
+        translations.insert("error.other".to_string(), other_errors);
+
+        // 表或集合不存在错误
+        let mut table_not_exist_errors = HashMap::new();
+        table_not_exist_errors.insert("zh-CN".to_string(), "表或集合 '{table}' 不存在: {message}".to_string());
+        table_not_exist_errors.insert("en-US".to_string(), "Table or collection '{table}' does not exist: {message}".to_string());
+        table_not_exist_errors.insert("ja-JP".to_string(), "テーブルまたはコレクション '{table}' が存在しません: {message}".to_string());
+        translations.insert("error.table_not_exist".to_string(), table_not_exist_errors);
+
+        // 版本管理错误
+        let mut version_errors = HashMap::new();
+        version_errors.insert("zh-CN".to_string(), "版本管理操作失败: {message}".to_string());
+        version_errors.insert("en-US".to_string(), "Version management operation failed: {message}".to_string());
+        version_errors.insert("ja-JP".to_string(), "バージョン管理操作が失敗しました: {message}".to_string());
+        translations.insert("error.version".to_string(), version_errors);
+
+        // 数据未找到错误
+        let mut not_found_errors = HashMap::new();
+        not_found_errors.insert("zh-CN".to_string(), "数据未找到: {message}".to_string());
+        not_found_errors.insert("en-US".to_string(), "Data not found: {message}".to_string());
+        not_found_errors.insert("ja-JP".to_string(), "データが見つかりません: {message}".to_string());
+        translations.insert("error.not_found".to_string(), not_found_errors);
+
         // 注册所有翻译
         register_translations(translations);
     }
