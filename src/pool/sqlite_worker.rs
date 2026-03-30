@@ -151,7 +151,7 @@ impl SqliteWorker {
             } => (path.clone(), *create_if_missing),
             _ => {
                 return Err(QuickDbError::ConfigError {
-                    message: "SQLite连接配置类型不匹配".to_string(),
+                    message: crate::i18n::t("error.sqlite_config_mismatch"),
                 });
             }
         };
@@ -161,7 +161,7 @@ impl SqliteWorker {
             info!("连接SQLite内存数据库: 别名={}", self.db_config.alias);
             let pool = sqlx::SqlitePool::connect(&path).await.map_err(|e| {
                 QuickDbError::ConnectionError {
-                    message: format!("SQLite内存数据库连接失败: {}", e),
+                    message: crate::i18n::tf("error.sqlite_memory", &[("message", &e.to_string())]),
                 }
             })?;
             return Ok(DatabaseConnection::SQLite(pool));
@@ -173,7 +173,7 @@ impl SqliteWorker {
         // 如果文件不存在且不允许创建，则返回错误
         if !file_exists && !create_if_missing {
             return Err(QuickDbError::ConnectionError {
-                message: format!("SQLite数据库文件不存在且未启用自动创建: {}", path),
+                message: crate::i18n::tf("error.sqlite_file_not_found", &[("path", path)]),
             });
         }
 
@@ -182,7 +182,7 @@ impl SqliteWorker {
             if let Some(parent) = std::path::Path::new(&path).parent() {
                 tokio::fs::create_dir_all(parent).await.map_err(|e| {
                     QuickDbError::ConnectionError {
-                        message: format!("创建SQLite数据库目录失败: {}", e),
+                        message: crate::i18n::tf("error.sqlite_dir_create", &[("message", &e.to_string())]),
                     }
                 })?;
             }
@@ -191,7 +191,7 @@ impl SqliteWorker {
             tokio::fs::File::create(&path)
                 .await
                 .map_err(|e| QuickDbError::ConnectionError {
-                    message: format!("创建SQLite数据库文件失败: {}", e),
+                    message: crate::i18n::tf("error.sqlite_file_create", &[("message", &e.to_string())]),
                 })?;
         }
 
@@ -199,7 +199,7 @@ impl SqliteWorker {
             sqlx::SqlitePool::connect(&path)
                 .await
                 .map_err(|e| QuickDbError::ConnectionError {
-                    message: format!("SQLite连接失败: {}", e),
+                    message: crate::i18n::tf("error.sqlite_connection", &[("message", &e.to_string())]),
                 })?;
         Ok(DatabaseConnection::SQLite(pool))
     }

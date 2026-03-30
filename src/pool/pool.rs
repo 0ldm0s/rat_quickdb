@@ -82,7 +82,7 @@ impl ConnectionPool {
             }
             #[allow(unreachable_patterns)]
             _ => Err(QuickDbError::ConfigError {
-                message: "不支持的数据库类型（可能需要启用相应的feature）".to_string(),
+                message: crate::i18n::t("pool.unsupported_db_type"),
             })?,
         }
 
@@ -258,7 +258,7 @@ impl ConnectionPool {
     {
         // 这是一个泛型占位符，实际实现需要根据具体操作类型来处理
         Err(QuickDbError::QueryError {
-            message: "操作发送未实现".to_string(),
+            message: crate::i18n::t("pool.operation_not_implemented"),
         })
     }
 
@@ -282,13 +282,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -310,13 +310,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -340,13 +340,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -370,13 +370,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -400,13 +400,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -429,13 +429,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -458,13 +458,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -487,13 +487,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -517,13 +517,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -548,13 +548,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -570,13 +570,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 
@@ -592,13 +592,13 @@ impl ConnectionPool {
         self.operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::QueryError {
-                message: "发送操作失败".to_string(),
+                message: crate::i18n::t("pool.send_operation_failed"),
             })?;
 
         response_receiver
             .await
             .map_err(|_| QuickDbError::QueryError {
-                message: "接收响应失败".to_string(),
+                message: crate::i18n::t("pool.receive_response_failed"),
             })?
     }
 

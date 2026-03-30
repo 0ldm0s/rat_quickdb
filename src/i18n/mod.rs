@@ -867,6 +867,19 @@ impl ErrorMessageI18n {
         v(&mut translations, "odm.create_missing_id",
             "创建操作返回的数据中缺少id字段", "Created data is missing the id field", "作成結果のデータにidフィールドがありません");
 
+        // ===== 连接池层消息 =====
+
+        v(&mut translations, "pool.unsupported_db_type",
+            "不支持的数据库类型（可能需要启用相应的feature）",
+            "Unsupported database type (may need to enable the corresponding feature)",
+            "サポートされていないデータベースタイプ（対応するフィーチャを有効にしてください）");
+        v(&mut translations, "pool.operation_not_implemented",
+            "操作发送未实现", "Operation send not implemented", "操作送信が実装されていません");
+        v(&mut translations, "pool.send_operation_failed",
+            "发送操作失败", "Failed to send operation", "操作の送信に失敗しました");
+        v(&mut translations, "pool.receive_response_failed",
+            "接收响应失败", "Failed to receive response", "応答の受信に失敗しました");
+
         // 注册所有翻译
         register_translations(translations);
     }
