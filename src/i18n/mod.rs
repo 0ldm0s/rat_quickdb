@@ -765,6 +765,93 @@ impl ErrorMessageI18n {
         v(&mut translations, "security.collection_start_system",
             "集合名不能以system.开头", "Collection name cannot start with system.", "コレクション名はsystem.で始めることはできません");
 
+        // ===== 配置验证消息 =====
+
+        v(&mut translations, "config.parse_toml_failed",
+            "解析TOML配置文件失败: {message}", "Failed to parse TOML config file: {message}", "TOML設定ファイルの解析に失敗しました: {message}");
+        v(&mut translations, "config.parse_json_failed",
+            "解析JSON配置文件失败: {message}", "Failed to parse JSON config file: {message}", "JSON設定ファイルの解析に失敗しました: {message}");
+        v(&mut translations, "config.serialize_toml_failed",
+            "序列化TOML配置失败: {message}", "Failed to serialize TOML config: {message}", "TOML設定のシリアライズに失敗しました: {message}");
+        v(&mut translations, "config.serialize_json_failed",
+            "序列化JSON配置失败: {message}", "Failed to serialize JSON config: {message}", "JSON設定のシリアライズに失敗しました: {message}");
+        v(&mut translations, "config.default_database_not_set",
+            "未设置默认数据库", "Default database not set", "デフォルトデータベースが設定されていません");
+        v(&mut translations, "config.default_database_not_found",
+            "找不到默认数据库配置: {alias}", "Default database config not found: {alias}", "デフォルトデータベース設定が見つかりません: {alias}");
+        v(&mut translations, "config.database_not_found",
+            "找不到数据库配置: {alias}", "Database config not found: {alias}", "データベース設定が見つかりません: {alias}");
+        v(&mut translations, "config.database_type_required",
+            "数据库类型必须设置", "Database type is required", "データベースタイプは必須です");
+        v(&mut translations, "config.connection_required",
+            "连接配置必须设置", "Connection config is required", "接続設定は必須です");
+        v(&mut translations, "config.pool_required",
+            "连接池配置必须设置", "Pool config is required", "接続プール設定は必須です");
+        v(&mut translations, "config.database_alias_required",
+            "数据库别名必须设置", "Database alias is required", "データベースエイリアスは必須です");
+        v(&mut translations, "config.id_strategy_required",
+            "ID生成策略必须设置", "ID strategy is required", "ID生成戦略は必須です");
+        v(&mut translations, "config.database_type_mismatch",
+            "数据库类型 {db_type} 与连接配置不匹配", "Database type {db_type} does not match connection config", "データベースタイプ {db_type} が接続設定と一致しません");
+        v(&mut translations, "config.at_least_one_database_required",
+            "至少需要配置一个数据库", "At least one database is required", "少なくとも1つのデータベースが必要です");
+        v(&mut translations, "config.app_config_required",
+            "应用配置必须设置", "App config is required", "アプリ設定は必須です");
+        v(&mut translations, "config.logging_config_required",
+            "日志配置必须设置", "Logging config is required", "ロギング設定は必須です");
+        v(&mut translations, "config.default_database_not_exist",
+            "默认数据库 '{alias}' 不存在于数据库配置中", "Default database '{alias}' does not exist in database configs", "デフォルトデータベース '{alias}' がデータベース設定に存在しません");
+        v(&mut translations, "config.min_connections_required",
+            "最小连接数必须设置", "Min connections is required", "最小接続数は必須です");
+        v(&mut translations, "config.max_connections_required",
+            "最大连接数必须设置", "Max connections is required", "最大接続数は必須です");
+        v(&mut translations, "config.connection_timeout_required",
+            "连接超时时间必须设置", "Connection timeout is required", "接続タイムアウトは必須です");
+        v(&mut translations, "config.idle_timeout_required",
+            "空闲连接超时时间必须设置", "Idle timeout is required", "アイドルタイムアウトは必須です");
+        v(&mut translations, "config.max_lifetime_required",
+            "连接最大生存时间必须设置", "Max lifetime is required", "最大寿命は必須です");
+        v(&mut translations, "config.max_retries_required",
+            "最大重试次数必须设置", "Max retries is required", "最大リトライ回数は必須です");
+        v(&mut translations, "config.retry_interval_required",
+            "重试间隔必须设置", "Retry interval is required", "リトライ間隔は必須です");
+        v(&mut translations, "config.keepalive_interval_required",
+            "保活检测间隔必须设置", "Keepalive interval is required", "キープアライブ間隔は必須です");
+        v(&mut translations, "config.health_check_timeout_required",
+            "健康检查超时时间必须设置", "Health check timeout is required", "ヘルスチェックタイムアウトは必須です");
+        v(&mut translations, "config.min_exceeds_max_connections",
+            "最小连接数不能大于最大连接数", "Min connections cannot exceed max connections", "最小接続数は最大接続数を超えることはできません");
+        v(&mut translations, "config.connection_timeout_zero",
+            "连接超时时间不能为零", "Connection timeout cannot be zero", "接続タイムアウトはゼロにできません");
+        v(&mut translations, "config.idle_timeout_zero",
+            "空闲连接超时时间不能为零", "Idle timeout cannot be zero", "アイドルタイムアウトはゼロにできません");
+        v(&mut translations, "config.max_lifetime_zero",
+            "连接最大生存时间不能为零", "Max lifetime cannot be zero", "最大寿命はゼロにできません");
+        v(&mut translations, "config.app_name_required",
+            "应用名称必须设置", "App name is required", "アプリ名は必須です");
+        v(&mut translations, "config.app_version_required",
+            "应用版本必须设置", "App version is required", "アプリバージョンは必須です");
+        v(&mut translations, "config.environment_required",
+            "环境类型必须设置", "Environment is required", "環境タイプは必須です");
+        v(&mut translations, "config.debug_mode_required",
+            "调试模式必须设置", "Debug mode is required", "デバッグモードは必須です");
+        v(&mut translations, "config.work_dir_required",
+            "工作目录必须设置", "Working directory is required", "作業ディレクトリは必須です");
+        v(&mut translations, "config.log_level_required",
+            "日志级别必须设置", "Log level is required", "ログレベルは必須です");
+        v(&mut translations, "config.console_output_required",
+            "控制台输出选项必须设置", "Console output option is required", "コンソール出力オプションは必須です");
+        v(&mut translations, "config.max_file_size_required",
+            "日志文件最大大小必须设置", "Max log file size is required", "ログファイルの最大サイズは必須です");
+        v(&mut translations, "config.max_files_required",
+            "保留日志文件数量必须设置", "Max log files is required", "保持ログファイル数は必須です");
+        v(&mut translations, "config.structured_logging_required",
+            "结构化日志选项必须设置", "Structured logging option is required", "構造化ロギングオプションは必須です");
+        v(&mut translations, "config.max_file_size_zero",
+            "日志文件最大大小不能为零", "Max log file size cannot be zero", "ログファイルの最大サイズはゼロにできません");
+        v(&mut translations, "config.max_files_zero",
+            "保留日志文件数量不能为零", "Max log files cannot be zero", "保持ログファイル数はゼロにできません");
+
         // 注册所有翻译
         register_translations(translations);
     }

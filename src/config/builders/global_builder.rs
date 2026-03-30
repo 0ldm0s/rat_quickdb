@@ -78,23 +78,23 @@ impl GlobalConfigBuilder {
     /// 如果任何必需的配置项未设置，将返回错误
     pub fn build(self) -> Result<GlobalConfig, QuickDbError> {
         if self.databases.is_empty() {
-            return Err(crate::quick_error!(config, "至少需要配置一个数据库"));
+            return Err(crate::quick_error!(config, crate::i18n::t("config.at_least_one_database_required")));
         }
 
         let app = self
             .app
-            .ok_or_else(|| crate::quick_error!(config, "应用配置必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.app_config_required")))?;
 
         let logging = self
             .logging
-            .ok_or_else(|| crate::quick_error!(config, "日志配置必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.logging_config_required")))?;
 
         // 验证默认数据库是否存在
         if let Some(ref default_alias) = self.default_database {
             if !self.databases.contains_key(default_alias) {
                 return Err(crate::quick_error!(
                     config,
-                    format!("默认数据库 '{}' 不存在于数据库配置中", default_alias)
+                    crate::i18n::tf("config.default_database_not_exist", &[("alias", default_alias.as_str())])
                 ));
             }
         }

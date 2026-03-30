@@ -143,55 +143,55 @@ impl PoolConfigBuilder {
     pub fn build(self) -> Result<PoolConfig, QuickDbError> {
         let min_connections = self
             .min_connections
-            .ok_or_else(|| crate::quick_error!(config, "最小连接数必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.min_connections_required")))?;
 
         let max_connections = self
             .max_connections
-            .ok_or_else(|| crate::quick_error!(config, "最大连接数必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.max_connections_required")))?;
 
         let connection_timeout = self
             .connection_timeout
-            .ok_or_else(|| crate::quick_error!(config, "连接超时时间必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.connection_timeout_required")))?;
 
         let idle_timeout = self
             .idle_timeout
-            .ok_or_else(|| crate::quick_error!(config, "空闲连接超时时间必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.idle_timeout_required")))?;
 
         let max_lifetime = self
             .max_lifetime
-            .ok_or_else(|| crate::quick_error!(config, "连接最大生存时间必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.max_lifetime_required")))?;
 
         let max_retries = self
             .max_retries
-            .ok_or_else(|| crate::quick_error!(config, "最大重试次数必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.max_retries_required")))?;
 
         let retry_interval_ms = self
             .retry_interval_ms
-            .ok_or_else(|| crate::quick_error!(config, "重试间隔必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.retry_interval_required")))?;
 
         let keepalive_interval_sec = self
             .keepalive_interval_sec
-            .ok_or_else(|| crate::quick_error!(config, "保活检测间隔必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.keepalive_interval_required")))?;
 
         let health_check_timeout_sec = self
             .health_check_timeout_sec
-            .ok_or_else(|| crate::quick_error!(config, "健康检查超时时间必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.health_check_timeout_required")))?;
 
         // 验证配置的合理性
         if min_connections > max_connections {
-            return Err(crate::quick_error!(config, "最小连接数不能大于最大连接数"));
+            return Err(crate::quick_error!(config, crate::i18n::t("config.min_exceeds_max_connections")));
         }
 
         if connection_timeout == 0 {
-            return Err(crate::quick_error!(config, "连接超时时间不能为零"));
+            return Err(crate::quick_error!(config, crate::i18n::t("config.connection_timeout_zero")));
         }
 
         if idle_timeout == 0 {
-            return Err(crate::quick_error!(config, "空闲连接超时时间不能为零"));
+            return Err(crate::quick_error!(config, crate::i18n::t("config.idle_timeout_zero")));
         }
 
         if max_lifetime == 0 {
-            return Err(crate::quick_error!(config, "连接最大生存时间不能为零"));
+            return Err(crate::quick_error!(config, crate::i18n::t("config.max_lifetime_zero")));
         }
 
         info!(
@@ -215,5 +215,605 @@ impl PoolConfigBuilder {
 impl Default for PoolConfigBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::builders::DatabaseConfigBuilder;
+
+    /// NOTE: These tests require `--test-threads=1` because i18n language state is global.
+    ///
+    /// ```bash
+    /// cargo test --lib config::builders::pool_builder::tests -- --test-threads=1
+    /// ```
+
+    fn setup_i18n(lang: &str) {
+        crate::i18n::ErrorMessageI18n::init_i18n();
+        crate::i18n::set_language(lang);
+    }
+
+    /// Extract the `message` string from a `QuickDbError::ConfigError`.
+    fn config_message(err: &QuickDbError) -> &str {
+        match err {
+            QuickDbError::ConfigError { message } => message,
+            _ => "",
+        }
+    }
+
+    // ===== pool_builder i18n tests (zh-CN backward compatibility) =====
+
+    #[test]
+    fn test_pool_min_connections_required_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "最小连接数必须设置");
+    }
+
+    #[test]
+    fn test_pool_max_connections_required_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "最大连接数必须设置");
+    }
+
+    #[test]
+    fn test_pool_connection_timeout_required_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "连接超时时间必须设置");
+    }
+
+    #[test]
+    fn test_pool_idle_timeout_required_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "空闲连接超时时间必须设置");
+    }
+
+    #[test]
+    fn test_pool_max_lifetime_required_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "连接最大生存时间必须设置");
+    }
+
+    #[test]
+    fn test_pool_max_retries_required_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "最大重试次数必须设置");
+    }
+
+    #[test]
+    fn test_pool_retry_interval_required_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "重试间隔必须设置");
+    }
+
+    #[test]
+    fn test_pool_keepalive_interval_required_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "保活检测间隔必须设置");
+    }
+
+    #[test]
+    fn test_pool_health_check_timeout_required_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "健康检查超时时间必须设置");
+    }
+
+    #[test]
+    fn test_pool_min_exceeds_max_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(20)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "最小连接数不能大于最大连接数");
+    }
+
+    #[test]
+    fn test_pool_connection_timeout_zero_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(0)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "连接超时时间不能为零");
+    }
+
+    #[test]
+    fn test_pool_idle_timeout_zero_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(0)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "空闲连接超时时间不能为零");
+    }
+
+    #[test]
+    fn test_pool_max_lifetime_zero_zh() {
+        setup_i18n("zh-CN");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(0)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "连接最大生存时间不能为零");
+    }
+
+    // ===== pool_builder i18n tests (en-US) =====
+
+    #[test]
+    fn test_pool_min_connections_required_en() {
+        setup_i18n("en-US");
+        let err = PoolConfigBuilder::new()
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "Min connections is required");
+    }
+
+    #[test]
+    fn test_pool_max_connections_required_en() {
+        setup_i18n("en-US");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "Max connections is required");
+    }
+
+    #[test]
+    fn test_pool_connection_timeout_required_en() {
+        setup_i18n("en-US");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "Connection timeout is required");
+    }
+
+    #[test]
+    fn test_pool_min_exceeds_max_en() {
+        setup_i18n("en-US");
+        let err = PoolConfigBuilder::new()
+            .min_connections(20)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "Min connections cannot exceed max connections");
+    }
+
+    #[test]
+    fn test_pool_connection_timeout_zero_en() {
+        setup_i18n("en-US");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(0)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "Connection timeout cannot be zero");
+    }
+
+    #[test]
+    fn test_pool_max_lifetime_zero_en() {
+        setup_i18n("en-US");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(0)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "Max lifetime cannot be zero");
+    }
+
+    // ===== pool_builder i18n tests (ja-JP representative) =====
+
+    #[test]
+    fn test_pool_min_connections_required_ja() {
+        setup_i18n("ja-JP");
+        let err = PoolConfigBuilder::new()
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "最小接続数は必須です");
+    }
+
+    #[test]
+    fn test_pool_min_exceeds_max_ja() {
+        setup_i18n("ja-JP");
+        let err = PoolConfigBuilder::new()
+            .min_connections(20)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "最小接続数は最大接続数を超えることはできません");
+    }
+
+    #[test]
+    fn test_pool_max_lifetime_zero_ja() {
+        setup_i18n("ja-JP");
+        let err = PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(0)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "最大寿命はゼロにできません");
+    }
+
+    // ===== database_builder i18n tests =====
+
+    #[test]
+    fn test_database_type_required_zh() {
+        setup_i18n("zh-CN");
+        let pool = valid_pool_config();
+        let err = DatabaseConfigBuilder::new()
+            .connection(ConnectionConfig::SQLite {
+                path: "/tmp/test.db".into(),
+                create_if_missing: true,
+            })
+            .pool(pool)
+            .alias("test")
+            .id_strategy(IdStrategy::AutoIncrement)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "数据库类型必须设置");
+    }
+
+    #[test]
+    fn test_database_connection_required_zh() {
+        setup_i18n("zh-CN");
+        let pool = valid_pool_config();
+        let err = DatabaseConfigBuilder::new()
+            .db_type(DatabaseType::SQLite)
+            .pool(pool)
+            .alias("test")
+            .id_strategy(IdStrategy::AutoIncrement)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "连接配置必须设置");
+    }
+
+    #[test]
+    fn test_database_pool_required_zh() {
+        setup_i18n("zh-CN");
+        let err = DatabaseConfigBuilder::new()
+            .db_type(DatabaseType::SQLite)
+            .connection(ConnectionConfig::SQLite {
+                path: "/tmp/test.db".into(),
+                create_if_missing: true,
+            })
+            .alias("test")
+            .id_strategy(IdStrategy::AutoIncrement)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "连接池配置必须设置");
+    }
+
+    #[test]
+    fn test_database_alias_required_zh() {
+        setup_i18n("zh-CN");
+        let pool = valid_pool_config();
+        let err = DatabaseConfigBuilder::new()
+            .db_type(DatabaseType::SQLite)
+            .connection(ConnectionConfig::SQLite {
+                path: "/tmp/test.db".into(),
+                create_if_missing: true,
+            })
+            .pool(pool)
+            .id_strategy(IdStrategy::AutoIncrement)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "数据库别名必须设置");
+    }
+
+    #[test]
+    fn test_database_id_strategy_required_zh() {
+        setup_i18n("zh-CN");
+        let pool = valid_pool_config();
+        let err = DatabaseConfigBuilder::new()
+            .db_type(DatabaseType::SQLite)
+            .connection(ConnectionConfig::SQLite {
+                path: "/tmp/test.db".into(),
+                create_if_missing: true,
+            })
+            .pool(pool)
+            .alias("test")
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "ID生成策略必须设置");
+    }
+
+    #[test]
+    fn test_database_type_mismatch_zh() {
+        setup_i18n("zh-CN");
+        let pool = valid_pool_config();
+        let err = DatabaseConfigBuilder::new()
+            .db_type(DatabaseType::SQLite)
+            .connection(ConnectionConfig::PostgreSQL {
+                host: "localhost".into(),
+                port: 5432,
+                database: "test".into(),
+                username: "user".into(),
+                password: "pass".into(),
+                ssl_mode: Some("prefer".into()),
+                tls_config: None,
+            })
+            .pool(pool)
+            .alias("test")
+            .id_strategy(IdStrategy::AutoIncrement)
+            .build()
+            .unwrap_err();
+        assert_eq!(
+            config_message(&err),
+            "数据库类型 SQLite 与连接配置不匹配"
+        );
+    }
+
+    #[test]
+    fn test_database_type_required_en() {
+        setup_i18n("en-US");
+        let pool = valid_pool_config();
+        let err = DatabaseConfigBuilder::new()
+            .connection(ConnectionConfig::SQLite {
+                path: "/tmp/test.db".into(),
+                create_if_missing: true,
+            })
+            .pool(pool)
+            .alias("test")
+            .id_strategy(IdStrategy::AutoIncrement)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "Database type is required");
+    }
+
+    #[test]
+    fn test_database_type_mismatch_en() {
+        setup_i18n("en-US");
+        let pool = valid_pool_config();
+        let err = DatabaseConfigBuilder::new()
+            .db_type(DatabaseType::SQLite)
+            .connection(ConnectionConfig::PostgreSQL {
+                host: "localhost".into(),
+                port: 5432,
+                database: "test".into(),
+                username: "user".into(),
+                password: "pass".into(),
+                ssl_mode: Some("prefer".into()),
+                tls_config: None,
+            })
+            .pool(pool)
+            .alias("test")
+            .id_strategy(IdStrategy::AutoIncrement)
+            .build()
+            .unwrap_err();
+        assert_eq!(
+            config_message(&err),
+            "Database type SQLite does not match connection config"
+        );
+    }
+
+    #[test]
+    fn test_database_type_required_ja() {
+        setup_i18n("ja-JP");
+        let pool = valid_pool_config();
+        let err = DatabaseConfigBuilder::new()
+            .connection(ConnectionConfig::SQLite {
+                path: "/tmp/test.db".into(),
+                create_if_missing: true,
+            })
+            .pool(pool)
+            .alias("test")
+            .id_strategy(IdStrategy::AutoIncrement)
+            .build()
+            .unwrap_err();
+        assert_eq!(config_message(&err), "データベースタイプは必須です");
+    }
+
+    // ===== helper =====
+
+    fn valid_pool_config() -> PoolConfig {
+        PoolConfigBuilder::new()
+            .min_connections(1)
+            .max_connections(10)
+            .connection_timeout(30)
+            .idle_timeout(600)
+            .max_lifetime(1800)
+            .max_retries(3)
+            .retry_interval_ms(1000)
+            .keepalive_interval_sec(60)
+            .health_check_timeout_sec(5)
+            .build()
+            .unwrap()
     }
 }

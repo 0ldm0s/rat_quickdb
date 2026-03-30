@@ -86,23 +86,23 @@ impl AppConfigBuilder {
     pub fn build(self) -> Result<AppConfig, QuickDbError> {
         let name = self
             .name
-            .ok_or_else(|| crate::quick_error!(config, "应用名称必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.app_name_required")))?;
 
         let version = self
             .version
-            .ok_or_else(|| crate::quick_error!(config, "应用版本必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.app_version_required")))?;
 
         let environment = self
             .environment
-            .ok_or_else(|| crate::quick_error!(config, "环境类型必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.environment_required")))?;
 
         let debug = self
             .debug
-            .ok_or_else(|| crate::quick_error!(config, "调试模式必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.debug_mode_required")))?;
 
         let work_dir = self
             .work_dir
-            .ok_or_else(|| crate::quick_error!(config, "工作目录必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.work_dir_required")))?;
 
         info!(
             "创建应用配置: 名称={}, 版本={}, 环境={:?}",

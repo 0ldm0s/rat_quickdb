@@ -104,10 +104,10 @@ impl GlobalConfig {
             == Some("toml")
         {
             toml::from_str(&content)
-                .map_err(|e| crate::quick_error!(config, format!("解析TOML配置文件失败: {}", e)))?
+                .map_err(|e| crate::quick_error!(config, crate::i18n::tf("config.parse_toml_failed", &[("message", &e.to_string())])))?
         } else {
             serde_json::from_str(&content)
-                .map_err(|e| crate::quick_error!(config, format!("解析JSON配置文件失败: {}", e)))?
+                .map_err(|e| crate::quick_error!(config, crate::i18n::tf("config.parse_json_failed", &[("message", &e.to_string())])))?
         };
 
         info!("从文件加载配置: {:?}", config_path.as_ref());
@@ -125,10 +125,10 @@ impl GlobalConfig {
     ) -> Result<(), QuickDbError> {
         let content = if config_path.as_ref().extension().and_then(|s| s.to_str()) == Some("toml") {
             toml::to_string_pretty(self)
-                .map_err(|e| crate::quick_error!(config, format!("序列化TOML配置失败: {}", e)))?
+                .map_err(|e| crate::quick_error!(config, crate::i18n::tf("config.serialize_toml_failed", &[("message", &e.to_string())])))?
         } else {
             serde_json::to_string_pretty(self)
-                .map_err(|e| crate::quick_error!(config, format!("序列化JSON配置失败: {}", e)))?
+                .map_err(|e| crate::quick_error!(config, crate::i18n::tf("config.serialize_json_failed", &[("message", &e.to_string())])))?
         };
 
         std::fs::write(config_path.as_ref(), content).map_err(|e| QuickDbError::IoError(e))?;
@@ -142,11 +142,11 @@ impl GlobalConfig {
         let alias = self
             .default_database
             .as_ref()
-            .ok_or_else(|| crate::quick_error!(config, "未设置默认数据库"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.default_database_not_set")))?;
 
         self.databases
             .get(alias)
-            .ok_or_else(|| crate::quick_error!(config, format!("找不到默认数据库配置: {}", alias)))
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::tf("config.default_database_not_found", &[("alias", alias.as_str())])))
     }
 
     /// 获取指定别名的数据库配置
@@ -157,7 +157,7 @@ impl GlobalConfig {
     pub fn get_database(&self, alias: &str) -> Result<&DatabaseConfig, QuickDbError> {
         self.databases
             .get(alias)
-            .ok_or_else(|| crate::quick_error!(config, format!("找不到数据库配置: {}", alias)))
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::tf("config.database_not_found", &[("alias", alias)])))
     }
 }
 

@@ -136,23 +136,23 @@ impl DatabaseConfigBuilder {
     pub fn build(self) -> Result<DatabaseConfig, QuickDbError> {
         let db_type = self
             .db_type
-            .ok_or_else(|| crate::quick_error!(config, "数据库类型必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.database_type_required")))?;
 
         let connection = self
             .connection
-            .ok_or_else(|| crate::quick_error!(config, "连接配置必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.connection_required")))?;
 
         let pool = self
             .pool
-            .ok_or_else(|| crate::quick_error!(config, "连接池配置必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.pool_required")))?;
 
         let alias = self
             .alias
-            .ok_or_else(|| crate::quick_error!(config, "数据库别名必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.database_alias_required")))?;
 
         let id_strategy = self
             .id_strategy
-            .ok_or_else(|| crate::quick_error!(config, "ID生成策略必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.id_strategy_required")))?;
 
         // 验证配置的一致性
         Self::validate_config(&db_type, &connection)?;
@@ -183,7 +183,7 @@ impl DatabaseConfigBuilder {
             (DatabaseType::MongoDB, ConnectionConfig::MongoDB { .. }) => Ok(()),
             _ => Err(crate::quick_error!(
                 config,
-                format!("数据库类型 {:?} 与连接配置不匹配", db_type)
+                crate::i18n::tf("config.database_type_mismatch", &[("db_type", &format!("{:?}", db_type))])
             )),
         }
     }

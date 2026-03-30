@@ -98,30 +98,30 @@ impl LoggingConfigBuilder {
     pub fn build(self) -> Result<LoggingConfig, QuickDbError> {
         let level = self
             .level
-            .ok_or_else(|| crate::quick_error!(config, "日志级别必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.log_level_required")))?;
 
         let console = self
             .console
-            .ok_or_else(|| crate::quick_error!(config, "控制台输出选项必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.console_output_required")))?;
 
         let max_file_size = self
             .max_file_size
-            .ok_or_else(|| crate::quick_error!(config, "日志文件最大大小必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.max_file_size_required")))?;
 
         let max_files = self
             .max_files
-            .ok_or_else(|| crate::quick_error!(config, "保留日志文件数量必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.max_files_required")))?;
 
         let structured = self
             .structured
-            .ok_or_else(|| crate::quick_error!(config, "结构化日志选项必须设置"))?;
+            .ok_or_else(|| crate::quick_error!(config, crate::i18n::t("config.structured_logging_required")))?;
 
         if max_file_size == 0 {
-            return Err(crate::quick_error!(config, "日志文件最大大小不能为零"));
+            return Err(crate::quick_error!(config, crate::i18n::t("config.max_file_size_zero")));
         }
 
         if max_files == 0 {
-            return Err(crate::quick_error!(config, "保留日志文件数量不能为零"));
+            return Err(crate::quick_error!(config, crate::i18n::t("config.max_files_zero")));
         }
 
         info!(
