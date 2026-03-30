@@ -165,7 +165,7 @@ impl FieldDefinition {
         if self.required && matches!(value, DataValue::Null) {
             return Err(QuickDbError::ValidationError {
                 field: field_name.to_string(),
-                message: "必填字段不能为空".to_string(),
+                message: crate::i18n::t("validation.required_empty"),
             });
         }
 
@@ -186,7 +186,7 @@ impl FieldDefinition {
                         if s.len() > *max_len {
                             return Err(QuickDbError::ValidationError {
                                 field: "string_length".to_string(),
-                                message: format!("字符串长度不能超过{}", max_len),
+                                message: crate::i18n::tf("validation.string_max_length", &[("max", &max_len.to_string())]),
                             });
                         }
                     }
@@ -194,7 +194,7 @@ impl FieldDefinition {
                         if s.len() < *min_len {
                             return Err(QuickDbError::ValidationError {
                                 field: "string_length".to_string(),
-                                message: format!("字符串长度不能少于{}", min_len),
+                                message: crate::i18n::tf("validation.string_min_length", &[("min", &min_len.to_string())]),
                             });
                         }
                     }
@@ -202,20 +202,20 @@ impl FieldDefinition {
                         let regex = regex::Regex::new(pattern).map_err(|e| {
                             QuickDbError::ValidationError {
                                 field: "regex".to_string(),
-                                message: format!("正则表达式无效: {}", e),
+                                message: crate::i18n::tf("validation.regex_invalid", &[("error", &e.to_string())]),
                             }
                         })?;
                         if !regex.is_match(s) {
                             return Err(QuickDbError::ValidationError {
                                 field: "regex_match".to_string(),
-                                message: "字符串不匹配正则表达式".to_string(),
+                                message: crate::i18n::t("validation.regex_not_match"),
                             });
                         }
                     }
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望字符串类型".to_string(),
+                        message: crate::i18n::t("validation.type_string"),
                     });
                 }
             }
@@ -228,7 +228,7 @@ impl FieldDefinition {
                         if *i < *min_val {
                             return Err(QuickDbError::ValidationError {
                                 field: "integer_range".to_string(),
-                                message: format!("整数值不能小于{}", min_val),
+                                message: crate::i18n::tf("validation.integer_min", &[("min", &min_val.to_string())]),
                             });
                         }
                     }
@@ -236,14 +236,14 @@ impl FieldDefinition {
                         if *i > *max_val {
                             return Err(QuickDbError::ValidationError {
                                 field: "integer_range".to_string(),
-                                message: format!("整数值不能大于{}", max_val),
+                                message: crate::i18n::tf("validation.integer_max", &[("max", &max_val.to_string())]),
                             });
                         }
                     }
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望整数类型".to_string(),
+                        message: crate::i18n::t("validation.type_integer"),
                     });
                 }
             }
@@ -256,7 +256,7 @@ impl FieldDefinition {
                         if *f < *min_val {
                             return Err(QuickDbError::ValidationError {
                                 field: "float_range".to_string(),
-                                message: format!("浮点数值不能小于{}", min_val),
+                                message: crate::i18n::tf("validation.float_min", &[("min", &min_val.to_string())]),
                             });
                         }
                     }
@@ -264,14 +264,14 @@ impl FieldDefinition {
                         if *f > *max_val {
                             return Err(QuickDbError::ValidationError {
                                 field: "float_range".to_string(),
-                                message: format!("浮点数值不能大于{}", max_val),
+                                message: crate::i18n::tf("validation.float_max", &[("max", &max_val.to_string())]),
                             });
                         }
                     }
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望浮点数类型".to_string(),
+                        message: crate::i18n::t("validation.type_float"),
                     });
                 }
             }
@@ -279,7 +279,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::Bool(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望布尔类型".to_string(),
+                        message: crate::i18n::t("validation.type_boolean"),
                     });
                 }
             }
@@ -287,7 +287,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::DateTime(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望日期时间类型".to_string(),
+                        message: crate::i18n::t("validation.type_datetime"),
                     });
                 }
             }
@@ -320,10 +320,7 @@ impl FieldDefinition {
                                 } else {
                                     return Err(QuickDbError::ValidationError {
                                         field: "datetime_format".to_string(),
-                                        message: format!(
-                                            "无效的RFC3339日期时间格式: '{}' (字段: {})",
-                                            s, field_name
-                                        ),
+                                        message: crate::i18n::tf("validation.rfc3339_invalid", &[("value", s), ("field", field_name)]),
                                     });
                                 }
                             } else {
@@ -338,10 +335,7 @@ impl FieldDefinition {
                                 } else {
                                     return Err(QuickDbError::ValidationError {
                                         field: "datetime_format".to_string(),
-                                        message: format!(
-                                            "无效的日期时间格式，期望RFC3339或YYYY-MM-DD HH:MM:SS格式: '{}' (字段: {})",
-                                            s, field_name
-                                        ),
+                                        message: crate::i18n::tf("validation.datetime_invalid", &[("value", s), ("field", field_name)]),
                                     });
                                 }
                             }
@@ -357,10 +351,7 @@ impl FieldDefinition {
                     _ => {
                         return Err(QuickDbError::ValidationError {
                             field: "type_mismatch".to_string(),
-                            message: format!(
-                                "字段类型不匹配，期望日期时间类型或字符串或整数 (字段: {})",
-                                field_name
-                            ),
+                            message: crate::i18n::tf("validation.type_datetime_or_string", &[("field", field_name)]),
                         });
                     }
                 }
@@ -369,10 +360,7 @@ impl FieldDefinition {
                 if !is_valid_timezone_offset(timezone_offset) {
                     return Err(QuickDbError::ValidationError {
                         field: "timezone_offset".to_string(),
-                        message: format!(
-                            "无效的时区偏移格式: '{}', 期望格式: +00:00, +08:00, -05:00",
-                            timezone_offset
-                        ),
+                        message: crate::i18n::tf("validation.timezone_offset_invalid", &[("offset", timezone_offset)]),
                     });
                 }
             }
@@ -397,7 +385,7 @@ impl FieldDefinition {
                             );
                             return Err(QuickDbError::ValidationError {
                                 field: "uuid_format".to_string(),
-                                message: format!("无效的UUID格式: '{}' (字段: {})", s, field_name),
+                                message: crate::i18n::tf("validation.uuid_invalid", &[("value", s), ("field", field_name)]),
                             });
                         } else {
                             debug!(
@@ -420,10 +408,7 @@ impl FieldDefinition {
                         );
                         return Err(QuickDbError::ValidationError {
                             field: "type_mismatch".to_string(),
-                            message: format!(
-                                "字段类型不匹配，期望UUID字符串或UUID类型，实际收到: {:?} (字段: {})",
-                                value, field_name
-                            ),
+                            message: crate::i18n::tf("validation.type_uuid", &[("actual", &format!("{:?}", value)), ("field", field_name)]),
                         });
                     }
                 }
@@ -443,7 +428,7 @@ impl FieldDefinition {
                             if arr.len() > *max_items {
                                 return Err(QuickDbError::ValidationError {
                                     field: "array_size".to_string(),
-                                    message: format!("数组元素数量不能超过{}", max_items),
+                                    message: crate::i18n::tf("validation.array_max_items", &[("max", &max_items.to_string())]),
                                 });
                             }
                         }
@@ -451,7 +436,7 @@ impl FieldDefinition {
                             if arr.len() < *min_items {
                                 return Err(QuickDbError::ValidationError {
                                     field: "array_size".to_string(),
-                                    message: format!("数组元素数量不能少于{}", min_items),
+                                    message: crate::i18n::tf("validation.array_min_items", &[("min", &min_items.to_string())]),
                                 });
                             }
                         }
@@ -470,7 +455,7 @@ impl FieldDefinition {
                                     if arr.len() > *max_items {
                                         return Err(QuickDbError::ValidationError {
                                             field: "array_size".to_string(),
-                                            message: format!("数组元素数量不能超过{}", max_items),
+                                            message: crate::i18n::tf("validation.array_max_items", &[("max", &max_items.to_string())]),
                                         });
                                     }
                                 }
@@ -478,7 +463,7 @@ impl FieldDefinition {
                                     if arr.len() < *min_items {
                                         return Err(QuickDbError::ValidationError {
                                             field: "array_size".to_string(),
-                                            message: format!("数组元素数量不能少于{}", min_items),
+                                            message: crate::i18n::tf("validation.array_min_items", &[("min", &min_items.to_string())]),
                                         });
                                     }
                                 }
@@ -491,20 +476,20 @@ impl FieldDefinition {
                             } else {
                                 return Err(QuickDbError::ValidationError {
                                     field: "type_mismatch".to_string(),
-                                    message: "JSON字符串不是有效的数组格式".to_string(),
+                                    message: crate::i18n::t("validation.type_array_json_invalid"),
                                 });
                             }
                         } else {
                             return Err(QuickDbError::ValidationError {
                                 field: "type_mismatch".to_string(),
-                                message: "无法解析JSON字符串".to_string(),
+                                message: crate::i18n::t("validation.json_parse_failed"),
                             });
                         }
                     }
                     _ => {
                         return Err(QuickDbError::ValidationError {
                             field: "type_mismatch".to_string(),
-                            message: "字段类型不匹配，期望数组类型或JSON字符串".to_string(),
+                            message: crate::i18n::t("validation.type_array"),
                         });
                     }
                 }
@@ -519,7 +504,7 @@ impl FieldDefinition {
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望对象类型".to_string(),
+                        message: crate::i18n::t("validation.type_object"),
                     });
                 }
             }
@@ -530,7 +515,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::String(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "reference_type".to_string(),
-                        message: "引用字段必须是字符串ID".to_string(),
+                        message: crate::i18n::t("validation.type_reference"),
                     });
                 }
             }
@@ -538,7 +523,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::Int(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望大整数类型".to_string(),
+                        message: crate::i18n::t("validation.type_biginteger"),
                     });
                 }
             }
@@ -546,7 +531,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::Float(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望双精度浮点数类型".to_string(),
+                        message: crate::i18n::t("validation.type_double"),
                     });
                 }
             }
@@ -554,7 +539,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::String(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望文本类型".to_string(),
+                        message: crate::i18n::t("validation.type_text"),
                     });
                 }
             }
@@ -562,7 +547,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::DateTime(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望日期类型".to_string(),
+                        message: crate::i18n::t("validation.type_date"),
                     });
                 }
             }
@@ -570,7 +555,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::DateTime(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望时间类型".to_string(),
+                        message: crate::i18n::t("validation.type_time"),
                     });
                 }
             }
@@ -578,7 +563,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::String(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望二进制数据（Base64字符串）".to_string(),
+                        message: crate::i18n::t("validation.type_binary"),
                     });
                 }
             }
@@ -589,7 +574,7 @@ impl FieldDefinition {
                 if !matches!(value, DataValue::Float(_)) {
                     return Err(QuickDbError::ValidationError {
                         field: "type_mismatch".to_string(),
-                        message: "字段类型不匹配，期望十进制数类型".to_string(),
+                        message: crate::i18n::t("validation.type_decimal"),
                     });
                 }
             }
@@ -625,6 +610,1294 @@ pub struct IndexDefinition {
     pub unique: bool,
     /// 索引名称
     pub name: Option<String>,
+}
+
+/// 验证时区偏移格式是否有效
+///
+/// 有效格式：+00:00, +08:00, -05:00 等
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper: initialize i18n and set the given language.
+    fn setup_i18n(lang: &str) {
+        crate::i18n::ErrorMessageI18n::init_i18n();
+        crate::i18n::set_language(lang);
+    }
+
+    /// Extract the `message` string from a `QuickDbError::ValidationError`.
+    fn validation_message(err: &QuickDbError) -> &str {
+        match err {
+            QuickDbError::ValidationError { message, .. } => message.as_str(),
+            _ => panic!("expected ValidationError"),
+        }
+    }
+
+    // =========================================================================
+    // Required field
+    // =========================================================================
+
+    #[test]
+    fn test_required_empty_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: None,
+            regex: None,
+        })
+        .required();
+        let err = field.validate_with_field_name(&DataValue::Null, "username").unwrap_err();
+        assert_eq!(validation_message(&err), "必填字段不能为空");
+    }
+
+    #[test]
+    fn test_required_empty_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: None,
+            regex: None,
+        })
+        .required();
+        let err = field.validate_with_field_name(&DataValue::Null, "username").unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Required field cannot be empty"
+        );
+    }
+
+    #[test]
+    fn test_required_empty_ja_jp() {
+        setup_i18n("ja-JP");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: None,
+            regex: None,
+        })
+        .required();
+        let err = field.validate_with_field_name(&DataValue::Null, "username").unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "必須フィールドは空にできません"
+        );
+    }
+
+    // =========================================================================
+    // String type
+    // =========================================================================
+
+    #[test]
+    fn test_string_max_length_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: Some(5),
+            min_length: None,
+            regex: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("hello world".into()), "name")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "字符串长度不能超过5");
+    }
+
+    #[test]
+    fn test_string_max_length_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: Some(5),
+            min_length: None,
+            regex: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("hello world".into()), "name")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "String length cannot exceed 5");
+    }
+
+    #[test]
+    fn test_string_min_length_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: Some(3),
+            regex: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("ab".into()), "name")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "字符串长度不能少于3");
+    }
+
+    #[test]
+    fn test_string_min_length_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: Some(3),
+            regex: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("ab".into()), "name")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "String length cannot be less than 3"
+        );
+    }
+
+    #[test]
+    fn test_string_regex_invalid_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: None,
+            regex: Some("[invalid(".into()),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("test".into()), "name")
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.starts_with("正则表达式无效:"));
+    }
+
+    #[test]
+    fn test_string_regex_invalid_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: None,
+            regex: Some("[invalid(".into()),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("test".into()), "name")
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.starts_with("Invalid regex:"));
+    }
+
+    #[test]
+    fn test_string_regex_not_match_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: None,
+            regex: Some(r"^\d+$".into()),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("abc".into()), "name")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "字符串不匹配正则表达式");
+    }
+
+    #[test]
+    fn test_string_regex_not_match_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: None,
+            regex: Some(r"^\d+$".into()),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("abc".into()), "name")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "String does not match regex pattern"
+        );
+    }
+
+    #[test]
+    fn test_string_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: None,
+            regex: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "name")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望字符串类型"
+        );
+    }
+
+    #[test]
+    fn test_string_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: None,
+            regex: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "name")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected string type"
+        );
+    }
+
+    // =========================================================================
+    // Integer type
+    // =========================================================================
+
+    #[test]
+    fn test_integer_min_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Integer {
+            min_value: Some(0),
+            max_value: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Int(-1), "age")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "整数值不能小于0");
+    }
+
+    #[test]
+    fn test_integer_min_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Integer {
+            min_value: Some(0),
+            max_value: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Int(-1), "age")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "Integer value cannot be less than 0");
+    }
+
+    #[test]
+    fn test_integer_max_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Integer {
+            min_value: None,
+            max_value: Some(100),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Int(101), "age")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "整数值不能大于100");
+    }
+
+    #[test]
+    fn test_integer_max_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Integer {
+            min_value: None,
+            max_value: Some(100),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Int(101), "age")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Integer value cannot be greater than 100"
+        );
+    }
+
+    #[test]
+    fn test_integer_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Integer {
+            min_value: None,
+            max_value: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not an int".into()), "age")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望整数类型"
+        );
+    }
+
+    #[test]
+    fn test_integer_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Integer {
+            min_value: None,
+            max_value: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not an int".into()), "age")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected integer type"
+        );
+    }
+
+    // =========================================================================
+    // Float type
+    // =========================================================================
+
+    #[test]
+    fn test_float_min_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Float {
+            min_value: Some(0.0),
+            max_value: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Float(-0.1), "score")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "浮点数值不能小于0");
+    }
+
+    #[test]
+    fn test_float_min_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Float {
+            min_value: Some(0.0),
+            max_value: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Float(-0.1), "score")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "Float value cannot be less than 0");
+    }
+
+    #[test]
+    fn test_float_max_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Float {
+            min_value: None,
+            max_value: Some(1.0),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Float(1.5), "score")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "浮点数值不能大于1");
+    }
+
+    #[test]
+    fn test_float_max_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Float {
+            min_value: None,
+            max_value: Some(1.0),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Float(1.5), "score")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "Float value cannot be greater than 1");
+    }
+
+    #[test]
+    fn test_float_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Float {
+            min_value: None,
+            max_value: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not a float".into()), "score")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望浮点数类型"
+        );
+    }
+
+    #[test]
+    fn test_float_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Float {
+            min_value: None,
+            max_value: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not a float".into()), "score")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected float type"
+        );
+    }
+
+    // =========================================================================
+    // Boolean type
+    // =========================================================================
+
+    #[test]
+    fn test_boolean_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Boolean);
+        let err = field
+            .validate_with_field_name(&DataValue::Int(1), "active")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望布尔类型"
+        );
+    }
+
+    #[test]
+    fn test_boolean_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Boolean);
+        let err = field
+            .validate_with_field_name(&DataValue::Int(1), "active")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected boolean type"
+        );
+    }
+
+    // =========================================================================
+    // DateTime type
+    // =========================================================================
+
+    #[test]
+    fn test_datetime_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::DateTime);
+        let err = field
+            .validate_with_field_name(&DataValue::String("not datetime".into()), "created_at")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望日期时间类型"
+        );
+    }
+
+    #[test]
+    fn test_datetime_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::DateTime);
+        let err = field
+            .validate_with_field_name(&DataValue::String("not datetime".into()), "created_at")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected datetime type"
+        );
+    }
+
+    // =========================================================================
+    // DateTimeWithTz type
+    // =========================================================================
+
+    #[test]
+    fn test_datetime_with_tz_rfc3339_invalid_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::DateTimeWithTz {
+            timezone_offset: "+08:00".into(),
+        });
+        let err = field
+            .validate_with_field_name(
+                &DataValue::String("2024-13-01T12:00:00+08:00".into()),
+                "created_at",
+            )
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("无效的RFC3339日期时间格式:"));
+        assert!(msg.contains("'2024-13-01T12:00:00+08:00'"));
+        assert!(msg.contains("created_at"));
+    }
+
+    #[test]
+    fn test_datetime_with_tz_rfc3339_invalid_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::DateTimeWithTz {
+            timezone_offset: "+08:00".into(),
+        });
+        let err = field
+            .validate_with_field_name(
+                &DataValue::String("2024-13-01T12:00:00+08:00".into()),
+                "created_at",
+            )
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("Invalid RFC3339 datetime format:"));
+        assert!(msg.contains("'2024-13-01T12:00:00+08:00'"));
+        assert!(msg.contains("created_at"));
+    }
+
+    #[test]
+    fn test_datetime_with_tz_datetime_invalid_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::DateTimeWithTz {
+            timezone_offset: "+08:00".into(),
+        });
+        // A string without 'T' or '+'/'Z'/'-' -- enters the NaiveDateTime branch
+        let err = field
+            .validate_with_field_name(
+                &DataValue::String("not-a-valid-datetime".into()),
+                "created_at",
+            )
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("无效的日期时间格式，期望RFC3339或YYYY-MM-DD HH:MM:SS格式:"));
+        assert!(msg.contains("created_at"));
+    }
+
+    #[test]
+    fn test_datetime_with_tz_datetime_invalid_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::DateTimeWithTz {
+            timezone_offset: "+08:00".into(),
+        });
+        let err = field
+            .validate_with_field_name(
+                &DataValue::String("not-a-valid-datetime".into()),
+                "created_at",
+            )
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("Invalid datetime format, expected RFC3339 or YYYY-MM-DD HH:MM:SS:"));
+        assert!(msg.contains("created_at"));
+    }
+
+    #[test]
+    fn test_datetime_with_tz_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::DateTimeWithTz {
+            timezone_offset: "+08:00".into(),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Bool(true), "created_at")
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("字段类型不匹配，期望日期时间类型或字符串或整数"));
+        assert!(msg.contains("created_at"));
+    }
+
+    #[test]
+    fn test_datetime_with_tz_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::DateTimeWithTz {
+            timezone_offset: "+08:00".into(),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Bool(true), "created_at")
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("Type mismatch, expected datetime, string or integer type"));
+        assert!(msg.contains("created_at"));
+    }
+
+    #[test]
+    fn test_datetime_with_tz_timezone_offset_invalid_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::DateTimeWithTz {
+            timezone_offset: "bad_offset".into(),
+        });
+        let err = field
+            .validate_with_field_name(
+                &DataValue::String("2024-06-15T12:00:00+08:00".into()),
+                "created_at",
+            )
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("无效的时区偏移格式: 'bad_offset'"));
+        assert!(msg.contains("+00:00, +08:00, -05:00"));
+    }
+
+    #[test]
+    fn test_datetime_with_tz_timezone_offset_invalid_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::DateTimeWithTz {
+            timezone_offset: "bad_offset".into(),
+        });
+        let err = field
+            .validate_with_field_name(
+                &DataValue::String("2024-06-15T12:00:00+08:00".into()),
+                "created_at",
+            )
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("Invalid timezone offset format: 'bad_offset'"));
+        assert!(msg.contains("+00:00, +08:00, -05:00"));
+    }
+
+    // =========================================================================
+    // UUID type
+    // =========================================================================
+
+    #[test]
+    fn test_uuid_invalid_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Uuid);
+        let err = field
+            .validate_with_field_name(&DataValue::String("not-a-uuid".into()), "id")
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("无效的UUID格式: 'not-a-uuid'"));
+        assert!(msg.contains("id"));
+    }
+
+    #[test]
+    fn test_uuid_invalid_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Uuid);
+        let err = field
+            .validate_with_field_name(&DataValue::String("not-a-uuid".into()), "id")
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("Invalid UUID format: 'not-a-uuid'"));
+        assert!(msg.contains("id"));
+    }
+
+    #[test]
+    fn test_uuid_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Uuid);
+        let err = field
+            .validate_with_field_name(&DataValue::Int(123), "id")
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("字段类型不匹配，期望UUID字符串或UUID类型"));
+        // format!("{:?}", value) on DataValue::Int(123) produces "123"
+        assert!(msg.contains("123"));
+        assert!(msg.contains("id"));
+    }
+
+    #[test]
+    fn test_uuid_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Uuid);
+        let err = field
+            .validate_with_field_name(&DataValue::Int(123), "id")
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("Type mismatch, expected UUID string or UUID type"));
+        assert!(msg.contains("123"));
+        assert!(msg.contains("id"));
+    }
+
+    // =========================================================================
+    // Array type
+    // =========================================================================
+
+    #[test]
+    fn test_array_max_items_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: Some(2),
+            min_items: None,
+        });
+        let arr = vec![
+            DataValue::Int(1),
+            DataValue::Int(2),
+            DataValue::Int(3),
+        ];
+        let err = field
+            .validate_with_field_name(&DataValue::Array(arr), "tags")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "数组元素数量不能超过2");
+    }
+
+    #[test]
+    fn test_array_max_items_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: Some(2),
+            min_items: None,
+        });
+        let arr = vec![
+            DataValue::Int(1),
+            DataValue::Int(2),
+            DataValue::Int(3),
+        ];
+        let err = field
+            .validate_with_field_name(&DataValue::Array(arr), "tags")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "Array item count cannot exceed 2");
+    }
+
+    #[test]
+    fn test_array_min_items_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: None,
+            min_items: Some(2),
+        });
+        let arr = vec![DataValue::Int(1)];
+        let err = field
+            .validate_with_field_name(&DataValue::Array(arr), "tags")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "数组元素数量不能少于2");
+    }
+
+    #[test]
+    fn test_array_min_items_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: None,
+            min_items: Some(2),
+        });
+        let arr = vec![DataValue::Int(1)];
+        let err = field
+            .validate_with_field_name(&DataValue::Array(arr), "tags")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "Array item count cannot be less than 2");
+    }
+
+    #[test]
+    fn test_array_json_not_array_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: None,
+            min_items: None,
+        });
+        // A valid JSON string but not an array (it is an object)
+        let err = field
+            .validate_with_field_name(&DataValue::String(r#"{"key": "value"}"#.into()), "tags")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "JSON字符串不是有效的数组格式"
+        );
+    }
+
+    #[test]
+    fn test_array_json_not_array_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: None,
+            min_items: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String(r#"{"key": "value"}"#.into()), "tags")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "JSON string is not a valid array format"
+        );
+    }
+
+    #[test]
+    fn test_array_json_parse_failed_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: None,
+            min_items: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not valid json {{".into()), "tags")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "无法解析JSON字符串");
+    }
+
+    #[test]
+    fn test_array_json_parse_failed_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: None,
+            min_items: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not valid json {{".into()), "tags")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "Failed to parse JSON string");
+    }
+
+    #[test]
+    fn test_array_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: None,
+            min_items: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "tags")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望数组类型或JSON字符串"
+        );
+    }
+
+    #[test]
+    fn test_array_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: None,
+            min_items: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "tags")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected array type or JSON string"
+        );
+    }
+
+    // =========================================================================
+    // Object type
+    // =========================================================================
+
+    #[test]
+    fn test_object_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Object {
+            fields: HashMap::new(),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not object".into()), "metadata")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望对象类型"
+        );
+    }
+
+    #[test]
+    fn test_object_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Object {
+            fields: HashMap::new(),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not object".into()), "metadata")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected object type"
+        );
+    }
+
+    // =========================================================================
+    // Reference type
+    // =========================================================================
+
+    #[test]
+    fn test_reference_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Reference {
+            target_collection: "users".into(),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "user_id")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "引用字段必须是字符串ID");
+    }
+
+    #[test]
+    fn test_reference_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Reference {
+            target_collection: "users".into(),
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "user_id")
+            .unwrap_err();
+        assert_eq!(validation_message(&err), "Reference field must be a string ID");
+    }
+
+    // =========================================================================
+    // BigInteger type
+    // =========================================================================
+
+    #[test]
+    fn test_biginteger_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::BigInteger);
+        let err = field
+            .validate_with_field_name(&DataValue::String("not int".into()), "count")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望大整数类型"
+        );
+    }
+
+    #[test]
+    fn test_biginteger_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::BigInteger);
+        let err = field
+            .validate_with_field_name(&DataValue::String("not int".into()), "count")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected big integer type"
+        );
+    }
+
+    // =========================================================================
+    // Double type
+    // =========================================================================
+
+    #[test]
+    fn test_double_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Double);
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "price")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望双精度浮点数类型"
+        );
+    }
+
+    #[test]
+    fn test_double_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Double);
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "price")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected double type"
+        );
+    }
+
+    // =========================================================================
+    // Text type
+    // =========================================================================
+
+    #[test]
+    fn test_text_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Text);
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "body")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望文本类型"
+        );
+    }
+
+    #[test]
+    fn test_text_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Text);
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "body")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected text type"
+        );
+    }
+
+    // =========================================================================
+    // Date type
+    // =========================================================================
+
+    #[test]
+    fn test_date_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Date);
+        let err = field
+            .validate_with_field_name(&DataValue::String("2024-01-01".into()), "birthday")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望日期类型"
+        );
+    }
+
+    #[test]
+    fn test_date_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Date);
+        let err = field
+            .validate_with_field_name(&DataValue::String("2024-01-01".into()), "birthday")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected date type"
+        );
+    }
+
+    // =========================================================================
+    // Time type
+    // =========================================================================
+
+    #[test]
+    fn test_time_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Time);
+        let err = field
+            .validate_with_field_name(&DataValue::String("12:00:00".into()), "alarm")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望时间类型"
+        );
+    }
+
+    #[test]
+    fn test_time_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Time);
+        let err = field
+            .validate_with_field_name(&DataValue::String("12:00:00".into()), "alarm")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected time type"
+        );
+    }
+
+    // =========================================================================
+    // Binary type
+    // =========================================================================
+
+    #[test]
+    fn test_binary_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Binary);
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "avatar")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望二进制数据（Base64字符串）"
+        );
+    }
+
+    #[test]
+    fn test_binary_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Binary);
+        let err = field
+            .validate_with_field_name(&DataValue::Int(42), "avatar")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected binary data (Base64 string)"
+        );
+    }
+
+    // =========================================================================
+    // Decimal type
+    // =========================================================================
+
+    #[test]
+    fn test_decimal_type_mismatch_zh_cn() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Decimal {
+            precision: 10,
+            scale: 2,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not decimal".into()), "amount")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "字段类型不匹配，期望十进制数类型"
+        );
+    }
+
+    #[test]
+    fn test_decimal_type_mismatch_en_us() {
+        setup_i18n("en-US");
+        let field = FieldDefinition::new(FieldType::Decimal {
+            precision: 10,
+            scale: 2,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not decimal".into()), "amount")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "Type mismatch, expected decimal type"
+        );
+    }
+
+    // =========================================================================
+    // ja-JP representative tests (5 keys)
+    // =========================================================================
+
+    #[test]
+    fn test_ja_jp_required_empty() {
+        setup_i18n("ja-JP");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: None,
+            min_length: None,
+            regex: None,
+        })
+        .required();
+        let err = field
+            .validate_with_field_name(&DataValue::Null, "username")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "必須フィールドは空にできません"
+        );
+    }
+
+    #[test]
+    fn test_ja_jp_string_max_length() {
+        setup_i18n("ja-JP");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: Some(5),
+            min_length: None,
+            regex: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("hello world".into()), "name")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "文字列の長さは5を超えることはできません"
+        );
+    }
+
+    #[test]
+    fn test_ja_jp_integer_type_mismatch() {
+        setup_i18n("ja-JP");
+        let field = FieldDefinition::new(FieldType::Integer {
+            min_value: None,
+            max_value: None,
+        });
+        let err = field
+            .validate_with_field_name(&DataValue::String("not an int".into()), "age")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "フィールドタイプが一致しません、整数型を期待"
+        );
+    }
+
+    #[test]
+    fn test_ja_jp_array_max_items() {
+        setup_i18n("ja-JP");
+        let field = FieldDefinition::new(FieldType::Array {
+            item_type: Box::new(FieldType::Integer {
+                min_value: None,
+                max_value: None,
+            }),
+            max_items: Some(2),
+            min_items: None,
+        });
+        let arr = vec![
+            DataValue::Int(1),
+            DataValue::Int(2),
+            DataValue::Int(3),
+        ];
+        let err = field
+            .validate_with_field_name(&DataValue::Array(arr), "tags")
+            .unwrap_err();
+        assert_eq!(
+            validation_message(&err),
+            "配列要素数は2を超えることはできません"
+        );
+    }
+
+    #[test]
+    fn test_ja_jp_uuid_invalid() {
+        setup_i18n("ja-JP");
+        let field = FieldDefinition::new(FieldType::Uuid);
+        let err = field
+            .validate_with_field_name(&DataValue::String("not-a-uuid".into()), "id")
+            .unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.contains("無効なUUID形式: 'not-a-uuid'"));
+        assert!(msg.contains("id"));
+    }
+
+    // =========================================================================
+    // Edge cases: non-required Null passes, valid values pass
+    // =========================================================================
+
+    #[test]
+    fn test_non_required_null_passes() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: Some(5),
+            min_length: None,
+            regex: None,
+        });
+        // Not required, Null is OK
+        assert!(field.validate_with_field_name(&DataValue::Null, "name").is_ok());
+    }
+
+    #[test]
+    fn test_valid_string_within_bounds() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::String {
+            max_length: Some(10),
+            min_length: Some(1),
+            regex: None,
+        });
+        assert!(field
+            .validate_with_field_name(&DataValue::String("hello".into()), "name")
+            .is_ok());
+    }
+
+    #[test]
+    fn test_valid_integer_within_bounds() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Integer {
+            min_value: Some(0),
+            max_value: Some(100),
+        });
+        assert!(field
+            .validate_with_field_name(&DataValue::Int(50), "age")
+            .is_ok());
+    }
+
+    #[test]
+    fn test_json_type_accepts_anything() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Json);
+        assert!(field
+            .validate_with_field_name(&DataValue::Int(42), "data")
+            .is_ok());
+    }
+
+    #[test]
+    fn test_uuid_empty_string_passes() {
+        setup_i18n("zh-CN");
+        let field = FieldDefinition::new(FieldType::Uuid);
+        assert!(field
+            .validate_with_field_name(&DataValue::String("".into()), "id")
+            .is_ok());
+    }
 }
 
 /// 验证时区偏移格式是否有效

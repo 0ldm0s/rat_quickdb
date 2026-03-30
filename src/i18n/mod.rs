@@ -629,6 +629,97 @@ impl ErrorMessageI18n {
         not_found_errors.insert("ja-JP".to_string(), "データが見つかりません: {message}".to_string());
         translations.insert("error.not_found".to_string(), not_found_errors);
 
+        // ===== 字段验证消息 =====
+
+        let mut v = |map: &mut HashMap<String, HashMap<String, String>>, key: &str, zh: &str, en: &str, ja: &str| {
+            let mut m = HashMap::new();
+            m.insert("zh-CN".to_string(), zh.to_string());
+            m.insert("en-US".to_string(), en.to_string());
+            m.insert("ja-JP".to_string(), ja.to_string());
+            map.insert(key.to_string(), m);
+        };
+
+        v(&mut translations, "validation.required_empty",
+            "必填字段不能为空", "Required field cannot be empty", "必須フィールドは空にできません");
+        v(&mut translations, "validation.string_max_length",
+            "字符串长度不能超过{max}", "String length cannot exceed {max}", "文字列の長さは{max}を超えることはできません");
+        v(&mut translations, "validation.string_min_length",
+            "字符串长度不能少于{min}", "String length cannot be less than {min}", "文字列の長さは{min}以上である必要があります");
+        v(&mut translations, "validation.regex_invalid",
+            "正则表达式无效: {error}", "Invalid regex: {error}", "正規表現が無効です: {error}");
+        v(&mut translations, "validation.regex_not_match",
+            "字符串不匹配正则表达式", "String does not match regex pattern", "文字列が正規表現パターンに一致しません");
+        v(&mut translations, "validation.type_string",
+            "字段类型不匹配，期望字符串类型", "Type mismatch, expected string type", "フィールドタイプが一致しません、文字列型を期待");
+        v(&mut translations, "validation.integer_min",
+            "整数值不能小于{min}", "Integer value cannot be less than {min}", "整数値は{min}より小さくすることはできません");
+        v(&mut translations, "validation.integer_max",
+            "整数值不能大于{max}", "Integer value cannot be greater than {max}", "整数値は{max}より大きくすることはできません");
+        v(&mut translations, "validation.type_integer",
+            "字段类型不匹配，期望整数类型", "Type mismatch, expected integer type", "フィールドタイプが一致しません、整数型を期待");
+        v(&mut translations, "validation.float_min",
+            "浮点数值不能小于{min}", "Float value cannot be less than {min}", "浮動小数点値は{min}より小さくすることはできません");
+        v(&mut translations, "validation.float_max",
+            "浮点数值不能大于{max}", "Float value cannot be greater than {max}", "浮動小数点値は{max}より大きくすることはできません");
+        v(&mut translations, "validation.type_float",
+            "字段类型不匹配，期望浮点数类型", "Type mismatch, expected float type", "フィールドタイプが一致しません、浮動小数点型を期待");
+        v(&mut translations, "validation.type_boolean",
+            "字段类型不匹配，期望布尔类型", "Type mismatch, expected boolean type", "フィールドタイプが一致しません、ブール型を期待");
+        v(&mut translations, "validation.type_datetime",
+            "字段类型不匹配，期望日期时间类型", "Type mismatch, expected datetime type", "フィールドタイプが一致しません、日時型を期待");
+        v(&mut translations, "validation.rfc3339_invalid",
+            "无效的RFC3339日期时间格式: '{value}' (字段: {field})",
+            "Invalid RFC3339 datetime format: '{value}' (field: {field})",
+            "無効なRFC3339日時形式: '{value}' (フィールド: {field})");
+        v(&mut translations, "validation.datetime_invalid",
+            "无效的日期时间格式，期望RFC3339或YYYY-MM-DD HH:MM:SS格式: '{value}' (字段: {field})",
+            "Invalid datetime format, expected RFC3339 or YYYY-MM-DD HH:MM:SS: '{value}' (field: {field})",
+            "無効な日時形式、RFC3339またはYYYY-MM-DD HH:MM:SSを期待: '{value}' (フィールド: {field})");
+        v(&mut translations, "validation.type_datetime_or_string",
+            "字段类型不匹配，期望日期时间类型或字符串或整数 (字段: {field})",
+            "Type mismatch, expected datetime, string or integer type (field: {field})",
+            "フィールドタイプが一致しません、日時・文字列・整数型を期待 (フィールド: {field})");
+        v(&mut translations, "validation.timezone_offset_invalid",
+            "无效的时区偏移格式: '{offset}', 期望格式: +00:00, +08:00, -05:00",
+            "Invalid timezone offset format: '{offset}', expected: +00:00, +08:00, -05:00",
+            "無効なタイムゾーンオフセット形式: '{offset}'、期待: +00:00, +08:00, -05:00");
+        v(&mut translations, "validation.uuid_invalid",
+            "无效的UUID格式: '{value}' (字段: {field})",
+            "Invalid UUID format: '{value}' (field: {field})",
+            "無効なUUID形式: '{value}' (フィールド: {field})");
+        v(&mut translations, "validation.type_uuid",
+            "字段类型不匹配，期望UUID字符串或UUID类型，实际收到: {actual} (字段: {field})",
+            "Type mismatch, expected UUID string or UUID type, got: {actual} (field: {field})",
+            "フィールドタイプが一致しません、UUID文字列またはUUID型を期待、実際: {actual} (フィールド: {field})");
+        v(&mut translations, "validation.array_max_items",
+            "数组元素数量不能超过{max}", "Array item count cannot exceed {max}", "配列要素数は{max}を超えることはできません");
+        v(&mut translations, "validation.array_min_items",
+            "数组元素数量不能少于{min}", "Array item count cannot be less than {min}", "配列要素数は{min}以上である必要があります");
+        v(&mut translations, "validation.type_array_json_invalid",
+            "JSON字符串不是有效的数组格式", "JSON string is not a valid array format", "JSON文字列は有効な配列形式ではありません");
+        v(&mut translations, "validation.json_parse_failed",
+            "无法解析JSON字符串", "Failed to parse JSON string", "JSON文字列の解析に失敗しました");
+        v(&mut translations, "validation.type_array",
+            "字段类型不匹配，期望数组类型或JSON字符串", "Type mismatch, expected array type or JSON string", "フィールドタイプが一致しません、配列型またはJSON文字列を期待");
+        v(&mut translations, "validation.type_object",
+            "字段类型不匹配，期望对象类型", "Type mismatch, expected object type", "フィールドタイプが一致しません、オブジェクト型を期待");
+        v(&mut translations, "validation.type_reference",
+            "引用字段必须是字符串ID", "Reference field must be a string ID", "参照フィールドは文字列IDである必要があります");
+        v(&mut translations, "validation.type_biginteger",
+            "字段类型不匹配，期望大整数类型", "Type mismatch, expected big integer type", "フィールドタイプが一致しません、BigInteger型を期待");
+        v(&mut translations, "validation.type_double",
+            "字段类型不匹配，期望双精度浮点数类型", "Type mismatch, expected double type", "フィールドタイプが一致しません、Double型を期待");
+        v(&mut translations, "validation.type_text",
+            "字段类型不匹配，期望文本类型", "Type mismatch, expected text type", "フィールドタイプが一致しません、Text型を期待");
+        v(&mut translations, "validation.type_date",
+            "字段类型不匹配，期望日期类型", "Type mismatch, expected date type", "フィールドタイプが一致しません、Date型を期待");
+        v(&mut translations, "validation.type_time",
+            "字段类型不匹配，期望时间类型", "Type mismatch, expected time type", "フィールドタイプが一致しません、Time型を期待");
+        v(&mut translations, "validation.type_binary",
+            "字段类型不匹配，期望二进制数据（Base64字符串）", "Type mismatch, expected binary data (Base64 string)", "フィールドタイプが一致しません、バイナリデータ（Base64文字列）を期待");
+        v(&mut translations, "validation.type_decimal",
+            "字段类型不匹配，期望十进制数类型", "Type mismatch, expected decimal type", "フィールドタイプが一致しません、Decimal型を期待");
+
         // 注册所有翻译
         register_translations(translations);
     }
