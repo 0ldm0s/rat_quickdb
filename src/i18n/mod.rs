@@ -720,6 +720,51 @@ impl ErrorMessageI18n {
         v(&mut translations, "validation.type_decimal",
             "字段类型不匹配，期望十进制数类型", "Type mismatch, expected decimal type", "フィールドタイプが一致しません、Decimal型を期待");
 
+        // ===== 安全验证消息 =====
+
+        v(&mut translations, "security.field_empty",
+            "字段名不能为空", "Field name cannot be empty", "フィールド名は空にできません");
+        v(&mut translations, "security.field_too_long",
+            "字段名长度不能超过64个字符", "Field name length cannot exceed 64 characters", "フィールド名の長さは64文字を超えることはできません");
+        v(&mut translations, "security.table_empty",
+            "表名不能为空", "Table name cannot be empty", "テーブル名は空にできません");
+        v(&mut translations, "security.table_too_long",
+            "表名长度不能超过64个字符", "Table name length cannot exceed 64 characters", "テーブル名の長さは64文字を超えることはできません");
+        v(&mut translations, "security.sql_field_start_digit",
+            "SQL字段名不能以数字开头", "SQL field name cannot start with a digit", "SQLフィールド名は数字で始めることはできません");
+        v(&mut translations, "security.sql_field_invalid_char",
+            "SQL字段名包含非法字符 '{char}' 在位置 {pos}",
+            "SQL field name contains invalid character '{char}' at position {pos}",
+            "SQLフィールド名に無効な文字 '{char}' が位置 {pos} に含まれています");
+        v(&mut translations, "security.field_sql_keyword",
+            "字段名不能使用SQL关键字: {name}",
+            "Field name cannot use SQL keyword: {name}",
+            "フィールド名にSQLキーワードは使用できません: {name}");
+        v(&mut translations, "security.nosql_field_start_dollar",
+            "NoSQL字段名不能以$开头", "NoSQL field name cannot start with $", "NoSQLフィールド名は$で始めることはできません");
+        v(&mut translations, "security.nosql_field_contains_dot",
+            "NoSQL字段名不能包含点号", "NoSQL field name cannot contain dots", "NoSQLフィールド名にドットを含めることはできません");
+        v(&mut translations, "security.field_mongo_reserved",
+            "字段名不能使用MongoDB保留字: {name}",
+            "Field name cannot use MongoDB reserved word: {name}",
+            "フィールド名にMongoDB予約語は使用できません: {name}");
+        v(&mut translations, "security.sql_table_start_digit",
+            "SQL表名不能以数字开头", "SQL table name cannot start with a digit", "SQLテーブル名は数字で始めることはできません");
+        v(&mut translations, "security.sql_table_invalid_char",
+            "SQL表名包含非法字符 '{char}' 在位置 {pos}",
+            "SQL table name contains invalid character '{char}' at position {pos}",
+            "SQLテーブル名に無効な文字 '{char}' が位置 {pos} に含まれています");
+        v(&mut translations, "security.table_sql_keyword",
+            "表名不能使用SQL关键字: {name}",
+            "Table name cannot use SQL keyword: {name}",
+            "テーブル名にSQLキーワードは使用できません: {name}");
+        v(&mut translations, "security.collection_start_dollar",
+            "集合名不能以$开头", "Collection name cannot start with $", "コレクション名は$で始めることはできません");
+        v(&mut translations, "security.collection_contains_null",
+            "集合名不能包含空字符", "Collection name cannot contain null characters", "コレクション名にnull文字を含めることはできません");
+        v(&mut translations, "security.collection_start_system",
+            "集合名不能以system.开头", "Collection name cannot start with system.", "コレクション名はsystem.で始めることはできません");
+
         // 注册所有翻译
         register_translations(translations);
     }

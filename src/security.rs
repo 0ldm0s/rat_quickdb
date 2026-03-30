@@ -32,7 +32,7 @@ impl DatabaseSecurityValidator {
         if field_name.is_empty() {
             return Err(QuickDbError::ValidationError {
                 field: "field_name".to_string(),
-                message: "字段名不能为空".to_string(),
+                message: crate::i18n::t("security.field_empty"),
             });
         }
 
@@ -40,7 +40,7 @@ impl DatabaseSecurityValidator {
         if field_name.len() > 64 {
             return Err(QuickDbError::ValidationError {
                 field: field_name.to_string(),
-                message: "字段名长度不能超过64个字符".to_string(),
+                message: crate::i18n::t("security.field_too_long"),
             });
         }
 
@@ -68,7 +68,7 @@ impl DatabaseSecurityValidator {
         if table_name.is_empty() {
             return Err(QuickDbError::ValidationError {
                 field: "table_name".to_string(),
-                message: "表名不能为空".to_string(),
+                message: crate::i18n::t("security.table_empty"),
             });
         }
 
@@ -76,7 +76,7 @@ impl DatabaseSecurityValidator {
         if table_name.len() > 64 {
             return Err(QuickDbError::ValidationError {
                 field: table_name.to_string(),
-                message: "表名长度不能超过64个字符".to_string(),
+                message: crate::i18n::t("security.table_too_long"),
             });
         }
 
@@ -143,7 +143,7 @@ impl DatabaseSecurityValidator {
         if field_name.chars().next().unwrap().is_ascii_digit() {
             return Err(QuickDbError::ValidationError {
                 field: field_name.to_string(),
-                message: "SQL字段名不能以数字开头".to_string(),
+                message: crate::i18n::t("security.sql_field_start_digit"),
             });
         }
 
@@ -152,7 +152,7 @@ impl DatabaseSecurityValidator {
             if !ch.is_ascii_alphanumeric() && ch != '_' {
                 return Err(QuickDbError::ValidationError {
                     field: field_name.to_string(),
-                    message: format!("SQL字段名包含非法字符 '{}' 在位置 {}", ch, i),
+                    message: crate::i18n::tf("security.sql_field_invalid_char", &[("char", &ch.to_string()), ("pos", &i.to_string())]),
                 });
             }
         }
@@ -219,7 +219,7 @@ impl DatabaseSecurityValidator {
         if sql_keywords.contains(&upper_name.as_str()) {
             return Err(QuickDbError::ValidationError {
                 field: field_name.to_string(),
-                message: format!("字段名不能使用SQL关键字: {}", field_name),
+                message: crate::i18n::tf("security.field_sql_keyword", &[("name", field_name)]),
             });
         }
 
@@ -236,7 +236,7 @@ impl DatabaseSecurityValidator {
         if field_name.starts_with('$') {
             return Err(QuickDbError::ValidationError {
                 field: field_name.to_string(),
-                message: "NoSQL字段名不能以$开头".to_string(),
+                message: crate::i18n::t("security.nosql_field_start_dollar"),
             });
         }
 
@@ -244,7 +244,7 @@ impl DatabaseSecurityValidator {
         if field_name.contains('.') {
             return Err(QuickDbError::ValidationError {
                 field: field_name.to_string(),
-                message: "NoSQL字段名不能包含点号".to_string(),
+                message: crate::i18n::t("security.nosql_field_contains_dot"),
             });
         }
 
@@ -270,7 +270,7 @@ impl DatabaseSecurityValidator {
         if mongo_reserved_names.contains(&field_name) {
             return Err(QuickDbError::ValidationError {
                 field: field_name.to_string(),
-                message: format!("字段名不能使用MongoDB保留字: {}", field_name),
+                message: crate::i18n::tf("security.field_mongo_reserved", &[("name", field_name)]),
             });
         }
 
@@ -283,7 +283,7 @@ impl DatabaseSecurityValidator {
         if table_name.chars().next().unwrap().is_ascii_digit() {
             return Err(QuickDbError::ValidationError {
                 field: table_name.to_string(),
-                message: "SQL表名不能以数字开头".to_string(),
+                message: crate::i18n::t("security.sql_table_start_digit"),
             });
         }
 
@@ -292,7 +292,7 @@ impl DatabaseSecurityValidator {
             if !ch.is_ascii_alphanumeric() && ch != '_' {
                 return Err(QuickDbError::ValidationError {
                     field: table_name.to_string(),
-                    message: format!("SQL表名包含非法字符 '{}' 在位置 {}", ch, i),
+                    message: crate::i18n::tf("security.sql_table_invalid_char", &[("char", &ch.to_string()), ("pos", &i.to_string())]),
                 });
             }
         }
@@ -334,7 +334,7 @@ impl DatabaseSecurityValidator {
         if sql_keywords.contains(&upper_name.as_str()) {
             return Err(QuickDbError::ValidationError {
                 field: table_name.to_string(),
-                message: format!("表名不能使用SQL关键字: {}", table_name),
+                message: crate::i18n::tf("security.table_sql_keyword", &[("name", table_name)]),
             });
         }
 
@@ -349,7 +349,7 @@ impl DatabaseSecurityValidator {
         if collection_name.starts_with('$') {
             return Err(QuickDbError::ValidationError {
                 field: collection_name.to_string(),
-                message: "集合名不能以$开头".to_string(),
+                message: crate::i18n::t("security.collection_start_dollar"),
             });
         }
 
@@ -357,7 +357,7 @@ impl DatabaseSecurityValidator {
         if collection_name.contains('\0') {
             return Err(QuickDbError::ValidationError {
                 field: collection_name.to_string(),
-                message: "集合名不能包含空字符".to_string(),
+                message: crate::i18n::t("security.collection_contains_null"),
             });
         }
 
@@ -365,7 +365,7 @@ impl DatabaseSecurityValidator {
         if collection_name.starts_with("system.") {
             return Err(QuickDbError::ValidationError {
                 field: collection_name.to_string(),
-                message: "集合名不能以system.开头".to_string(),
+                message: crate::i18n::t("security.collection_start_system"),
             });
         }
 
@@ -376,6 +376,18 @@ impl DatabaseSecurityValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn setup_i18n(lang: &str) {
+        crate::i18n::ErrorMessageI18n::init_i18n();
+        crate::i18n::set_language(lang);
+    }
+
+    fn validation_message(err: &QuickDbError) -> &str {
+        match err {
+            QuickDbError::ValidationError { message, .. } => message,
+            _ => "",
+        }
+    }
 
     #[test]
     fn test_sql_field_validation() {
@@ -432,5 +444,195 @@ mod tests {
                 .get_safe_field_identifier("123name")
                 .is_err()
         );
+    }
+
+    // ===== i18n 测试: zh-CN 向后兼容 =====
+
+    #[test]
+    fn test_field_empty_zh_cn() {
+        setup_i18n("zh-CN");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_field_name("").unwrap_err();
+        assert_eq!(validation_message(&err), "字段名不能为空");
+    }
+
+    #[test]
+    fn test_table_empty_zh_cn() {
+        setup_i18n("zh-CN");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_table_name("").unwrap_err();
+        assert_eq!(validation_message(&err), "表名不能为空");
+    }
+
+    #[test]
+    fn test_sql_field_invalid_char_zh_cn() {
+        setup_i18n("zh-CN");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_field_name("na-me").unwrap_err();
+        assert_eq!(validation_message(&err), "SQL字段名包含非法字符 '-' 在位置 2");
+    }
+
+    #[test]
+    fn test_sql_field_keyword_zh_cn() {
+        setup_i18n("zh-CN");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_field_name("select").unwrap_err();
+        assert_eq!(validation_message(&err), "字段名不能使用SQL关键字: select");
+    }
+
+    #[test]
+    fn test_nosql_field_start_dollar_zh_cn() {
+        setup_i18n("zh-CN");
+        let v = DatabaseSecurityValidator::new(DatabaseType::MongoDB);
+        let err = v.validate_field_name("$name").unwrap_err();
+        assert_eq!(validation_message(&err), "NoSQL字段名不能以$开头");
+    }
+
+    #[test]
+    fn test_mongo_reserved_zh_cn() {
+        setup_i18n("zh-CN");
+        let v = DatabaseSecurityValidator::new(DatabaseType::MongoDB);
+        let err = v.validate_field_name("_id").unwrap_err();
+        assert_eq!(validation_message(&err), "字段名不能使用MongoDB保留字: _id");
+    }
+
+    #[test]
+    fn test_sql_table_keyword_zh_cn() {
+        setup_i18n("zh-CN");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_table_name("select").unwrap_err();
+        assert_eq!(validation_message(&err), "表名不能使用SQL关键字: select");
+    }
+
+    #[test]
+    fn test_collection_start_system_zh_cn() {
+        setup_i18n("zh-CN");
+        let v = DatabaseSecurityValidator::new(DatabaseType::MongoDB);
+        let err = v.validate_table_name("system.users").unwrap_err();
+        assert_eq!(validation_message(&err), "集合名不能以system.开头");
+    }
+
+    // ===== i18n 测试: en-US =====
+
+    #[test]
+    fn test_field_empty_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_field_name("").unwrap_err();
+        assert_eq!(validation_message(&err), "Field name cannot be empty");
+    }
+
+    #[test]
+    fn test_table_empty_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_table_name("").unwrap_err();
+        assert_eq!(validation_message(&err), "Table name cannot be empty");
+    }
+
+    #[test]
+    fn test_sql_field_invalid_char_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_field_name("na-me").unwrap_err();
+        assert_eq!(validation_message(&err), "SQL field name contains invalid character '-' at position 2");
+    }
+
+    #[test]
+    fn test_sql_field_keyword_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_field_name("select").unwrap_err();
+        assert_eq!(validation_message(&err), "Field name cannot use SQL keyword: select");
+    }
+
+    #[test]
+    fn test_nosql_field_start_dollar_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::MongoDB);
+        let err = v.validate_field_name("$name").unwrap_err();
+        assert_eq!(validation_message(&err), "NoSQL field name cannot start with $");
+    }
+
+    #[test]
+    fn test_nosql_field_contains_dot_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::MongoDB);
+        let err = v.validate_field_name("a.b").unwrap_err();
+        assert_eq!(validation_message(&err), "NoSQL field name cannot contain dots");
+    }
+
+    #[test]
+    fn test_mongo_reserved_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::MongoDB);
+        let err = v.validate_field_name("_id").unwrap_err();
+        assert_eq!(validation_message(&err), "Field name cannot use MongoDB reserved word: _id");
+    }
+
+    #[test]
+    fn test_sql_table_start_digit_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_table_name("1abc").unwrap_err();
+        assert_eq!(validation_message(&err), "SQL table name cannot start with a digit");
+    }
+
+    #[test]
+    fn test_sql_table_invalid_char_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_table_name("a-b").unwrap_err();
+        assert_eq!(validation_message(&err), "SQL table name contains invalid character '-' at position 1");
+    }
+
+    #[test]
+    fn test_sql_table_keyword_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_table_name("table").unwrap_err();
+        assert_eq!(validation_message(&err), "Table name cannot use SQL keyword: table");
+    }
+
+    #[test]
+    fn test_collection_start_dollar_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::MongoDB);
+        let err = v.validate_table_name("$coll").unwrap_err();
+        assert_eq!(validation_message(&err), "Collection name cannot start with $");
+    }
+
+    #[test]
+    fn test_collection_contains_null_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::MongoDB);
+        let err = v.validate_table_name("bad\0name").unwrap_err();
+        assert_eq!(validation_message(&err), "Collection name cannot contain null characters");
+    }
+
+    #[test]
+    fn test_collection_start_system_en_us() {
+        setup_i18n("en-US");
+        let v = DatabaseSecurityValidator::new(DatabaseType::MongoDB);
+        let err = v.validate_table_name("system.users").unwrap_err();
+        assert_eq!(validation_message(&err), "Collection name cannot start with system.");
+    }
+
+    // ===== i18n 测试: ja-JP 代表性 =====
+
+    #[test]
+    fn test_field_empty_ja_jp() {
+        setup_i18n("ja-JP");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_field_name("").unwrap_err();
+        assert_eq!(validation_message(&err), "フィールド名は空にできません");
+    }
+
+    #[test]
+    fn test_sql_field_keyword_ja_jp() {
+        setup_i18n("ja-JP");
+        let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
+        let err = v.validate_field_name("select").unwrap_err();
+        assert_eq!(validation_message(&err), "フィールド名にSQLキーワードは使用できません: select");
     }
 }
