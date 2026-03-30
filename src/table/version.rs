@@ -199,14 +199,14 @@ impl VersionManager {
         if self.get_version(table_name, from_version).is_none() {
             return Err(QuickDbError::ValidationError {
                 field: "from_version".to_string(),
-                message: format!("源版本 {} 不存在", from_version),
+                message: crate::i18n::tf("table.source_version_not_exist", &[("version", &from_version.to_string())]),
             });
         }
 
         if self.get_version(table_name, to_version).is_none() {
             return Err(QuickDbError::ValidationError {
                 field: "to_version".to_string(),
-                message: format!("目标版本 {} 不存在", to_version),
+                message: crate::i18n::tf("table.target_version_not_exist", &[("version", &to_version.to_string())]),
             });
         }
 
@@ -253,17 +253,14 @@ impl VersionManager {
                 .find_migration_mut(table_name, migration_id)
                 .ok_or_else(|| QuickDbError::ValidationError {
                     field: "migration_id".to_string(),
-                    message: format!("迁移脚本 {} 不存在", migration_id),
+                    message: crate::i18n::tf("table.migration_script_not_exist", &[("id", migration_id)]),
                 })?;
 
             // 检查迁移状态
             if migration.status != MigrationStatus::Pending {
                 return Err(QuickDbError::ValidationError {
                     field: "migration_status".to_string(),
-                    message: format!(
-                        "迁移脚本 {} 状态不正确: {:?}",
-                        migration_id, migration.status
-                    ),
+                    message: crate::i18n::tf("table.migration_status_invalid", &[("id", migration_id), ("status", &format!("{:?}", migration.status))]),
                 });
             }
 
@@ -325,7 +322,7 @@ impl VersionManager {
                 .find_migration_mut(table_name, migration_id)
                 .ok_or_else(|| QuickDbError::ValidationError {
                     field: "migration_id".to_string(),
-                    message: format!("迁移脚本 {} 不存在", migration_id),
+                    message: crate::i18n::tf("table.migration_script_not_exist", &[("id", migration_id)]),
                 })?;
 
             // 检查是否有回滚脚本
@@ -335,17 +332,14 @@ impl VersionManager {
                     .clone()
                     .ok_or_else(|| QuickDbError::ValidationError {
                         field: "down_script".to_string(),
-                        message: format!("迁移脚本 {} 没有回滚脚本", migration_id),
+                        message: crate::i18n::tf("table.migration_no_rollback", &[("id", migration_id)]),
                     })?;
 
             // 检查迁移状态
             if migration.status != MigrationStatus::Success {
                 return Err(QuickDbError::ValidationError {
                     field: "migration_status".to_string(),
-                    message: format!(
-                        "迁移脚本 {} 状态不正确，无法回滚: {:?}",
-                        migration_id, migration.status
-                    ),
+                    message: crate::i18n::tf("table.migration_rollback_status_invalid", &[("id", migration_id), ("status", &format!("{:?}", migration.status))]),
                 });
             }
 
@@ -428,7 +422,7 @@ impl VersionManager {
                 .get(table_name)
                 .ok_or_else(|| QuickDbError::ValidationError {
                     field: "table_name".to_string(),
-                    message: format!("表 {} 不存在", table_name),
+                    message: crate::i18n::tf("table.table_not_exist", &[("name", table_name)]),
                 })?;
 
         let mut path = Vec::new();
@@ -442,13 +436,13 @@ impl VersionManager {
                     } else {
                         return Err(QuickDbError::ValidationError {
                             field: "migration_script".to_string(),
-                            message: format!("版本 {} 缺少迁移脚本", version),
+                            message: crate::i18n::tf("table.version_missing_migration", &[("version", &version.to_string())]),
                         });
                     }
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: "version".to_string(),
-                        message: format!("版本 {} 不存在", version),
+                        message: crate::i18n::tf("table.version_not_exist", &[("version", &version.to_string())]),
                     });
                 }
             }
@@ -462,19 +456,19 @@ impl VersionManager {
                         } else {
                             return Err(QuickDbError::ValidationError {
                                 field: "down_script".to_string(),
-                                message: format!("版本 {} 缺少回滚脚本", version),
+                                message: crate::i18n::tf("table.version_missing_rollback", &[("version", &version.to_string())]),
                             });
                         }
                     } else {
                         return Err(QuickDbError::ValidationError {
                             field: "migration_script".to_string(),
-                            message: format!("版本 {} 缺少迁移脚本", version),
+                            message: crate::i18n::tf("table.version_missing_migration", &[("version", &version.to_string())]),
                         });
                     }
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: "version".to_string(),
-                        message: format!("版本 {} 不存在", version),
+                        message: crate::i18n::tf("table.version_not_exist", &[("version", &version.to_string())]),
                     });
                 }
             }

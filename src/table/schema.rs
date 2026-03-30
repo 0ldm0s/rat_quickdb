@@ -286,14 +286,14 @@ impl TableSchema {
     pub fn validate(&self) -> Result<(), String> {
         // 检查是否有列定义
         if self.columns.is_empty() {
-            return Err("表必须至少有一个列".to_string());
+            return Err(crate::i18n::t("table.schema_no_columns"));
         }
 
         // 检查列名是否重复
         let mut column_names = std::collections::HashSet::new();
         for column in &self.columns {
             if !column_names.insert(&column.name) {
-                return Err(format!("列名 '{}' 重复", column.name));
+                return Err(crate::i18n::tf("table.column_name_duplicate", &[("name", &column.name)]));
             }
         }
 
@@ -301,16 +301,13 @@ impl TableSchema {
         let mut index_names = std::collections::HashSet::new();
         for index in &self.indexes {
             if !index_names.insert(&index.name) {
-                return Err(format!("索引名 '{}' 重复", index.name));
+                return Err(crate::i18n::tf("table.index_name_duplicate", &[("name", &index.name)]));
             }
 
             // 检查索引列是否存在
             for column_name in &index.columns {
                 if !self.has_column(column_name) {
-                    return Err(format!(
-                        "索引 '{}' 引用的列 '{}' 不存在",
-                        index.name, column_name
-                    ));
+                    return Err(crate::i18n::tf("table.index_column_not_exist", &[("index", &index.name), ("column", column_name)]));
                 }
             }
         }
@@ -319,16 +316,13 @@ impl TableSchema {
         let mut constraint_names = std::collections::HashSet::new();
         for constraint in &self.constraints {
             if !constraint_names.insert(&constraint.name) {
-                return Err(format!("约束名 '{}' 重复", constraint.name));
+                return Err(crate::i18n::tf("table.constraint_name_duplicate", &[("name", &constraint.name)]));
             }
 
             // 检查约束列是否存在
             for column_name in &constraint.columns {
                 if !self.has_column(column_name) {
-                    return Err(format!(
-                        "约束 '{}' 引用的列 '{}' 不存在",
-                        constraint.name, column_name
-                    ));
+                    return Err(crate::i18n::tf("table.constraint_column_not_exist", &[("constraint", &constraint.name), ("column", column_name)]));
                 }
             }
         }
@@ -505,9 +499,9 @@ impl IndexDefinition {
         Self {
             name,
             index_type: IndexType::BTree,
+            options: HashMap::new(),
             columns,
             unique: false,
-            options: HashMap::new(),
         }
     }
 
@@ -602,5 +596,262 @@ impl ConstraintDefinition {
     pub fn on_update(mut self, action: ReferentialAction) -> Self {
         self.on_update = Some(action);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_i18n(lang: &str) {
+        crate::i18n::ErrorMessageI18n::init_i18n();
+        crate::i18n::set_language(lang);
+    }
+
+    fn make_column(name: &str) -> ColumnDefinition {
+        ColumnDefinition {
+            name: name.to_string(),
+            column_type: ColumnType::Text,
+            nullable: true,
+            default_value: None,
+            primary_key: false,
+            auto_increment: false,
+            unique: false,
+            comment: None,
+            length: None,
+            precision: None,
+            scale: None,
+        }
+    }
+
+    fn make_schema(columns: Vec<ColumnDefinition>) -> TableSchema {
+        TableSchema {
+            name: "test_table".to_string(),
+            columns,
+            indexes: Vec::new(),
+            constraints: Vec::new(),
+            options: TableOptions::default(),
+            version: 1,
+            created_at: None,
+            updated_at: None,
+        }
+    }
+
+    // ===== schema_no_columns =====
+
+    #[test]
+    fn test_schema_no_columns_zh_cn() {
+        setup_i18n("zh-CN");
+        let schema = make_schema(vec![]);
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "表必须至少有一个列");
+    }
+
+    #[test]
+    fn test_schema_no_columns_en_us() {
+        setup_i18n("en-US");
+        let schema = make_schema(vec![]);
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "Table must have at least one column");
+    }
+
+    #[test]
+    fn test_schema_no_columns_ja_jp() {
+        setup_i18n("ja-JP");
+        let schema = make_schema(vec![]);
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "テーブルには少なくとも1つの列が必要です");
+    }
+
+    // ===== column_name_duplicate =====
+
+    #[test]
+    fn test_column_name_duplicate_zh_cn() {
+        setup_i18n("zh-CN");
+        let schema = make_schema(vec![make_column("id"), make_column("id")]);
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "列名 'id' 重复");
+    }
+
+    #[test]
+    fn test_column_name_duplicate_en_us() {
+        setup_i18n("en-US");
+        let schema = make_schema(vec![make_column("id"), make_column("id")]);
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "Column name 'id' is duplicated");
+    }
+
+    // ===== index_name_duplicate =====
+
+    #[test]
+    fn test_index_name_duplicate_zh_cn() {
+        setup_i18n("zh-CN");
+        let mut schema = make_schema(vec![make_column("id")]);
+        schema.indexes.push(IndexDefinition {
+            name: "idx_id".to_string(),
+            columns: vec!["id".to_string()],
+            unique: false,
+            index_type: IndexType::BTree,
+            options: HashMap::new(),
+        });
+        schema.indexes.push(IndexDefinition {
+            name: "idx_id".to_string(),
+            columns: vec!["id".to_string()],
+            unique: false,
+            index_type: IndexType::BTree,
+            options: HashMap::new(),
+        });
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "索引名 'idx_id' 重复");
+    }
+
+    #[test]
+    fn test_index_name_duplicate_en_us() {
+        setup_i18n("en-US");
+        let mut schema = make_schema(vec![make_column("id")]);
+        schema.indexes.push(IndexDefinition {
+            name: "idx_id".to_string(),
+            columns: vec!["id".to_string()],
+            unique: false,
+            index_type: IndexType::BTree,
+            options: HashMap::new(),
+        });
+        schema.indexes.push(IndexDefinition {
+            name: "idx_id".to_string(),
+            columns: vec!["id".to_string()],
+            unique: false,
+            index_type: IndexType::BTree,
+            options: HashMap::new(),
+        });
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "Index name 'idx_id' is duplicated");
+    }
+
+    // ===== index_column_not_exist =====
+
+    #[test]
+    fn test_index_column_not_exist_zh_cn() {
+        setup_i18n("zh-CN");
+        let mut schema = make_schema(vec![make_column("id")]);
+        schema.indexes.push(IndexDefinition {
+            name: "idx_missing".to_string(),
+            columns: vec!["nonexistent".to_string()],
+            unique: false,
+            index_type: IndexType::BTree,
+            options: HashMap::new(),
+        });
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "索引 'idx_missing' 引用的列 'nonexistent' 不存在");
+    }
+
+    #[test]
+    fn test_index_column_not_exist_en_us() {
+        setup_i18n("en-US");
+        let mut schema = make_schema(vec![make_column("id")]);
+        schema.indexes.push(IndexDefinition {
+            name: "idx_missing".to_string(),
+            columns: vec!["nonexistent".to_string()],
+            unique: false,
+            index_type: IndexType::BTree,
+            options: HashMap::new(),
+        });
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "Index 'idx_missing' references non-existent column 'nonexistent'");
+    }
+
+    // ===== constraint_name_duplicate =====
+
+    #[test]
+    fn test_constraint_name_duplicate_zh_cn() {
+        setup_i18n("zh-CN");
+        let mut schema = make_schema(vec![make_column("id")]);
+        schema.constraints.push(ConstraintDefinition {
+            name: "ck_name".to_string(),
+            constraint_type: ConstraintType::Check,
+            columns: vec![],
+            reference_table: None,
+            reference_columns: None,
+            on_delete: None,
+            on_update: None,
+            check_condition: Some("id > 0".to_string()),
+        });
+        schema.constraints.push(ConstraintDefinition {
+            name: "ck_name".to_string(),
+            constraint_type: ConstraintType::Check,
+            columns: vec![],
+            reference_table: None,
+            reference_columns: None,
+            on_delete: None,
+            on_update: None,
+            check_condition: Some("id < 100".to_string()),
+        });
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "约束名 'ck_name' 重复");
+    }
+
+    #[test]
+    fn test_constraint_name_duplicate_en_us() {
+        setup_i18n("en-US");
+        let mut schema = make_schema(vec![make_column("id")]);
+        schema.constraints.push(ConstraintDefinition {
+            name: "ck_name".to_string(),
+            constraint_type: ConstraintType::Check,
+            columns: vec![],
+            reference_table: None,
+            reference_columns: None,
+            on_delete: None,
+            on_update: None,
+            check_condition: Some("id > 0".to_string()),
+        });
+        schema.constraints.push(ConstraintDefinition {
+            name: "ck_name".to_string(),
+            constraint_type: ConstraintType::Check,
+            columns: vec![],
+            reference_table: None,
+            reference_columns: None,
+            on_delete: None,
+            on_update: None,
+            check_condition: Some("id < 100".to_string()),
+        });
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "Constraint name 'ck_name' is duplicated");
+    }
+
+    // ===== constraint_column_not_exist =====
+
+    #[test]
+    fn test_constraint_column_not_exist_zh_cn() {
+        setup_i18n("zh-CN");
+        let mut schema = make_schema(vec![make_column("id")]);
+        schema.constraints.push(ConstraintDefinition {
+            name: "fk_ref".to_string(),
+            constraint_type: ConstraintType::ForeignKey,
+            columns: vec!["missing_col".to_string()],
+            reference_table: Some("other".to_string()),
+            reference_columns: Some(vec!["id".to_string()]),
+            on_delete: None,
+            on_update: None,
+            check_condition: None,
+        });
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "约束 'fk_ref' 引用的列 'missing_col' 不存在");
+    }
+
+    #[test]
+    fn test_constraint_column_not_exist_en_us() {
+        setup_i18n("en-US");
+        let mut schema = make_schema(vec![make_column("id")]);
+        schema.constraints.push(ConstraintDefinition {
+            name: "fk_ref".to_string(),
+            constraint_type: ConstraintType::ForeignKey,
+            columns: vec!["missing_col".to_string()],
+            reference_table: Some("other".to_string()),
+            reference_columns: Some(vec!["id".to_string()]),
+            on_delete: None,
+            on_update: None,
+            check_condition: None,
+        });
+        let err = schema.validate().unwrap_err();
+        assert_eq!(err, "Constraint 'fk_ref' references non-existent column 'missing_col'");
     }
 }

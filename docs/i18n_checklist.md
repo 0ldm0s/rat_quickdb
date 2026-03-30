@@ -248,38 +248,36 @@
 
 ---
 
-## P8: 表管理 — table/
+## P8: 表管理 — table/ ✅
 
 ### table/schema.rs
-> 注：i18n 中已注册 `error.table_no_columns` 等 key，但此处未调用。
-
-- [ ] `src/table/schema.rs:289` — `"表必须至少有一个列"`
-- [ ] `src/table/schema.rs:296` — `"列名 '{}' 重复"`
-- [ ] `src/table/schema.rs:304` — `"索引名 '{}' 重复"`
-- [ ] `src/table/schema.rs:310` — `"索引 '{}' 引用的列 '{}' 不存在"`
-- [ ] `src/table/schema.rs:322` — `"约束名 '{}' 重复"`
-- [ ] `src/table/schema.rs:328` — `"约束 '{}' 引用的列 '{}' 不存在"`
+- [x] `src/table/schema.rs:289` — `"表必须至少有一个列"`
+- [x] `src/table/schema.rs:296` — `"列名 '{}' 重复"`
+- [x] `src/table/schema.rs:304` — `"索引名 '{}' 重复"`
+- [x] `src/table/schema.rs:310` — `"索引 '{}' 引用的列 '{}' 不存在"`
+- [x] `src/table/schema.rs:322` — `"约束名 '{}' 重复"`
+- [x] `src/table/schema.rs:328` — `"约束 '{}' 引用的列 '{}' 不存在"`
 
 ### table/version.rs
-- [ ] `src/table/version.rs:202` — `"源版本 {} 不存在"`
-- [ ] `src/table/version.rs:209` — `"目标版本 {} 不存在"`
-- [ ] `src/table/version.rs:256` — `"迁移脚本 {} 不存在"`
-- [ ] `src/table/version.rs:264` — `"迁移脚本 {} 状态不正确: {:?}"`
-- [ ] `src/table/version.rs:328` — `"迁移脚本 {} 不存在"`
-- [ ] `src/table/version.rs:338` — `"迁移脚本 {} 没有回滚脚本"`
-- [ ] `src/table/version.rs:346` — `"迁移脚本 {} 状态不正确，无法回滚: {:?}"`
-- [ ] `src/table/version.rs:431` — `"表 {} 不存在"`
-- [ ] `src/table/version.rs:445` — `"版本 {} 缺少迁移脚本"`
-- [ ] `src/table/version.rs:451` — `"版本 {} 不存在"`
-- [ ] `src/table/version.rs:465` — `"版本 {} 缺少回滚脚本"`
-- [ ] `src/table/version.rs:471` — `"版本 {} 缺少迁移脚本"`
-- [ ] `src/table/version.rs:477` — `"版本 {} 不存在"`
+- [x] `src/table/version.rs:202` — `"源版本 {} 不存在"`
+- [x] `src/table/version.rs:209` — `"目标版本 {} 不存在"`
+- [x] `src/table/version.rs:256` — `"迁移脚本 {} 不存在"`
+- [x] `src/table/version.rs:264` — `"迁移脚本 {} 状态不正确: {:?}"`
+- [x] `src/table/version.rs:328` — `"迁移脚本 {} 不存在"`
+- [x] `src/table/version.rs:338` — `"迁移脚本 {} 没有回滚脚本"`
+- [x] `src/table/version.rs:346` — `"迁移脚本 {} 状态不正确，无法回滚: {:?}"`
+- [x] `src/table/version.rs:431` — `"表 {} 不存在"`
+- [x] `src/table/version.rs:445` — `"版本 {} 缺少迁移脚本"`
+- [x] `src/table/version.rs:451` — `"版本 {} 不存在"`
+- [x] `src/table/version.rs:465` — `"版本 {} 缺少回滚脚本"`
+- [x] `src/table/version.rs:471` — `"版本 {} 缺少迁移脚本"`
+- [x] `src/table/version.rs:477` — `"版本 {} 不存在"`
 
 ### table/manager.rs
-- [ ] `src/table/manager.rs:175` — `"无法获取默认连接池"`
-- [ ] `src/table/manager.rs:270` — `"初始版本"` (description 字符串)
-- [ ] `src/table/manager.rs:287` — `"无法获取默认连接池"`
-- [ ] `src/table/manager.rs:458` — `"表 {} 没有注册版本"`
+- [x] `src/table/manager.rs:175` — `"无法获取默认连接池"`
+- [x] `src/table/manager.rs:270` — `"初始版本"` (description 字符串)
+- [x] `src/table/manager.rs:287` — `"无法获取默认连接池"`
+- [x] `src/table/manager.rs:458` — `"表 {} 没有注册版本"`
 
 ---
 

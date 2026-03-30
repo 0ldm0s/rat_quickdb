@@ -1011,6 +1011,57 @@ impl ErrorMessageI18n {
         v(&mut translations, "serializer.json_not_object",
             "JSON值不是对象类型", "JSON value is not an object type", "JSON値がオブジェクトタイプではありません");
 
+        // ===== P8: 表管理 table/ =====
+        // schema.rs
+        v(&mut translations, "table.schema_no_columns",
+            "表必须至少有一个列", "Table must have at least one column", "テーブルには少なくとも1つの列が必要です");
+        v(&mut translations, "table.column_name_duplicate",
+            "列名 '{name}' 重复", "Column name '{name}' is duplicated", "列名 '{name}' が重複しています");
+        v(&mut translations, "table.index_name_duplicate",
+            "索引名 '{name}' 重复", "Index name '{name}' is duplicated", "インデックス名 '{name}' が重複しています");
+        v(&mut translations, "table.index_column_not_exist",
+            "索引 '{index}' 引用的列 '{column}' 不存在",
+            "Index '{index}' references non-existent column '{column}'",
+            "インデックス '{index}' が参照する列 '{column}' が存在しません");
+        v(&mut translations, "table.constraint_name_duplicate",
+            "约束名 '{name}' 重复", "Constraint name '{name}' is duplicated", "制約名 '{name}' が重複しています");
+        v(&mut translations, "table.constraint_column_not_exist",
+            "约束 '{constraint}' 引用的列 '{column}' 不存在",
+            "Constraint '{constraint}' references non-existent column '{column}'",
+            "制約 '{constraint}' が参照する列 '{column}' が存在しません");
+        // version.rs
+        v(&mut translations, "table.source_version_not_exist",
+            "源版本 {version} 不存在", "Source version {version} does not exist", "ソースバージョン {version} が存在しません");
+        v(&mut translations, "table.target_version_not_exist",
+            "目标版本 {version} 不存在", "Target version {version} does not exist", "ターゲットバージョン {version} が存在しません");
+        v(&mut translations, "table.migration_script_not_exist",
+            "迁移脚本 {id} 不存在", "Migration script {id} does not exist", "マイグレーションスクリプト {id} が存在しません");
+        v(&mut translations, "table.migration_status_invalid",
+            "迁移脚本 {id} 状态不正确: {status}",
+            "Migration script {id} has invalid status: {status}",
+            "マイグレーションスクリプト {id} の状態が不正です: {status}");
+        v(&mut translations, "table.migration_no_rollback",
+            "迁移脚本 {id} 没有回滚脚本", "Migration script {id} has no rollback script", "マイグレーションスクリプト {id} にロールバックスクリプトがありません");
+        v(&mut translations, "table.migration_rollback_status_invalid",
+            "迁移脚本 {id} 状态不正确，无法回滚: {status}",
+            "Migration script {id} has invalid status, cannot rollback: {status}",
+            "マイグレーションスクリプト {id} の状態が不正でロールバックできません: {status}");
+        v(&mut translations, "table.table_not_exist",
+            "表 {name} 不存在", "Table {name} does not exist", "テーブル {name} が存在しません");
+        v(&mut translations, "table.version_missing_migration",
+            "版本 {version} 缺少迁移脚本", "Version {version} is missing migration script", "バージョン {version} にマイグレーションスクリプトがありません");
+        v(&mut translations, "table.version_not_exist",
+            "版本 {version} 不存在", "Version {version} does not exist", "バージョン {version} が存在しません");
+        v(&mut translations, "table.version_missing_rollback",
+            "版本 {version} 缺少回滚脚本", "Version {version} is missing rollback script", "バージョン {version} にロールバックスクリプトがありません");
+        // manager.rs
+        v(&mut translations, "table.cannot_get_default_pool",
+            "无法获取默认连接池", "Cannot get default connection pool", "デフォルト接続プールを取得できません");
+        v(&mut translations, "table.initial_version",
+            "初始版本", "Initial version", "初期バージョン");
+        v(&mut translations, "table.no_version_registered",
+            "表 {name} 没有注册版本", "Table {name} has no registered version", "テーブル {name} に登録されたバージョンがありません");
+
         // 注册所有翻译
         register_translations(translations);
     }

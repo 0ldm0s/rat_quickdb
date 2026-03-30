@@ -172,7 +172,7 @@ impl TableManager {
         let pool = pools
             .get("default")
             .ok_or_else(|| QuickDbError::ConfigError {
-                message: "无法获取默认连接池".to_string(),
+                message: crate::i18n::t("table.cannot_get_default_pool"),
             })?
             .clone();
 
@@ -267,7 +267,7 @@ impl TableManager {
                 version_manager.register_version(
                     schema.name.clone(),
                     schema.clone(),
-                    Some("初始版本".to_string()),
+                    Some(crate::i18n::t("table.initial_version")),
                 )?;
             }
 
@@ -284,7 +284,7 @@ impl TableManager {
         let pool = pools
             .get("default")
             .ok_or_else(|| QuickDbError::ConfigError {
-                message: "无法获取默认连接池".to_string(),
+                message: crate::i18n::t("table.cannot_get_default_pool"),
             })?
             .clone();
 
@@ -455,7 +455,7 @@ impl TableManager {
                     .map(|v| v.version)
                     .ok_or_else(|| QuickDbError::ValidationError {
                         field: "table_name".to_string(),
-                        message: format!("表 {} 没有注册版本", table_name),
+                        message: crate::i18n::tf("table.no_version_registered", &[("name", table_name)]),
                     })?
             }
         };
