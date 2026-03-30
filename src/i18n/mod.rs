@@ -852,6 +852,21 @@ impl ErrorMessageI18n {
         v(&mut translations, "config.max_files_zero",
             "保留日志文件数量不能为零", "Max log files cannot be zero", "保持ログファイル数はゼロにできません");
 
+        // ===== ODM 层消息 =====
+
+        v(&mut translations, "odm.task_stopped",
+            "ODM后台任务已停止", "ODM background task has stopped", "ODMバックグラウンドタスクが停止しました");
+        v(&mut translations, "odm.request_failed",
+            "ODM请求处理失败", "ODM request processing failed", "ODMリクエスト処理が失敗しました");
+        v(&mut translations, "odm.channel_closed",
+            "连接池操作通道已关闭", "Connection pool operation channel closed", "接続プール操作チャンネルが閉じました");
+        v(&mut translations, "odm.response_timeout",
+            "等待连接池响应超时", "Waiting for connection pool response timed out", "接続プール応答タイムアウト");
+        v(&mut translations, "odm.operation_timeout",
+            "等待数据库操作结果超时", "Waiting for database operation result timed out", "データベース操作結果のタイムアウト");
+        v(&mut translations, "odm.create_missing_id",
+            "创建操作返回的数据中缺少id字段", "Created data is missing the id field", "作成結果のデータにidフィールドがありません");
+
         // 注册所有翻译
         register_translations(translations);
     }

@@ -30,11 +30,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -56,11 +56,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -96,11 +96,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -161,11 +161,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -189,11 +189,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -217,11 +217,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -245,11 +245,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -271,11 +271,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -297,11 +297,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -323,11 +323,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -349,11 +349,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -368,11 +368,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -390,11 +390,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 
@@ -416,11 +416,11 @@ impl OdmOperations for AsyncOdmManager {
         self.request_sender
             .send(request)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "ODM后台任务已停止".to_string(),
+                message: crate::i18n::t("odm.task_stopped"),
             })?;
 
         receiver.await.map_err(|_| QuickDbError::ConnectionError {
-            message: "ODM请求处理失败".to_string(),
+            message: crate::i18n::t("odm.request_failed"),
         })?
     }
 }

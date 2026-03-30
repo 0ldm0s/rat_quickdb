@@ -54,14 +54,14 @@ impl AsyncOdmManager {
             .operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "连接池操作通道已关闭".to_string(),
+                message: crate::i18n::t("odm.channel_closed"),
             })?;
 
         // 等待响应
         response_rx
             .await
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "等待连接池响应超时".to_string(),
+                message: crate::i18n::t("odm.response_timeout"),
             })?
     }
 
@@ -113,14 +113,14 @@ impl AsyncOdmManager {
             .operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "连接池操作通道已关闭".to_string(),
+                message: crate::i18n::t("odm.channel_closed"),
             })?;
 
         // 等待响应
         response_rx
             .await
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "等待连接池响应超时".to_string(),
+                message: crate::i18n::t("odm.response_timeout"),
             })?
     }
 
@@ -183,14 +183,14 @@ impl AsyncOdmManager {
             .operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "连接池操作通道已关闭".to_string(),
+                message: crate::i18n::t("odm.channel_closed"),
             })?;
 
         // 等待响应
         response_rx
             .await
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "等待连接池响应超时".to_string(),
+                message: crate::i18n::t("odm.response_timeout"),
             })?
     }
 

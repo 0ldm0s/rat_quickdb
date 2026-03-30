@@ -132,14 +132,14 @@ impl AsyncOdmManager {
             .operation_sender
             .send(operation)
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "连接池操作通道已关闭".to_string(),
+                message: crate::i18n::t("odm.channel_closed"),
             })?;
 
         // 等待响应
         let result = response_rx
             .await
             .map_err(|_| QuickDbError::ConnectionError {
-                message: "等待连接池响应超时".to_string(),
+                message: crate::i18n::t("odm.response_timeout"),
             })??;
 
         // 从返回的Object中提取id字段
@@ -152,7 +152,7 @@ impl AsyncOdmManager {
                     Ok(id_value.clone())
                 } else {
                     Err(QuickDbError::QueryError {
-                        message: "创建操作返回的数据中缺少id字段".to_string(),
+                        message: crate::i18n::t("odm.create_missing_id"),
                     })
                 }
             }
