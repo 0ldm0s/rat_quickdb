@@ -302,7 +302,7 @@ impl MongoQueryBuilder {
                             serde_json::from_str(&s).map_err(|e| {
                                 QuickDbError::ValidationError {
                                     field: condition.field.clone(),
-                                    message: format!("无效的JSON格式: {}", e),
+                                    message: crate::i18n::tf("adapter.mongo.invalid_json", &[("error", &e.to_string())]),
                                 }
                             })?;
 
@@ -321,7 +321,7 @@ impl MongoQueryBuilder {
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: condition.field.clone(),
-                        message: "StartsWith操作符只支持字符串类型".to_string(),
+                        message: crate::i18n::t("adapter.mongo.startswith_string_only"),
                     });
                 }
             }
@@ -331,7 +331,7 @@ impl MongoQueryBuilder {
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: condition.field.clone(),
-                        message: "EndsWith操作符只支持字符串类型".to_string(),
+                        message: crate::i18n::t("adapter.mongo.endswith_string_only"),
                     });
                 }
             }
@@ -356,10 +356,7 @@ impl MongoQueryBuilder {
                                     _ => {
                                         return Err(QuickDbError::ValidationError {
                                             field: field_name.to_string(),
-                                            message: format!(
-                                                "Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}",
-                                                bson_elem
-                                            ),
+                                            message: crate::i18n::tf("adapter.mongo.array_in_unsupported_type", &[("type", &format!("{:?}", bson_elem))]),
                                         });
                                     }
                                 }
@@ -392,10 +389,7 @@ impl MongoQueryBuilder {
                                     _ => {
                                         return Err(QuickDbError::ValidationError {
                                             field: field_name.to_string(),
-                                            message: format!(
-                                                "Array字段的NOT IN操作只支持String、Int、Float、Uuid类型，不支持: {:?}",
-                                                bson_elem
-                                            ),
+                                            message: crate::i18n::tf("adapter.mongo.array_notin_unsupported_type", &[("type", &format!("{:?}", bson_elem))]),
                                         });
                                     }
                                 }
@@ -413,7 +407,7 @@ impl MongoQueryBuilder {
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: condition.field.clone(),
-                        message: "Regex操作符只支持字符串类型".to_string(),
+                        message: crate::i18n::t("adapter.mongo.regex_string_only"),
                     });
                 }
             }
@@ -443,10 +437,7 @@ impl MongoQueryBuilder {
         let field_type = get_field_type(table, alias, field_name).ok_or_else(|| {
             QuickDbError::ValidationError {
                 field: field_name.to_string(),
-                message: format!(
-                    "无法确定字段 '{}' 的类型，请确保已正确注册模型元数据 (alias={})",
-                    field_name, alias
-                ),
+                message: crate::i18n::tf("adapter.mongo.field_type_unknown", &[("field", field_name), ("alias", alias)]),
             }
         })?;
 
@@ -468,7 +459,7 @@ impl MongoQueryBuilder {
                 } else {
                     return Err(QuickDbError::ValidationError {
                         field: field_name.to_string(),
-                        message: "字符串字段的Contains操作符只支持字符串值".to_string(),
+                        message: crate::i18n::t("adapter.mongo.contains_string_only"),
                     });
                 }
             }
@@ -493,7 +484,7 @@ impl MongoQueryBuilder {
             _ => {
                 return Err(QuickDbError::ValidationError {
                     field: field_name.to_string(),
-                    message: "Contains操作符只支持字符串、Array和JSON字段".to_string(),
+                    message: crate::i18n::t("adapter.mongo.contains_supported_types"),
                 });
             }
         }

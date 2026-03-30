@@ -56,10 +56,7 @@ impl DatabaseAdapter for MongoAdapter {
                     } else {
                         return Err(QuickDbError::ValidationError {
                             field: "collection_creation".to_string(),
-                            message: format!(
-                                "集合 '{}' 不存在，且没有预定义的模型元数据。MongoDB使用无模式设计，但建议先定义模型。",
-                                table
-                            ),
+                            message: crate::i18n::tf("adapter.mongo.collection_no_metadata", &[("collection", table)]),
                         });
                     }
 
@@ -104,7 +101,7 @@ impl DatabaseAdapter for MongoAdapter {
                         // 雪花策略需要ID字段
                         return Err(QuickDbError::ValidationError {
                             field: "_id".to_string(),
-                            message: format!("使用{:?}策略时必须提供ID字段", id_strategy),
+                            message: crate::i18n::tf("adapter.mongo.id_strategy_requires_id", &[("strategy", &format!("{:?}", id_strategy))]),
                         });
                     }
                     IdStrategy::Uuid => {
@@ -142,7 +139,7 @@ impl DatabaseAdapter for MongoAdapter {
                                 Ok(bson_val) => bson_val,
                                 Err(e) => {
                                     return Err(QuickDbError::QueryError {
-                                        message: format!("转换DataValue为BSON失败: {}", e),
+                                        message: crate::i18n::tf("adapter.mongo.convert_dv_bson_failed", &[("error", &e.to_string())]),
                                     });
                                 }
                             }
@@ -154,7 +151,7 @@ impl DatabaseAdapter for MongoAdapter {
                         Ok(bson_val) => doc.insert(key, bson_val),
                         Err(e) => {
                             return Err(QuickDbError::QueryError {
-                                message: format!("转换DataValue为BSON失败: {}", e),
+                                message: crate::i18n::tf("adapter.mongo.convert_dv_bson_failed", &[("error", &e.to_string())]),
                             });
                         }
                     };
@@ -168,7 +165,7 @@ impl DatabaseAdapter for MongoAdapter {
                     .insert_one(doc, None)
                     .await
                     .map_err(|e| QuickDbError::QueryError {
-                        message: format!("MongoDB插入失败: {}", e),
+                        message: crate::i18n::tf("adapter.mongo.insert_failed", &[("error", &e.to_string())]),
                     })?;
 
             let mut result_map = HashMap::new();
@@ -209,7 +206,7 @@ impl DatabaseAdapter for MongoAdapter {
             }
         } else {
             Err(QuickDbError::ConnectionError {
-                message: "连接类型不匹配，期望MongoDB连接".to_string(),
+                message: crate::i18n::t("adapter.mongo.connection_mismatch"),
             })
         }
     }
@@ -304,13 +301,13 @@ impl DatabaseAdapter for MongoAdapter {
                 .update_many(query, update, None)
                 .await
                 .map_err(|e| QuickDbError::QueryError {
-                    message: format!("MongoDB更新失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.update_failed", &[("error", &e.to_string())]),
                 })?;
 
             Ok(result.modified_count)
         } else {
             Err(QuickDbError::ConnectionError {
-                message: "连接类型不匹配，期望MongoDB连接".to_string(),
+                message: crate::i18n::t("adapter.mongo.connection_mismatch"),
             })
         }
     }
@@ -360,7 +357,7 @@ impl DatabaseAdapter for MongoAdapter {
                             Ok(bson_value) => set_doc.insert(&operation.field, bson_value),
                             Err(e) => {
                                 return Err(QuickDbError::QueryError {
-                                    message: format!("转换更新值为BSON失败: {}", e),
+                                    message: crate::i18n::tf("adapter.mongo.convert_to_bson_failed", &[("operation", "更新值"), ("error", &e.to_string())]),
                                 });
                             }
                         };
@@ -370,7 +367,7 @@ impl DatabaseAdapter for MongoAdapter {
                             Ok(bson_value) => inc_doc.insert(&operation.field, bson_value),
                             Err(e) => {
                                 return Err(QuickDbError::QueryError {
-                                    message: format!("转换递增值为BSON失败: {}", e),
+                                    message: crate::i18n::tf("adapter.mongo.convert_to_bson_failed", &[("operation", "递增值"), ("error", &e.to_string())]),
                                 });
                             }
                         };
@@ -383,7 +380,7 @@ impl DatabaseAdapter for MongoAdapter {
                             _ => {
                                 return Err(QuickDbError::ValidationError {
                                     field: operation.field.clone(),
-                                    message: "Decrement操作只支持数值类型".to_string(),
+                                    message: crate::i18n::t("adapter.mongo.decrement_numeric_only"),
                                 });
                             }
                         };
@@ -391,7 +388,7 @@ impl DatabaseAdapter for MongoAdapter {
                             Ok(bson_value) => inc_doc.insert(&operation.field, bson_value),
                             Err(e) => {
                                 return Err(QuickDbError::QueryError {
-                                    message: format!("转换递减值为BSON失败: {}", e),
+                                    message: crate::i18n::tf("adapter.mongo.convert_to_bson_failed", &[("operation", "递减值"), ("error", &e.to_string())]),
                                 });
                             }
                         };
@@ -408,7 +405,7 @@ impl DatabaseAdapter for MongoAdapter {
                             }
                             Err(e) => {
                                 return Err(QuickDbError::QueryError {
-                                    message: format!("转换乘数值为BSON失败: {}", e),
+                                    message: crate::i18n::tf("adapter.mongo.convert_to_bson_failed", &[("operation", "乘数值"), ("error", &e.to_string())]),
                                 });
                             }
                         };
@@ -421,7 +418,7 @@ impl DatabaseAdapter for MongoAdapter {
                             _ => {
                                 return Err(QuickDbError::ValidationError {
                                     field: operation.field.clone(),
-                                    message: "Divide操作只支持数值类型".to_string(),
+                                    message: crate::i18n::t("adapter.mongo.divide_numeric_only"),
                                 });
                             }
                         };
@@ -438,7 +435,7 @@ impl DatabaseAdapter for MongoAdapter {
                             }
                             Err(e) => {
                                 return Err(QuickDbError::QueryError {
-                                    message: format!("转换除数值为BSON失败: {}", e),
+                                    message: crate::i18n::tf("adapter.mongo.convert_to_bson_failed", &[("operation", "除数值"), ("error", &e.to_string())]),
                                 });
                             }
                         };
@@ -451,7 +448,7 @@ impl DatabaseAdapter for MongoAdapter {
                             _ => {
                                 return Err(QuickDbError::ValidationError {
                                     field: operation.field.clone(),
-                                    message: "PercentIncrease操作只支持数值类型".to_string(),
+                                    message: crate::i18n::t("adapter.mongo.percent_increase_numeric_only"),
                                 });
                             }
                         };
@@ -469,7 +466,7 @@ impl DatabaseAdapter for MongoAdapter {
                             }
                             Err(e) => {
                                 return Err(QuickDbError::QueryError {
-                                    message: format!("转换百分比增加值为BSON失败: {}", e),
+                                    message: crate::i18n::tf("adapter.mongo.convert_to_bson_failed", &[("operation", "百分比增加值"), ("error", &e.to_string())]),
                                 });
                             }
                         };
@@ -482,7 +479,7 @@ impl DatabaseAdapter for MongoAdapter {
                             _ => {
                                 return Err(QuickDbError::ValidationError {
                                     field: operation.field.clone(),
-                                    message: "PercentDecrease操作只支持数值类型".to_string(),
+                                    message: crate::i18n::t("adapter.mongo.percent_decrease_numeric_only"),
                                 });
                             }
                         };
@@ -500,7 +497,7 @@ impl DatabaseAdapter for MongoAdapter {
                             }
                             Err(e) => {
                                 return Err(QuickDbError::QueryError {
-                                    message: format!("转换百分比减少值为BSON失败: {}", e),
+                                    message: crate::i18n::tf("adapter.mongo.convert_to_bson_failed", &[("operation", "百分比减少值"), ("error", &e.to_string())]),
                                 });
                             }
                         };
@@ -524,7 +521,7 @@ impl DatabaseAdapter for MongoAdapter {
             if update_doc.is_empty() {
                 return Err(QuickDbError::ValidationError {
                     field: "operations".to_string(),
-                    message: "更新操作不能为空".to_string(),
+                    message: crate::i18n::t("adapter.mongo.update_empty"),
                 });
             }
 
@@ -537,13 +534,13 @@ impl DatabaseAdapter for MongoAdapter {
                 .update_many(query, update_doc, None)
                 .await
                 .map_err(|e| QuickDbError::QueryError {
-                    message: format!("MongoDB更新失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.update_failed", &[("error", &e.to_string())]),
                 })?;
 
             Ok(result.modified_count)
         } else {
             Err(QuickDbError::ConnectionError {
-                message: "连接类型不匹配，期望MongoDB连接".to_string(),
+                message: crate::i18n::t("adapter.mongo.connection_mismatch"),
             })
         }
     }
@@ -566,11 +563,11 @@ impl DatabaseAdapter for MongoAdapter {
                 if check_collection_not_exist_error(&e, table) {
                     QuickDbError::TableNotExistError {
                         table: table.to_string(),
-                        message: format!("MongoDB集合 '{}' 不存在", table),
+                        message: crate::i18n::tf("adapter.mongo.collection_not_exist", &[("collection", table)]),
                     }
                 } else {
                     QuickDbError::QueryError {
-                        message: format!("MongoDB删除失败: {}", e),
+                        message: crate::i18n::tf("adapter.mongo.delete_failed", &[("error", &e.to_string())]),
                     }
                 }
             })?;
@@ -578,7 +575,7 @@ impl DatabaseAdapter for MongoAdapter {
             Ok(result.deleted_count)
         } else {
             Err(QuickDbError::ConnectionError {
-                message: "连接类型不匹配，期望MongoDB连接".to_string(),
+                message: crate::i18n::t("adapter.mongo.connection_mismatch"),
             })
         }
     }
@@ -674,7 +671,7 @@ impl DatabaseAdapter for MongoAdapter {
             .validate()
             .map_err(|e| crate::error::QuickDbError::ValidationError {
                 field: "config".to_string(),
-                message: format!("存储过程配置验证失败: {}", e),
+                message: crate::i18n::tf("adapter.mongo.stored_proc_validate_failed", &[("error", &e.to_string())]),
             })?;
 
         // 1. 确保依赖集合存在
@@ -735,7 +732,7 @@ impl DatabaseAdapter for MongoAdapter {
         let procedure_info = procedures.get(procedure_name).ok_or_else(|| {
             crate::error::QuickDbError::ValidationError {
                 field: "procedure_name".to_string(),
-                message: format!("存储过程 '{}' 不存在", procedure_name),
+                message: crate::i18n::tf("adapter.mongo.stored_proc_not_exist", &[("name", procedure_name)]),
             }
         })?;
         let pipeline_template = procedure_info.template.clone();
@@ -750,7 +747,7 @@ impl DatabaseAdapter for MongoAdapter {
         let pipeline_value: serde_json::Value =
             serde_json::from_str(&pipeline_template).map_err(|e| {
                 crate::error::QuickDbError::SerializationError {
-                    message: format!("解析聚合管道模板失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.parse_pipeline_failed", &[("error", &e.to_string())]),
                 }
             })?;
 
@@ -765,7 +762,7 @@ impl DatabaseAdapter for MongoAdapter {
             .and_then(|v| v.as_str())
             .ok_or_else(|| crate::error::QuickDbError::ValidationError {
                 field: "pipeline".to_string(),
-                message: "聚合管道模板缺少collection字段".to_string(),
+                message: crate::i18n::t("adapter.mongo.pipeline_missing_collection"),
             })?;
 
         let pipeline_stages = final_pipeline
@@ -773,7 +770,7 @@ impl DatabaseAdapter for MongoAdapter {
             .and_then(|v| v.as_array())
             .ok_or_else(|| crate::error::QuickDbError::ValidationError {
                 field: "pipeline".to_string(),
-                message: "聚合管道模板缺少pipeline字段".to_string(),
+                message: crate::i18n::t("adapter.mongo.pipeline_missing_pipeline"),
             })?;
 
         debug!(

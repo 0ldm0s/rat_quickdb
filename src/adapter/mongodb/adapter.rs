@@ -175,7 +175,7 @@ impl MongoAdapter {
             .map(|model_meta| &model_meta.collection_name)
             .ok_or_else(|| crate::error::QuickDbError::ValidationError {
                 field: "dependencies".to_string(),
-                message: "至少需要一个依赖集合作为主集合".to_string(),
+                message: crate::i18n::t("adapter.mongo.need_primary_collection"),
             })?;
 
         // 生成最终的聚合管道JSON
@@ -184,7 +184,7 @@ impl MongoAdapter {
             "pipeline": pipeline_stages
         }))
         .map_err(|e| crate::error::QuickDbError::SerializationError {
-            message: format!("序列化MongoDB聚合管道失败: {}", e),
+            message: crate::i18n::tf("adapter.mongo.serialize_pipeline_failed", &[("error", &e.to_string())]),
         })?;
 
         rat_logger::info!("生成的MongoDB存储过程聚合管道: {}", pipeline_json);
@@ -419,7 +419,7 @@ impl MongoAdapter {
             .map(|model_meta| &model_meta.collection_name)
             .ok_or_else(|| crate::error::QuickDbError::ValidationError {
                 field: "dependencies".to_string(),
-                message: "至少需要一个依赖集合作为主集合".to_string(),
+                message: crate::i18n::t("adapter.mongo.need_primary_collection"),
             })?;
 
         // 3. 构建Lookup阶段（对应SQL的JOIN）
@@ -500,7 +500,7 @@ impl MongoAdapter {
             "pipeline": pipeline_stages
         }))
         .map_err(|e| crate::error::QuickDbError::SerializationError {
-            message: format!("序列化MongoDB聚合管道失败: {}", e),
+            message: crate::i18n::tf("adapter.mongo.serialize_pipeline_failed", &[("error", &e.to_string())]),
         })?;
 
         rat_logger::info!("生成的MongoDB存储过程聚合管道: {}", pipeline_json);
@@ -529,7 +529,7 @@ impl MongoAdapter {
 
             let pipeline_docs =
                 pipeline_docs.map_err(|e| crate::error::QuickDbError::SerializationError {
-                    message: format!("聚合管道序列化失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.pipeline_serialize_failed", &[("error", &e.to_string())]),
                 })?;
 
             rat_logger::debug!(
@@ -543,7 +543,7 @@ impl MongoAdapter {
                 .aggregate(pipeline_docs, None)
                 .await
                 .map_err(|e| crate::error::QuickDbError::QueryError {
-                    message: format!("MongoDB聚合查询失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.aggregate_query_failed", &[("error", &e.to_string())]),
                 })?;
 
             let mut results = Vec::new();
@@ -551,12 +551,12 @@ impl MongoAdapter {
                 .advance()
                 .await
                 .map_err(|e| crate::error::QuickDbError::QueryError {
-                    message: format!("MongoDB聚合游标遍历失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.aggregate_cursor_failed", &[("error", &e.to_string())]),
                 })?
             {
                 let doc = cursor.deserialize_current().map_err(|e| {
                     crate::error::QuickDbError::QueryError {
-                        message: format!("MongoDB聚合文档反序列化失败: {}", e),
+                        message: crate::i18n::tf("adapter.mongo.aggregate_deserialize_failed", &[("error", &e.to_string())]),
                     }
                 })?;
 
@@ -569,7 +569,7 @@ impl MongoAdapter {
             Ok(results)
         } else {
             Err(crate::error::QuickDbError::ConnectionError {
-                message: "连接类型不匹配，期望MongoDB连接".to_string(),
+                message: crate::i18n::t("adapter.mongo.connection_mismatch"),
             })
         }
     }

@@ -50,7 +50,7 @@ pub(crate) async fn find_by_id(
                     Ok(bson_id) => doc! { "_id": bson_id },
                     Err(e) => {
                         return Err(QuickDbError::QueryError {
-                            message: format!("转换ID为BSON失败: {}", e),
+                            message: crate::i18n::tf("adapter.mongo.convert_id_bson_failed", &[("error", &e.to_string())]),
                         });
                     }
                 }
@@ -67,11 +67,11 @@ pub(crate) async fn find_by_id(
                     if check_collection_not_exist_error(&e, table) {
                         QuickDbError::TableNotExistError {
                             table: table.to_string(),
-                            message: format!("MongoDB集合 '{}' 不存在", table),
+                            message: crate::i18n::tf("adapter.mongo.collection_not_exist", &[("collection", table)]),
                         }
                     } else {
                         QuickDbError::QueryError {
-                            message: format!("MongoDB查询失败: {}", e),
+                            message: crate::i18n::tf("adapter.mongo.query_failed", &[("error", &e.to_string())]),
                         }
                     }
                 })?;
@@ -86,12 +86,12 @@ pub(crate) async fn find_by_id(
             // 这样调用者可以得到明确的预期，并在需要时通过插入操作自动创建集合
             Err(QuickDbError::TableNotExistError {
                 table: table.to_string(),
-                message: format!("MongoDB集合 '{}' 不存在或为空", table),
+                message: crate::i18n::tf("adapter.mongo.collection_empty", &[("collection", table)]),
             })
         }
     } else {
         Err(QuickDbError::ConnectionError {
-            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            message: crate::i18n::t("adapter.mongo.connection_mismatch"),
         })
     }
 }
@@ -173,7 +173,7 @@ pub(crate) async fn find_with_groups(
                 .find(query, find_options)
                 .await
                 .map_err(|e| QuickDbError::QueryError {
-                    message: format!("MongoDB条件组合查询失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.combined_query_failed", &[("error", &e.to_string())]),
                 })?;
 
         let mut results = Vec::new();
@@ -181,13 +181,13 @@ pub(crate) async fn find_with_groups(
             .advance()
             .await
             .map_err(|e| QuickDbError::QueryError {
-                message: format!("MongoDB游标遍历失败: {}", e),
+                message: crate::i18n::tf("adapter.mongo.cursor_failed", &[("error", &e.to_string())]),
             })?
         {
             let doc = cursor
                 .deserialize_current()
                 .map_err(|e| QuickDbError::QueryError {
-                    message: format!("MongoDB文档反序列化失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.deserialize_failed", &[("error", &e.to_string())]),
                 })?;
             let data_map = crate::adapter::mongodb::utils::document_to_data_map(adapter, &doc)?;
             // 直接返回Object，避免双重包装
@@ -197,7 +197,7 @@ pub(crate) async fn find_with_groups(
         Ok(results)
     } else {
         Err(QuickDbError::ConnectionError {
-            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            message: crate::i18n::t("adapter.mongo.connection_mismatch"),
         })
     }
 }
@@ -245,7 +245,7 @@ pub(crate) async fn find_with_groups_with_config(
                 .find(query, find_options)
                 .await
                 .map_err(|e| QuickDbError::QueryError {
-                    message: format!("MongoDB条件组合查询失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.combined_query_failed", &[("error", &e.to_string())]),
                 })?;
 
         let mut results = Vec::new();
@@ -253,13 +253,13 @@ pub(crate) async fn find_with_groups_with_config(
             .advance()
             .await
             .map_err(|e| QuickDbError::QueryError {
-                message: format!("MongoDB游标遍历失败: {}", e),
+                message: crate::i18n::tf("adapter.mongo.cursor_failed", &[("error", &e.to_string())]),
             })?
         {
             let doc = cursor
                 .deserialize_current()
                 .map_err(|e| QuickDbError::QueryError {
-                    message: format!("MongoDB文档反序列化失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.deserialize_failed", &[("error", &e.to_string())]),
                 })?;
             let data_map = crate::adapter::mongodb::utils::document_to_data_map(adapter, &doc)?;
             results.push(DataValue::Object(data_map));
@@ -268,7 +268,7 @@ pub(crate) async fn find_with_groups_with_config(
         Ok(results)
     } else {
         Err(QuickDbError::ConnectionError {
-            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            message: crate::i18n::t("adapter.mongo.connection_mismatch"),
         })
     }
 }
@@ -292,11 +292,11 @@ pub(crate) async fn count(
             if check_collection_not_exist_error(&e, table) {
                 QuickDbError::TableNotExistError {
                     table: table.to_string(),
-                    message: format!("MongoDB集合 '{}' 不存在", table),
+                    message: crate::i18n::tf("adapter.mongo.collection_not_exist", &[("collection", table)]),
                 }
             } else {
                 QuickDbError::QueryError {
-                    message: format!("MongoDB计数失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.count_failed", &[("error", &e.to_string())]),
                 }
             }
         })?;
@@ -304,7 +304,7 @@ pub(crate) async fn count(
         Ok(count)
     } else {
         Err(QuickDbError::ConnectionError {
-            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            message: crate::i18n::t("adapter.mongo.connection_mismatch"),
         })
     }
 }
@@ -330,11 +330,11 @@ pub(crate) async fn count_with_groups(
             if check_collection_not_exist_error(&e, table) {
                 QuickDbError::TableNotExistError {
                     table: table.to_string(),
-                    message: format!("MongoDB集合 '{}' 不存在", table),
+                    message: crate::i18n::tf("adapter.mongo.collection_not_exist", &[("collection", table)]),
                 }
             } else {
                 QuickDbError::QueryError {
-                    message: format!("MongoDB条件组合计数失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.combined_count_failed", &[("error", &e.to_string())]),
                 }
             }
         })?;
@@ -342,7 +342,7 @@ pub(crate) async fn count_with_groups(
         Ok(count)
     } else {
         Err(QuickDbError::ConnectionError {
-            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            message: crate::i18n::t("adapter.mongo.connection_mismatch"),
         })
     }
 }

@@ -31,7 +31,7 @@ pub(crate) async fn create_table(
                 // 如果集合已存在，忽略错误
                 if !e.to_string().contains("already exists") {
                     return Err(QuickDbError::QueryError {
-                        message: format!("创建MongoDB集合失败: {}", e),
+                        message: crate::i18n::tf("adapter.mongo.create_collection_failed", &[("error", &e.to_string())]),
                     });
                 }
             }
@@ -40,7 +40,7 @@ pub(crate) async fn create_table(
         Ok(())
     } else {
         Err(QuickDbError::ConnectionError {
-            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            message: crate::i18n::t("adapter.mongo.connection_mismatch"),
         })
     }
 }
@@ -76,13 +76,13 @@ pub(crate) async fn create_index(
             .create_index(index_model, None)
             .await
             .map_err(|e| QuickDbError::QueryError {
-                message: format!("创建MongoDB索引失败: {}", e),
+                message: crate::i18n::tf("adapter.mongo.create_index_failed", &[("error", &e.to_string())]),
             })?;
 
         Ok(())
     } else {
         Err(QuickDbError::ConnectionError {
-            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            message: crate::i18n::t("adapter.mongo.connection_mismatch"),
         })
     }
 }
@@ -97,13 +97,13 @@ pub(crate) async fn table_exists(
             db.list_collection_names(None)
                 .await
                 .map_err(|e| QuickDbError::QueryError {
-                    message: format!("检查MongoDB集合是否存在失败: {}", e),
+                    message: crate::i18n::tf("adapter.mongo.check_collection_failed", &[("error", &e.to_string())]),
                 })?;
 
         Ok(collection_names.contains(&table.to_string()))
     } else {
         Err(QuickDbError::ConnectionError {
-            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            message: crate::i18n::t("adapter.mongo.connection_mismatch"),
         })
     }
 }
@@ -121,14 +121,14 @@ pub(crate) async fn drop_table(
             .drop(None)
             .await
             .map_err(|e| QuickDbError::QueryError {
-                message: format!("删除MongoDB集合失败: {}", e),
+                message: crate::i18n::tf("adapter.mongo.drop_collection_failed", &[("error", &e.to_string())]),
             })?;
 
         debug!("成功删除MongoDB集合: {}", table);
         Ok(())
     } else {
         Err(QuickDbError::ConnectionError {
-            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            message: crate::i18n::t("adapter.mongo.connection_mismatch"),
         })
     }
 }
@@ -149,7 +149,7 @@ pub(crate) async fn get_server_version(
             .run_command(command, None)
             .await
             .map_err(|e| QuickDbError::QueryError {
-                message: format!("查询MongoDB版本失败: {}", e),
+                message: crate::i18n::tf("adapter.mongo.query_version_failed", &[("error", &e.to_string())]),
             })?;
 
         // 从结果中提取版本信息
@@ -158,7 +158,7 @@ pub(crate) async fn get_server_version(
                 mongodb::bson::Bson::String(v) => v.clone(),
                 _ => {
                     return Err(QuickDbError::QueryError {
-                        message: "MongoDB版本信息格式错误".to_string(),
+                        message: crate::i18n::t("adapter.mongo.version_format_invalid"),
                     });
                 }
             };
@@ -167,12 +167,12 @@ pub(crate) async fn get_server_version(
             Ok(version_str)
         } else {
             Err(QuickDbError::QueryError {
-                message: "MongoDB版本查询结果中没有版本信息".to_string(),
+                message: crate::i18n::t("adapter.mongo.version_no_info"),
             })
         }
     } else {
         Err(QuickDbError::ConnectionError {
-            message: "连接类型不匹配，期望MongoDB连接".to_string(),
+            message: crate::i18n::t("adapter.mongo.connection_mismatch"),
         })
     }
 }

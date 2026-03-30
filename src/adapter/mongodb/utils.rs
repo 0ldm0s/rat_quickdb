@@ -104,7 +104,7 @@ pub(crate) fn data_value_to_bson(adapter: &MongoAdapter, value: &DataValue) -> Q
                     // 返回错误而不是panic，让用户知道数据有问题
                     return Err(QuickDbError::ValidationError {
                         field: "json_field".to_string(),
-                        message: format!("Json字段类型接收到非对象/数组数据: {:?}，这是内部错误，应该在验证阶段被拒绝", json),
+                        message: crate::i18n::tf("adapter.mongo.json_invalid_data", &[("data", &format!("{:?}", json))]),
                     });
                 }
             }
@@ -279,7 +279,7 @@ pub(crate) fn build_update_document(
                 Ok(bson_value) => set_doc.insert(key, bson_value),
                 Err(e) => {
                     return Err(QuickDbError::QueryError {
-                        message: format!("转换更新数据为BSON失败: {}", e),
+                        message: crate::i18n::tf("adapter.mongo.convert_update_bson_failed", &[("error", &e.to_string())]),
                     });
                 }
             };

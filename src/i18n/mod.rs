@@ -880,6 +880,125 @@ impl ErrorMessageI18n {
         v(&mut translations, "pool.receive_response_failed",
             "接收响应失败", "Failed to receive response", "応答の受信に失敗しました");
 
+        // ===== MongoDB 适配器层消息 =====
+
+        v(&mut translations, "adapter.mongo.connection_mismatch",
+            "连接类型不匹配，期望MongoDB连接", "Connection type mismatch, expected MongoDB connection", "接続タイプが一致しません、MongoDB接続を期待");
+        v(&mut translations, "adapter.mongo.convert_id_bson_failed",
+            "转换ID为BSON失败: {error}", "Failed to convert ID to BSON: {error}", "IDのBSON変換に失敗しました: {error}");
+        v(&mut translations, "adapter.mongo.collection_not_exist",
+            "MongoDB集合 '{collection}' 不存在", "MongoDB collection '{collection}' does not exist", "MongoDBコレクション '{collection}' が存在しません");
+        v(&mut translations, "adapter.mongo.collection_empty",
+            "MongoDB集合 '{collection}' 不存在或为空", "MongoDB collection '{collection}' does not exist or is empty", "MongoDBコレクション '{collection}' が存在しないか空です");
+        v(&mut translations, "adapter.mongo.query_failed",
+            "MongoDB查询失败: {error}", "MongoDB query failed: {error}", "MongoDBクエリー: {error}");
+        v(&mut translations, "adapter.mongo.combined_query_failed",
+            "MongoDB条件组合查询失败: {error}", "MongoDB combined query failed: {error}", "MongoDB組み合わせクエリー: {error}");
+        v(&mut translations, "adapter.mongo.cursor_failed",
+            "MongoDB游标遍历失败: {error}", "MongoDB cursor traversal failed: {error}", "MongoDBカーソルトラバーサル失敗: {error}");
+        v(&mut translations, "adapter.mongo.deserialize_failed",
+            "MongoDB文档反序列化失败: {error}", "MongoDB document deserialization failed: {error}", "MongoDBドキュメントの逆シリアライズ失敗: {error}");
+        v(&mut translations, "adapter.mongo.count_failed",
+            "MongoDB计数失败: {error}", "MongoDB count failed: {error}", "MongoDBカウント失敗: {error}");
+        v(&mut translations, "adapter.mongo.combined_count_failed",
+            "MongoDB条件组合计数失败: {error}", "MongoDB combined count failed: {error}", "MongoDB組み合わせカウント失敗: {error}");
+        v(&mut translations, "adapter.mongo.convert_dv_bson_failed",
+            "转换DataValue为BSON失败: {error}", "Failed to convert DataValue to BSON: {error}", "DataValueのBSON変換に失敗しました: {error}");
+        v(&mut translations, "adapter.mongo.insert_failed",
+            "MongoDB插入失败: {error}", "MongoDB insert failed: {error}", "MongoDB挿入失敗: {error}");
+        v(&mut translations, "adapter.mongo.update_failed",
+            "MongoDB更新失败: {error}", "MongoDB update failed: {error}", "MongoDB更新失敗: {error}");
+        v(&mut translations, "adapter.mongo.delete_failed",
+            "MongoDB删除失败: {error}", "MongoDB delete failed: {error}", "MongoDB削除失敗: {error}");
+        v(&mut translations, "adapter.mongo.update_empty",
+            "更新操作不能为空", "Update operation cannot be empty", "更新操作は空にできません");
+        v(&mut translations, "adapter.mongo.stored_proc_validate_failed",
+            "存储过程配置验证失败: {error}", "Stored procedure config validation failed: {error}", "ストアドプロシージャ設定検証失敗: {error}");
+        v(&mut translations, "adapter.mongo.stored_proc_not_exist",
+            "存储过程 '{name}' 不存在", "Stored procedure '{name}' does not exist", "ストアドプロシージャ '{name}' が存在しません");
+        v(&mut translations, "adapter.mongo.parse_pipeline_failed",
+            "解析聚合管道模板失败: {error}", "Failed to parse aggregation pipeline template: {error}", "集約パイプラインテンプレートの解析に失敗しました: {error}");
+        v(&mut translations, "adapter.mongo.pipeline_missing_collection",
+            "聚合管道模板缺少collection字段", "Aggregation pipeline template missing collection field", "集約パイプラインテンプレートにcollectionフィールドがありません");
+        v(&mut translations, "adapter.mongo.pipeline_missing_pipeline",
+            "聚合管道模板缺少pipeline字段", "Aggregation pipeline template missing pipeline field", "集約パイプラインテンプレートにpipelineフィールドがありません");
+        v(&mut translations, "adapter.mongo.need_primary_collection",
+            "至少需要一个依赖集合作为主集合", "At least one dependent collection is required as primary", "少なくとも1つの依存コレクションをプライマリとして必要です");
+        v(&mut translations, "adapter.mongo.serialize_pipeline_failed",
+            "序列化MongoDB聚合管道失败: {error}", "Failed to serialize MongoDB aggregation pipeline: {error}", "MongoDB集約パイプラインのシリアライズに失敗しました: {error}");
+        v(&mut translations, "adapter.mongo.pipeline_serialize_failed",
+            "聚合管道序列化失败: {error}", "Pipeline serialization failed: {error}", "パイプラインシリアライズ失敗: {error}");
+        v(&mut translations, "adapter.mongo.aggregate_query_failed",
+            "MongoDB聚合查询失败: {error}", "MongoDB aggregation query failed: {error}", "MongoDB集約クエリー: {error}");
+        v(&mut translations, "adapter.mongo.aggregate_cursor_failed",
+            "MongoDB聚合游标遍历失败: {error}", "MongoDB aggregation cursor traversal failed: {error}", "MongoDB集約カーソルトラバースル失敗: {error}");
+        v(&mut translations, "adapter.mongo.aggregate_deserialize_failed",
+            "MongoDB聚合文档反序列化失败: {error}", "MongoDB aggregation document deserialization failed: {error}", "MongoDB集約ドキュメントの逆シリアライズ失敗: {error}");
+        v(&mut translations, "adapter.mongo.invalid_json",
+            "无效的JSON格式: {error}", "Invalid JSON format: {error}", "無効なJSON形式: {error}");
+        v(&mut translations, "adapter.mongo.startswith_string_only",
+            "StartsWith操作符只支持字符串类型", "StartsWith operator only supports string type", "StartsWith演算子は文字列型のみサポート");
+        v(&mut translations, "adapter.mongo.endswith_string_only",
+            "EndsWith操作符只支持字符串类型", "EndsWith operator only supports string type", "EndsWith演算子は文字列型のみサポート");
+        v(&mut translations, "adapter.mongo.array_in_unsupported_type",
+            "Array字段的IN操作只支持String、Int、Float、Uuid类型，不支持: {type}",
+            "Array field IN operation only supports String, Int, Float, Uuid types, unsupported: {type}",
+            "ArrayフィールドのIN操作はString、Int、Float、Uuid型のみサポート、非対応: {type}");
+        v(&mut translations, "adapter.mongo.array_notin_unsupported_type",
+            "Array字段的NOT IN操作只支持String、Int、Float、Uuid类型，不支持: {type}",
+            "Array field NOT IN operation only supports String, Int, Float, Uuid types, unsupported: {type}",
+            "ArrayフィールドのNOT IN操作はString、Int、Float、Uuid型のみサポート、非対応: {type}");
+        v(&mut translations, "adapter.mongo.regex_string_only",
+            "Regex操作符只支持字符串类型", "Regex operator only supports string type", "Regex演算子は文字列型のみサポート");
+        v(&mut translations, "adapter.mongo.field_type_unknown",
+            "无法确定字段 '{field}' 的类型，请确保已正确注册模型元数据 (alias={alias})",
+            "Cannot determine type of field '{field}', ensure model metadata is registered correctly (alias={alias})",
+            "フィールド '{field}' の型を特定できません、モデルメタデータが正しく登録されていることを確認してください (alias={alias})");
+        v(&mut translations, "adapter.mongo.contains_string_only",
+            "字符串字段的Contains操作符只支持字符串值", "String field Contains operator only supports string values", "文字列フィールドのContains演算子は文字列値のみサポート");
+        v(&mut translations, "adapter.mongo.contains_supported_types",
+            "Contains操作符只支持字符串、Array和JSON字段", "Contains operator only supports string, Array and JSON fields", "Contains演算子は文字列、Array、JSONフィールドのみサポート");
+        v(&mut translations, "adapter.mongo.convert_update_bson_failed",
+            "转换更新数据为BSON失败: {error}", "Failed to convert update data to BSON: {error}", "更新データのBSON変換に失敗しました: {error}");
+        v(&mut translations, "adapter.mongo.json_invalid_data",
+            "Json字段类型接收到非对象/数组数据: {data}, 这是内部错误，应该在验证阶段被拒绝",
+            "Json field received non-object/array data: {data}, this is an internal error that should have been rejected during validation",
+            "Jsonフィールドにオブジェクト/配列以外のデータ: {data}、これは検証段階で拒否されるべき内部エラーです");
+        v(&mut translations, "adapter.mongo.decrement_numeric_only",
+            "Decrement操作只支持数值类型", "Decrement operation only supports numeric types", "デクリメント操作は数値型のみサポート");
+        v(&mut translations, "adapter.mongo.increment_numeric_only",
+            "Increment操作只支持数值类型", "Increment operation only supports numeric types", "インクリメント操作は数値型のみサポート");
+        v(&mut translations, "adapter.mongo.multiply_numeric_only",
+            "Multiply操作只支持数值类型", "Multiply operation only supports numeric types", "乗算操作は数値型のみサポート");
+        v(&mut translations, "adapter.mongo.divide_numeric_only",
+            "Divide操作只支持数值类型", "Divide operation only supports numeric types", "除算操作は数値型のみサポート");
+        v(&mut translations, "adapter.mongo.percent_increase_numeric_only",
+            "PercentIncrease操作只支持数值类型", "PercentIncrease operation only supports numeric types", "パーセント増加操作は数値型のみサポート");
+        v(&mut translations, "adapter.mongo.percent_decrease_numeric_only",
+            "PercentDecrease操作只支持数值类型", "PercentDecrease operation only supports numeric types", "パーセント減少操作は数値型のみサポート");
+        v(&mut translations, "adapter.mongo.id_strategy_requires_id",
+            "使用{strategy:?}策略时必须提供ID字段", "ID field is required when using {strategy:?} strategy", "{strategy:?}戦略使用時はIDフィールドが必須です");
+        v(&mut translations, "adapter.mongo.collection_no_metadata",
+            "集合 '{collection}' 不存在，且没有预定义的模型元数据。MongoDB使用无模式设计，但建议先定义模型。",
+            "Collection '{collection}' does not exist and has no predefined model metadata. MongoDB uses schemaless design, but defining a model is recommended.",
+            "コレクション '{collection}' が存在せず、事前定義されたモデルメタデータもありません。MongoDBはスキーマレス設計ですが、モデルの定義を推奨します。");
+        v(&mut translations, "adapter.mongo.convert_to_bson_failed",
+            "转换{operation}为BSON失败: {error}", "Failed to convert {operation} to BSON: {error}", "{operation}のBSON変換に失敗しました: {error}");
+        v(&mut translations, "adapter.mongo.create_collection_failed",
+            "创建MongoDB集合失败: {error}", "Failed to create MongoDB collection: {error}", "MongoDBコレクションの作成に失敗しました: {error}");
+        v(&mut translations, "adapter.mongo.create_index_failed",
+            "创建MongoDB索引失败: {error}", "Failed to create MongoDB index: {error}", "MongoDBインデックスの作成に失敗しました: {error}");
+        v(&mut translations, "adapter.mongo.check_collection_failed",
+            "检查MongoDB集合是否存在失败: {error}", "Failed to check MongoDB collection existence: {error}", "MongoDBコレクション存在確認に失敗しました: {error}");
+        v(&mut translations, "adapter.mongo.drop_collection_failed",
+            "删除MongoDB集合失败: {error}", "Failed to drop MongoDB collection: {error}", "MongoDBコレクションの削除に失敗しました: {error}");
+        v(&mut translations, "adapter.mongo.query_version_failed",
+            "查询MongoDB版本失败: {error}", "Failed to query MongoDB version: {error}", "MongoDBバージョンクエリー: {error}");
+        v(&mut translations, "adapter.mongo.version_format_invalid",
+            "MongoDB版本信息格式错误", "MongoDB version info format error", "MongoDBバージョン情報の形式エラー");
+        v(&mut translations, "adapter.mongo.version_no_info",
+            "MongoDB版本查询结果中没有版本信息", "No version info in MongoDB version query result", "MongoDBバージョンクエリーの結果にバージョン情報がありません");
+
         // 注册所有翻译
         register_translations(translations);
     }
