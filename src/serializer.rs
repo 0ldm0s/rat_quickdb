@@ -142,13 +142,13 @@ impl SerializationResult {
             SerializationResult::JsonString(s) => Ok(s.clone()),
             SerializationResult::JsonObject(obj) => {
                 serde_json::to_string(obj).map_err(|e| QuickDbError::SerializationError {
-                    message: format!("序列化为JSON字符串失败: {}", e),
+                    message: crate::i18n::tf("serializer.serialize_to_json_failed", &[("message", &e.to_string())]),
                 })
             }
             SerializationResult::RawData(data) => {
                 let json_obj = data_map_to_json_value(data)?;
                 serde_json::to_string(&json_obj).map_err(|e| QuickDbError::SerializationError {
-                    message: format!("序列化为JSON字符串失败: {}", e),
+                    message: crate::i18n::tf("serializer.serialize_to_json_failed", &[("message", &e.to_string())]),
                 })
             }
         }
@@ -159,7 +159,7 @@ impl SerializationResult {
         match self {
             SerializationResult::JsonString(s) => {
                 serde_json::from_str(s).map_err(|e| QuickDbError::SerializationError {
-                    message: format!("解析JSON字符串失败: {}", e),
+                    message: crate::i18n::tf("serializer.parse_json_failed", &[("message", &e.to_string())]),
                 })
             }
             SerializationResult::JsonObject(obj) => Ok(obj.clone()),
@@ -173,7 +173,7 @@ impl SerializationResult {
             SerializationResult::JsonString(s) => {
                 let json_obj: JsonValue =
                     serde_json::from_str(s).map_err(|e| QuickDbError::SerializationError {
-                        message: format!("解析JSON字符串失败: {}", e),
+                        message: crate::i18n::tf("serializer.parse_json_failed", &[("message", &e.to_string())]),
                     })?;
                 json_value_to_data_map(&json_obj)
             }
@@ -227,7 +227,7 @@ impl DataSerializer {
                     serde_json::to_string(&json_obj)
                 }
                 .map_err(|e| QuickDbError::SerializationError {
-                    message: format!("序列化失败: {}", e),
+                    message: crate::i18n::tf("serializer.serialize_failed", &[("message", &e.to_string())]),
                 })?;
 
                 Ok(SerializationResult::JsonString(json_str))
@@ -267,7 +267,7 @@ impl DataSerializer {
                     serde_json::to_string(&json_array)
                 }
                 .map_err(|e| QuickDbError::SerializationError {
-                    message: format!("序列化失败: {}", e),
+                    message: crate::i18n::tf("serializer.serialize_failed", &[("message", &e.to_string())]),
                 })?;
 
                 Ok(SerializationResult::JsonString(json_str))
@@ -326,7 +326,7 @@ impl DataSerializer {
             }
             _ => {
                 return Err(QuickDbError::SerializationError {
-                    message: "无法处理记录序列化结果".to_string(),
+                    message: crate::i18n::t("serializer.cannot_process_result"),
                 });
             }
         }
@@ -361,7 +361,7 @@ impl DataSerializer {
                     serde_json::to_string(&json_obj)
                 }
                 .map_err(|e| QuickDbError::SerializationError {
-                    message: format!("序列化失败: {}", e),
+                    message: crate::i18n::tf("serializer.serialize_failed", &[("message", &e.to_string())]),
                 })?;
 
                 Ok(SerializationResult::JsonString(json_str))
@@ -429,7 +429,7 @@ fn json_value_to_data_map(json: &JsonValue) -> QuickDbResult<HashMap<String, Dat
         }
     } else {
         return Err(QuickDbError::SerializationError {
-            message: "JSON值不是对象类型".to_string(),
+            message: crate::i18n::t("serializer.json_not_object"),
         });
     }
 
@@ -487,4 +487,94 @@ pub fn serialize_query_result_for_rust(
 ) -> QuickDbResult<JsonValue> {
     let result = RUST_SERIALIZER.serialize_query_result(records, total_count, has_more)?;
     result.to_json_object()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_i18n(lang: &str) {
+        crate::i18n::ErrorMessageI18n::init_i18n();
+        crate::i18n::set_language(lang);
+    }
+
+    fn error_message(err: &QuickDbError) -> &str {
+        match err {
+            QuickDbError::SerializationError { message } => message,
+            _ => "",
+        }
+    }
+
+    // ===== json_not_object =====
+
+    #[test]
+    fn test_json_not_object_zh_cn() {
+        setup_i18n("zh-CN");
+        // JsonObject 包含数组而非对象，to_raw_data() 会命中 json_not_object
+        let result = SerializationResult::JsonObject(JsonValue::Array(vec![]));
+        let err = result.to_raw_data().unwrap_err();
+        assert_eq!(error_message(&err), "JSON值不是对象类型");
+    }
+
+    #[test]
+    fn test_json_not_object_en_us() {
+        setup_i18n("en-US");
+        let result = SerializationResult::JsonObject(JsonValue::Array(vec![]));
+        let err = result.to_raw_data().unwrap_err();
+        assert_eq!(error_message(&err), "JSON value is not an object type");
+    }
+
+    #[test]
+    fn test_json_not_object_ja_jp() {
+        setup_i18n("ja-JP");
+        let result = SerializationResult::JsonObject(JsonValue::Array(vec![]));
+        let err = result.to_raw_data().unwrap_err();
+        assert_eq!(error_message(&err), "JSON値がオブジェクトタイプではありません");
+    }
+
+    // ===== parse_json_failed =====
+
+    #[test]
+    fn test_parse_json_failed_zh_cn() {
+        setup_i18n("zh-CN");
+        let result = SerializationResult::JsonString("{{invalid".to_string());
+        let err = result.to_json_object().unwrap_err();
+        let msg = error_message(&err);
+        assert!(msg.starts_with("解析JSON字符串失败"));
+    }
+
+    #[test]
+    fn test_parse_json_failed_en_us() {
+        setup_i18n("en-US");
+        let result = SerializationResult::JsonString("{{invalid".to_string());
+        let err = result.to_json_object().unwrap_err();
+        let msg = error_message(&err);
+        assert!(msg.starts_with("Failed to parse JSON string"));
+    }
+
+    #[test]
+    fn test_parse_json_failed_ja_jp() {
+        setup_i18n("ja-JP");
+        let result = SerializationResult::JsonString("{{invalid".to_string());
+        let err = result.to_json_object().unwrap_err();
+        let msg = error_message(&err);
+        assert!(msg.starts_with("JSON文字列の解析に失敗しました"));
+    }
+
+    // ===== serialize_to_json_failed (to_json_string on JsonObject with unserializable data) =====
+    // serde_json::to_string 几乎不会对标准 DataValue 失败，但路径覆盖仍需测试
+
+    #[test]
+    fn test_to_json_string_success_from_json_object() {
+        let result = SerializationResult::JsonObject(JsonValue::Object(JsonMap::new()));
+        assert!(result.to_json_string().is_ok());
+    }
+
+    #[test]
+    fn test_to_raw_data_success_from_raw_data() {
+        let mut data = HashMap::new();
+        data.insert("key".to_string(), DataValue::String("value".to_string()));
+        let result = SerializationResult::RawData(data);
+        assert!(result.to_raw_data().is_ok());
+    }
 }

@@ -234,17 +234,17 @@
 
 ---
 
-## P7: 序列化 — serializer.rs
+## P7: 序列化 — serializer.rs ✅
 
-- [ ] `src/serializer.rs:145` — `"序列化为JSON字符串失败: {}"`
-- [ ] `src/serializer.rs:151` — `"序列化为JSON字符串失败: {}"`
-- [ ] `src/serializer.rs:162` — `"解析JSON字符串失败: {}"`
-- [ ] `src/serializer.rs:176` — `"解析JSON字符串失败: {}"`
-- [ ] `src/serializer.rs:230` — `"序列化失败: {}"`
-- [ ] `src/serializer.rs:270` — `"序列化失败: {}"`
-- [ ] `src/serializer.rs:329` — `"无法处理记录序列化结果"`
-- [ ] `src/serializer.rs:364` — `"序列化失败: {}"`
-- [ ] `src/serializer.rs:432` — `"JSON值不是对象类型"`
+- [x] `src/serializer.rs:145` — `"序列化为JSON字符串失败: {}"`
+- [x] `src/serializer.rs:151` — `"序列化为JSON字符串失败: {}"`
+- [x] `src/serializer.rs:162` — `"解析JSON字符串失败: {}"`
+- [x] `src/serializer.rs:176` — `"解析JSON字符串失败: {}"`
+- [x] `src/serializer.rs:230` — `"序列化失败: {}"`
+- [x] `src/serializer.rs:270` — `"序列化失败: {}"`
+- [x] `src/serializer.rs:329` — `"无法处理记录序列化结果"`
+- [x] `src/serializer.rs:364` — `"序列化失败: {}"`
+- [x] `src/serializer.rs:432` — `"JSON值不是对象类型"`
 
 ---
 

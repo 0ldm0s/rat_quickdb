@@ -999,6 +999,18 @@ impl ErrorMessageI18n {
         v(&mut translations, "adapter.mongo.version_no_info",
             "MongoDB版本查询结果中没有版本信息", "No version info in MongoDB version query result", "MongoDBバージョンクエリーの結果にバージョン情報がありません");
 
+        // ===== P7: 序列化层 serializer.rs =====
+        v(&mut translations, "serializer.serialize_to_json_failed",
+            "序列化为JSON字符串失败: {message}", "Failed to serialize to JSON string: {message}", "JSON文字列へのシリアライズに失敗しました: {message}");
+        v(&mut translations, "serializer.parse_json_failed",
+            "解析JSON字符串失败: {message}", "Failed to parse JSON string: {message}", "JSON文字列の解析に失敗しました: {message}");
+        v(&mut translations, "serializer.serialize_failed",
+            "序列化失败: {message}", "Serialization failed: {message}", "シリアライズに失敗しました: {message}");
+        v(&mut translations, "serializer.cannot_process_result",
+            "无法处理记录序列化结果", "Cannot process record serialization result", "レコードシリアライズ結果を処理できません");
+        v(&mut translations, "serializer.json_not_object",
+            "JSON值不是对象类型", "JSON value is not an object type", "JSON値がオブジェクトタイプではありません");
+
         // 注册所有翻译
         register_translations(translations);
     }
