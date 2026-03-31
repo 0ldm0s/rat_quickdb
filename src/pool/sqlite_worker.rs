@@ -173,7 +173,7 @@ impl SqliteWorker {
         // 如果文件不存在且不允许创建，则返回错误
         if !file_exists && !create_if_missing {
             return Err(QuickDbError::ConnectionError {
-                message: crate::i18n::tf("error.sqlite_file_not_found", &[("path", path)]),
+                message: crate::i18n::tf("error.sqlite_file_not_found", &[("path", &path)]),
             });
         }
 
