@@ -36,10 +36,7 @@ pub fn convert_string_to_datetime_with_tz<T: std::fmt::Debug + ToDataValue>(
             // 其他类型，返回错误
             Err(QuickDbError::ValidationError {
                 field: "DateTimeWithTz字段".to_string(),
-                message: format!(
-                    "不支持的数据类型 {:?}，期望DateTime<Utc>或RFC3339格式的字符串",
-                    std::any::type_name_of_val(value)
-                ),
+                message: crate::i18n::tf("model.datetime_unsupported_type", &[("type_name", std::any::type_name_of_val(value))]),
             })
         }
     }
@@ -104,10 +101,7 @@ fn parse_string_to_datetime_with_tz(
                     .single()
                     .ok_or_else(|| QuickDbError::ValidationError {
                         field: "DateTimeWithTz字段".to_string(),
-                        message: format!(
-                            "时间 '{}' 在时区 '{}' 下存在歧义（夏令时等）",
-                            datetime_str, timezone_offset
-                        ),
+                        message: crate::i18n::tf("model.datetime_ambiguous", &[("time", datetime_str), ("tz", timezone_offset)]),
                     })?;
 
                 // 保持FixedOffset格式
@@ -117,7 +111,7 @@ fn parse_string_to_datetime_with_tz(
             } else {
                 return Err(QuickDbError::ValidationError {
                     field: "DateTimeWithTz字段".to_string(),
-                    message: format!("无效的时区偏移: {}", timezone_offset),
+                    message: crate::i18n::tf("model.datetime_invalid_offset", &[("offset", timezone_offset)]),
                 });
             }
         }
@@ -126,13 +120,7 @@ fn parse_string_to_datetime_with_tz(
     // 所有解析尝试都失败
     Err(QuickDbError::ValidationError {
         field: "DateTimeWithTz字段".to_string(),
-        message: format!(
-            "无法解析日期时间字符串 '{}'。支持的格式：\n\
-            1. RFC3339格式（推荐）：2024-01-15T14:30:00+08:00\n\
-            2. 本地时间格式：2024-01-15 14:30:00\n\
-            3. 其他常见格式：2024-01-15T14:30:00、2024/01/15 14:30:00等",
-            datetime_str
-        ),
+        message: crate::i18n::tf("model.datetime_parse_failed", &[("str", datetime_str)]),
     })
 }
 
@@ -152,10 +140,7 @@ pub fn parse_timezone_offset(timezone_offset: &str) -> QuickDbResult<i32> {
     if !regex.is_match(timezone_offset) {
         return Err(QuickDbError::ValidationError {
             field: "时区偏移".to_string(),
-            message: format!(
-                "无效的时区偏移格式: '{}'。期望格式: [+/-]HH:MM，例如: +08:00、-05:30",
-                timezone_offset
-            ),
+            message: crate::i18n::tf("model.datetime_invalid_offset_format", &[("offset", timezone_offset)]),
         });
     }
 
@@ -168,7 +153,7 @@ pub fn parse_timezone_offset(timezone_offset: &str) -> QuickDbResult<i32> {
             .parse()
             .map_err(|_| QuickDbError::ValidationError {
                 field: "时区偏移".to_string(),
-                message: format!("无效的小时数: {}", caps.get(2).unwrap().as_str()),
+                message: crate::i18n::tf("model.datetime_invalid_hour", &[("hour", caps.get(2).unwrap().as_str())]),
             })?;
     let minutes: i32 =
         caps.get(3)
@@ -177,17 +162,14 @@ pub fn parse_timezone_offset(timezone_offset: &str) -> QuickDbResult<i32> {
             .parse()
             .map_err(|_| QuickDbError::ValidationError {
                 field: "时区偏移".to_string(),
-                message: format!("无效的分钟数: {}", caps.get(3).unwrap().as_str()),
+                message: crate::i18n::tf("model.datetime_invalid_minute", &[("minute", caps.get(3).unwrap().as_str())]),
             })?;
 
     // 验证范围
     if hours > 23 || minutes > 59 {
         return Err(QuickDbError::ValidationError {
             field: "时区偏移".to_string(),
-            message: format!(
-                "时区偏移超出范围: {}{}:{}.小时范围: 0-23，分钟范围: 0-59",
-                sign, hours, minutes
-            ),
+            message: crate::i18n::tf("model.datetime_offset_out_of_range", &[("sign", sign), ("hour", &hours.to_string()), ("minute", &minutes.to_string())]),
         });
     }
 
@@ -222,5 +204,51 @@ mod tests {
         assert!(parse_timezone_offset("+08:0").is_err()); // 分钟数不足两位
         assert!(parse_timezone_offset("+24:00").is_err()); // 小时数超出范围
         assert!(parse_timezone_offset("+08:60").is_err()); // 分钟数超出范围
+    }
+
+    // ===== i18n 测试 =====
+
+    fn setup_i18n(lang: &str) {
+        crate::i18n::ErrorMessageI18n::init_i18n();
+        crate::i18n::set_language(lang);
+    }
+
+    fn validation_message(err: &QuickDbError) -> &str {
+        match err {
+            QuickDbError::ValidationError { message, .. } => message,
+            _ => "",
+        }
+    }
+
+    #[test]
+    fn test_invalid_offset_format_zh_cn() {
+        setup_i18n("zh-CN");
+        let err = parse_timezone_offset("bad").unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.starts_with("无效的时区偏移格式"));
+    }
+
+    #[test]
+    fn test_invalid_offset_format_en_us() {
+        setup_i18n("en-US");
+        let err = parse_timezone_offset("bad").unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.starts_with("Invalid timezone offset format"));
+    }
+
+    #[test]
+    fn test_offset_out_of_range_zh_cn() {
+        setup_i18n("zh-CN");
+        let err = parse_timezone_offset("+24:00").unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.starts_with("时区偏移超出范围"));
+    }
+
+    #[test]
+    fn test_offset_out_of_range_en_us() {
+        setup_i18n("en-US");
+        let err = parse_timezone_offset("+24:00").unwrap_err();
+        let msg = validation_message(&err);
+        assert!(msg.starts_with("Timezone offset out of range"));
     }
 }

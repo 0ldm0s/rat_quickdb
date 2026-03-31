@@ -61,13 +61,13 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
     fn to_data_map_legacy(&self) -> QuickDbResult<HashMap<String, DataValue>> {
         let json_str =
             serde_json::to_string(self).map_err(|e| QuickDbError::SerializationError {
-                message: format!("序列化失败: {}", e),
+                message: crate::i18n::tf("serializer.serialize_failed", &[("message", &e.to_string())]),
             })?;
         debug!("🔍 序列化后的JSON字符串: {}", json_str);
 
         let json_value: JsonValue =
             serde_json::from_str(&json_str).map_err(|e| QuickDbError::SerializationError {
-                message: format!("解析JSON失败: {}", e),
+                message: crate::i18n::tf("model.parse_json_failed", &[("message", &e.to_string())]),
             })?;
         debug!("🔍 解析后的JsonValue: {:?}", json_value);
 
@@ -110,14 +110,14 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
         // 遍历模型的所有字段
         let json_str =
             serde_json::to_string(self).map_err(|e| QuickDbError::SerializationError {
-                message: format!("序列化失败: {}", e),
+                message: crate::i18n::tf("serializer.serialize_failed", &[("message", &e.to_string())]),
             })?;
 
         debug!("🔍 to_data_map_with_types_json 序列化的JSON: {}", json_str);
 
         let json_value: JsonValue =
             serde_json::from_str(&json_str).map_err(|e| QuickDbError::SerializationError {
-                message: format!("解析JSON失败: {}", e),
+                message: crate::i18n::tf("model.parse_json_failed", &[("message", &e.to_string())]),
             })?;
 
         debug!(
@@ -304,10 +304,7 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                     // 字段不在元数据中 - 这在 v0.3.0 中不应该发生，报错退出
                     return Err(QuickDbError::ValidationError {
                         field: key.clone(),
-                        message: format!(
-                            "字段 '{}' 未在模型元数据中定义，这在 v0.3.0 中是不允许的",
-                            key
-                        ),
+                        message: crate::i18n::tf("model.field_not_in_metadata", &[("field", &key)]),
                     });
                 }
             }

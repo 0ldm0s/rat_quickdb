@@ -284,29 +284,29 @@
 ## P9: 模型其他 — model/
 
 ### model/traits.rs
-- [ ] `src/model/traits.rs:64` — `"序列化失败: {}"`
-- [ ] `src/model/traits.rs:70` — `"解析JSON失败: {}"`
-- [ ] `src/model/traits.rs:113` — `"序列化失败: {}"`
-- [ ] `src/model/traits.rs:120` — `"解析JSON失败: {}"`
-- [ ] `src/model/traits.rs:307` — `"字段 '{}' 未在模型元数据中定义，这在 v0.3.0 中是不允许的"`
+- [x] `src/model/traits.rs:64` — `"序列化失败: {}"`
+- [x] `src/model/traits.rs:70` — `"解析JSON失败: {}"`
+- [x] `src/model/traits.rs:113` — `"序列化失败: {}"`
+- [x] `src/model/traits.rs:120` — `"解析JSON失败: {}"`
+- [x] `src/model/traits.rs:307` — `"字段 '{}' 未在模型元数据中定义，这在 v0.3.0 中是不允许的"`
 
 ### model/conversion/datetime_conversion.rs
-- [ ] `src/model/conversion/datetime_conversion.rs:40` — `"不支持的数据类型 {:?}，期望DateTime<Utc>或RFC3339格式的字符串"`
-- [ ] `src/model/conversion/datetime_conversion.rs:108` — `"时间 '{}' 在时区 '{}' 下存在歧义（夏令时等）"`
-- [ ] `src/model/conversion/datetime_conversion.rs:120` — `"无效的时区偏移: {}"`
-- [ ] `src/model/conversion/datetime_conversion.rs:129` — `"无法解析日期时间字符串 '{}'。支持的格式：..."`
-- [ ] `src/model/conversion/datetime_conversion.rs:155` — `"无效的时区偏移格式: '{}'。期望格式: [+/-]HH:MM..."`
-- [ ] `src/model/conversion/datetime_conversion.rs:171` — `"无效的小时数: {}"`
-- [ ] `src/model/conversion/datetime_conversion.rs:180` — `"无效的分钟数: {}"`
-- [ ] `src/model/conversion/datetime_conversion.rs:187` — `"时区偏移超出范围: {}{}:{}.小时范围: 0-23，分钟范围: 0-59"`
+- [x] `src/model/conversion/datetime_conversion.rs:40` — `"不支持的数据类型 {:?}，期望DateTime<Utc>或RFC3339格式的字符串"`
+- [x] `src/model/conversion/datetime_conversion.rs:108` — `"时间 '{}' 在时区 '{}' 下存在歧义（夏令时等）"`
+- [x] `src/model/conversion/datetime_conversion.rs:120` — `"无效的时区偏移: {}"`
+- [x] `src/model/conversion/datetime_conversion.rs:129` — `"无法解析日期时间字符串 '{}'。支持的格式：..."`
+- [x] `src/model/conversion/datetime_conversion.rs:155` — `"无效的时区偏移格式: '{}'。期望格式: [+/-]HH:MM..."`
+- [x] `src/model/conversion/datetime_conversion.rs:171` — `"无效的小时数: {}"`
+- [x] `src/model/conversion/datetime_conversion.rs:180` — `"无效的分钟数: {}"`
+- [x] `src/model/conversion/datetime_conversion.rs:187` — `"时区偏移超出范围: {}{}:{}.小时范围: 0-23，分钟范围: 0-59"`
 
 ### model/data_conversion.rs
-- [ ] `src/model/data_conversion.rs:22` — `"无法从DataValue映射创建模型实例: {}"`
-- [ ] `src/model/data_conversion.rs:155` — `"字段 '{}' 不存在"`
-- [ ] `src/model/data_conversion.rs:160` — `"字段访问越界"`
-- [ ] `src/model/data_conversion.rs:212` — `"数据值不存在"`
-- [ ] `src/model/data_conversion.rs:215` — `"键访问错误"`
-- [ ] `src/model/data_conversion.rs:218` — `"键访问错误"`
+- [x] `src/model/data_conversion.rs:22` — `"无法从DataValue映射创建模型实例: {}"`
+- [x] `src/model/data_conversion.rs:155` — `"字段 '{}' 不存在"`
+- [x] `src/model/data_conversion.rs:160` — `"字段访问越界"`
+- [x] `src/model/data_conversion.rs:212` — `"数据值不存在"`
+- [x] `src/model/data_conversion.rs:215` — `"键访问错误"`
+- [x] `src/model/data_conversion.rs:218` — `"键访问错误"`
 
 ---
 

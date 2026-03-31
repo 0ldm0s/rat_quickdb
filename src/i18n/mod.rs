@@ -1062,6 +1062,57 @@ impl ErrorMessageI18n {
         v(&mut translations, "table.no_version_registered",
             "表 {name} 没有注册版本", "Table {name} has no registered version", "テーブル {name} に登録されたバージョンがありません");
 
+        // ===== P9: 模型其他 model/ =====
+        // traits.rs
+        v(&mut translations, "model.parse_json_failed",
+            "解析JSON失败: {message}", "Failed to parse JSON: {message}", "JSONの解析に失敗しました: {message}");
+        v(&mut translations, "model.field_not_in_metadata",
+            "字段 '{field}' 未在模型元数据中定义，这在 v0.3.0 中是不允许的",
+            "Field '{field}' is not defined in model metadata, which is not allowed in v0.3.0",
+            "フィールド '{field}' がモデルメタデータに定義されていません。v0.3.0では許可されていません");
+        // datetime_conversion.rs
+        v(&mut translations, "model.datetime_unsupported_type",
+            "不支持的数据类型 {type_name}，期望DateTime<Utc>或RFC3339格式的字符串",
+            "Unsupported data type {type_name}, expected DateTime<Utc> or RFC3339 formatted string",
+            "サポートされていないデータ型 {type_name} です。DateTime<Utc>またはRFC3339形式の文字列が必要です");
+        v(&mut translations, "model.datetime_ambiguous",
+            "时间 '{time}' 在时区 '{tz}' 下存在歧义（夏令时等）",
+            "Time '{time}' is ambiguous under timezone '{tz}' (e.g. daylight saving time)",
+            "時刻 '{time}' はタイムゾーン '{tz}' の下で曖昧です（サマータイムなど）");
+        v(&mut translations, "model.datetime_invalid_offset",
+            "无效的时区偏移: {offset}",
+            "Invalid timezone offset: {offset}",
+            "無効なタイムゾーンオフセット: {offset}");
+        v(&mut translations, "model.datetime_parse_failed",
+            "无法解析日期时间字符串 '{str}'。支持的格式：\n1. RFC3339格式（推荐）：2024-01-15T14:30:00+08:00\n2. 本地时间格式：2024-01-15 14:30:00\n3. 其他常见格式：2024-01-15T14:30:00、2024/01/15 14:30:00等",
+            "Cannot parse datetime string '{str}'. Supported formats:\n1. RFC3339 (recommended): 2024-01-15T14:30:00+08:00\n2. Local time: 2024-01-15 14:30:00\n3. Other common formats: 2024-01-15T14:30:00, 2024/01/15 14:30:00, etc.",
+            "日時文字列 '{str}' を解析できません。サポートされている形式：\n1. RFC3339形式（推奨）：2024-01-15T14:30:00+08:00\n2. ローカル時間形式：2024-01-15 14:30:00\n3. その他：2024-01-15T14:30:00、2024/01/15 14:30:00等");
+        v(&mut translations, "model.datetime_invalid_offset_format",
+            "无效的时区偏移格式: '{offset}'。期望格式: [+/-]HH:MM，例如: +08:00、-05:30",
+            "Invalid timezone offset format: '{offset}'. Expected: [+/-]HH:MM, e.g. +08:00, -05:30",
+            "無効なタイムゾーンオフセット形式: '{offset}'。期待される形式: [+/-]HH:MM、例: +08:00、-05:30");
+        v(&mut translations, "model.datetime_invalid_hour",
+            "无效的小时数: {hour}", "Invalid hour: {hour}", "無効な時間: {hour}");
+        v(&mut translations, "model.datetime_invalid_minute",
+            "无效的分钟数: {minute}", "Invalid minute: {minute}", "無効な分: {minute}");
+        v(&mut translations, "model.datetime_offset_out_of_range",
+            "时区偏移超出范围: {sign}{hour}:{minute}。小时范围: 0-23，分钟范围: 0-59",
+            "Timezone offset out of range: {sign}{hour}:{minute}. Hour range: 0-23, Minute range: 0-59",
+            "タイムゾーンオフセットが範囲外です: {sign}{hour}:{minute}。時間範囲: 0-23、分範囲: 0-59");
+        // data_conversion.rs
+        v(&mut translations, "model.create_from_data_map_failed",
+            "无法从DataValue映射创建模型实例: {message}",
+            "Cannot create model instance from DataValue map: {message}",
+            "DataValueマップからモデルインスタンスを作成できません: {message}");
+        v(&mut translations, "model.field_not_exist",
+            "字段 '{field}' 不存在", "Field '{field}' does not exist", "フィールド '{field}' が存在しません");
+        v(&mut translations, "model.field_access_out_of_bounds",
+            "字段访问越界", "Field access out of bounds", "フィールドアクセスが範囲外です");
+        v(&mut translations, "model.data_value_not_exist",
+            "数据值不存在", "Data value does not exist", "データ値が存在しません");
+        v(&mut translations, "model.key_access_error",
+            "键访问错误", "Key access error", "キーアクセスエラー");
+
         // 注册所有翻译
         register_translations(translations);
     }

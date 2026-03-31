@@ -19,7 +19,7 @@ where
     let deserializer = DataValueDeserializer::new(data_map);
 
     T::deserialize(deserializer).map_err(|e| QuickDbError::SerializationError {
-        message: format!("无法从DataValue映射创建模型实例: {}", e),
+        message: crate::i18n::tf("model.create_from_data_map_failed", &[("message", &e.to_string())]),
     })
 }
 
@@ -151,13 +151,12 @@ impl<'a, 'de> serde::de::MapAccess<'de> for DataValueStructDeserializer<'a> {
                 seed.deserialize(deserializer)
             } else {
                 // 字段不存在时返回错误，让调用方处理
-                Err(serde::de::Error::custom(format!(
-                    "字段 '{}' 不存在",
-                    field_name
-                )))
+                Err(serde::de::Error::custom(
+                    crate::i18n::tf("model.field_not_exist", &[("field", field_name)])
+                ))
             }
         } else {
-            Err(serde::de::Error::custom("字段访问越界"))
+            Err(serde::de::Error::custom(crate::i18n::t("model.field_access_out_of_bounds")))
         }
     }
 }
@@ -209,10 +208,10 @@ impl<'a, 'de> serde::de::MapAccess<'de> for DataValueMapDeserializer<'a> {
                     let deserializer = DataValueSingleDeserializer::new(data_value);
                     seed.deserialize(deserializer)
                 } else {
-                    Err(serde::de::Error::custom("数据值不存在"))
+                    Err(serde::de::Error::custom(crate::i18n::t("model.data_value_not_exist")))
                 }
             } else {
-                Err(serde::de::Error::custom("键访问错误"))
+                Err(serde::de::Error::custom(crate::i18n::t("model.key_access_error")))
             }
         } else {
             Err(serde::de::Error::custom("键访问错误"))
@@ -346,5 +345,37 @@ mod tests {
         assert_eq!(model.name, "测试");
         assert_eq!(model.age, 25);
         assert_eq!(model.active, true);
+    }
+
+    // ===== i18n 测试 =====
+
+    fn setup_i18n(lang: &str) {
+        crate::i18n::ErrorMessageI18n::init_i18n();
+        crate::i18n::set_language(lang);
+    }
+
+    fn serialization_message(err: &QuickDbError) -> &str {
+        match err {
+            QuickDbError::SerializationError { message, .. } => message,
+            _ => "",
+        }
+    }
+
+    #[test]
+    fn test_create_from_data_map_failed_zh_cn() {
+        setup_i18n("zh-CN");
+        let bad_map: HashMap<String, DataValue> = HashMap::new();
+        let err = create_model_from_data_map::<TestModel>(&bad_map).unwrap_err();
+        let msg = serialization_message(&err);
+        assert!(msg.starts_with("无法从DataValue映射创建模型实例"));
+    }
+
+    #[test]
+    fn test_create_from_data_map_failed_en_us() {
+        setup_i18n("en-US");
+        let bad_map: HashMap<String, DataValue> = HashMap::new();
+        let err = create_model_from_data_map::<TestModel>(&bad_map).unwrap_err();
+        let msg = serialization_message(&err);
+        assert!(msg.starts_with("Cannot create model instance from DataValue map"));
     }
 }
