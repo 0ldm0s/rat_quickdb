@@ -323,16 +323,16 @@
 
 ---
 
-## P11: 存储过程 — stored_procedure/
+## P11: 存储过程 — stored_procedure/ ✅
 
-- [ ] `src/stored_procedure/config.rs:406` — `"存储过程名称不能为空"`
-- [ ] `src/stored_procedure/config.rs:413` — `"数据库别名不能为空"`
-- [ ] `src/stored_procedure/config.rs:424` — `"至少需要一个字段或聚合管道操作"`
-- [ ] `src/stored_procedure/config.rs:433` — `"JOIN字段不能为空"`
-- [ ] `src/stored_procedure/config.rs:450` — `"数据库别名 '{}' 不存在"`
-- [ ] `src/stored_procedure/config.rs:466` — `"警告：MongoDB对复杂JOIN支持有限，建议使用聚合管道中的$lookup操作"`
-- [ ] `src/stored_procedure/config.rs:478` — `"{} 不支持MongoDB聚合管道，请使用传统字段映射和JOIN配置"`
-- [ ] `src/stored_procedure/config.rs:494` — `"{} 存储过程必须定义字段映射"`
+- [x] `src/stored_procedure/config.rs:406` — `"存储过程名称不能为空"`
+- [x] `src/stored_procedure/config.rs:413` — `"数据库别名不能为空"`
+- [x] `src/stored_procedure/config.rs:424` — `"至少需要一个字段或聚合管道操作"`
+- [x] `src/stored_procedure/config.rs:433` — `"JOIN字段不能为空"`
+- [x] `src/stored_procedure/config.rs:450` — `"数据库别名 '{}' 不存在"`
+- [x] `src/stored_procedure/config.rs:466` — `"警告：MongoDB对复杂JOIN支持有限，建议使用聚合管道中的$lookup操作"`
+- [x] `src/stored_procedure/config.rs:478` — `"{} 不支持MongoDB聚合管道，请使用传统字段映射和JOIN配置"`
+- [x] `src/stored_procedure/config.rs:494` — `"{} 存储过程必须定义字段映射"`
 
 ---
 

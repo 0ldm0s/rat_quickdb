@@ -403,14 +403,14 @@ impl StoredProcedureConfig {
         if self.procedure_name.is_empty() {
             return Err(crate::error::QuickDbError::ValidationError {
                 field: "procedure_name".to_string(),
-                message: "存储过程名称不能为空".to_string(),
+                message: crate::i18n::t("sp.name_empty"),
             });
         }
 
         if self.database.is_empty() {
             return Err(crate::error::QuickDbError::ValidationError {
                 field: "database".to_string(),
-                message: "数据库别名不能为空".to_string(),
+                message: crate::i18n::t("sp.database_empty"),
             });
         }
 
@@ -421,7 +421,7 @@ impl StoredProcedureConfig {
         if self.mongo_pipeline.is_none() && self.fields.is_empty() {
             return Err(crate::error::QuickDbError::ValidationError {
                 field: "fields".to_string(),
-                message: "至少需要一个字段或聚合管道操作".to_string(),
+                message: crate::i18n::t("sp.need_field_or_pipeline"),
             });
         }
 
@@ -430,7 +430,7 @@ impl StoredProcedureConfig {
             if join.local_field.is_empty() || join.foreign_field.is_empty() {
                 return Err(crate::error::QuickDbError::ValidationError {
                     field: "join_fields".to_string(),
-                    message: "JOIN字段不能为空".to_string(),
+                    message: crate::i18n::t("sp.join_field_empty"),
                 });
             }
         }
@@ -442,63 +442,47 @@ impl StoredProcedureConfig {
     fn validate_database_type_compatibility(&self) -> QuickDbResult<()> {
         use crate::manager::get_global_pool_manager;
 
-        // 获取数据库类型以验证配置兼容性
         let db_type = get_global_pool_manager()
             .get_database_type(&self.database)
             .map_err(|_| crate::error::QuickDbError::ValidationError {
                 field: "database".to_string(),
-                message: format!("数据库别名 '{}' 不存在", self.database),
+                message: crate::i18n::tf("sp.database_alias_not_exist", &[("alias", &self.database)]),
             })?;
+
+        let db_type_name = match db_type {
+            crate::types::DatabaseType::SQLite => "SQLite",
+            crate::types::DatabaseType::MySQL => "MySQL",
+            crate::types::DatabaseType::PostgreSQL => "PostgreSQL",
+            crate::types::DatabaseType::MongoDB => "MongoDB",
+        };
 
         match db_type {
             crate::types::DatabaseType::MongoDB => {
-                // MongoDB配置验证
                 if self.mongo_pipeline.is_none() && self.fields.is_empty() {
                     return Err(crate::error::QuickDbError::ValidationError {
                         field: "mongo_config".to_string(),
-                        message: "MongoDB存储过程必须使用聚合管道或字段映射".to_string(),
+                        message: crate::i18n::t("sp.need_field_or_pipeline"),
                     });
                 }
 
-                // 检查是否在MongoDB中误用了SQL特有的复杂JOIN配置
                 if self.joins.len() > 1 {
-                    rat_logger::warn!(
-                        "警告：MongoDB对复杂JOIN支持有限，建议使用聚合管道中的$lookup操作"
-                    );
+                    rat_logger::warn!("{}", crate::i18n::t("sp.mongo_join_warning"));
                 }
             }
             crate::types::DatabaseType::SQLite
             | crate::types::DatabaseType::MySQL
             | crate::types::DatabaseType::PostgreSQL => {
-                // SQL系数据库配置验证
                 if self.mongo_pipeline.is_some() {
                     return Err(crate::error::QuickDbError::ValidationError {
                         field: "mongo_pipeline".to_string(),
-                        message: format!(
-                            "{} 不支持MongoDB聚合管道，请使用传统字段映射和JOIN配置",
-                            match db_type {
-                                crate::types::DatabaseType::SQLite => "SQLite",
-                                crate::types::DatabaseType::MySQL => "MySQL",
-                                crate::types::DatabaseType::PostgreSQL => "PostgreSQL",
-                                _ => "该数据库",
-                            }
-                        ),
+                        message: crate::i18n::tf("sp.sql_no_mongo_pipeline", &[("db_type", db_type_name)]),
                     });
                 }
 
-                // SQL数据库必须要有字段映射
                 if self.fields.is_empty() {
                     return Err(crate::error::QuickDbError::ValidationError {
                         field: "fields".to_string(),
-                        message: format!(
-                            "{} 存储过程必须定义字段映射",
-                            match db_type {
-                                crate::types::DatabaseType::SQLite => "SQLite",
-                                crate::types::DatabaseType::MySQL => "MySQL",
-                                crate::types::DatabaseType::PostgreSQL => "PostgreSQL",
-                                _ => "该数据库",
-                            }
-                        ),
+                        message: crate::i18n::tf("sp.must_define_fields", &[("db_type", db_type_name)]),
                     });
                 }
             }

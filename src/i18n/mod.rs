@@ -1147,6 +1147,32 @@ impl ErrorMessageI18n {
             "Collection {collection} has no registered model metadata, skipping table and index creation",
             "コレクション {collection} に登録されたモデルメタデータがありません。テーブルとインデックスの作成をスキップします");
 
+        // ===== P11: 存储过程 stored_procedure/ =====
+        v(&mut translations, "sp.name_empty",
+            "存储过程名称不能为空", "Stored procedure name cannot be empty", "ストアドプロシージャ名は空にできません");
+        v(&mut translations, "sp.database_empty",
+            "数据库别名不能为空", "Database alias cannot be empty", "データベースエイリアスは空にできません");
+        v(&mut translations, "sp.need_field_or_pipeline",
+            "至少需要一个字段或聚合管道操作",
+            "At least one field or aggregation pipeline operation is required",
+            "少なくとも1つのフィールドまたは集約パイプライン操作が必要です");
+        v(&mut translations, "sp.join_field_empty",
+            "JOIN字段不能为空", "JOIN fields cannot be empty", "JOINフィールドは空にできません");
+        v(&mut translations, "sp.database_alias_not_exist",
+            "数据库别名 '{alias}' 不存在", "Database alias '{alias}' does not exist", "データベースエイリアス '{alias}' が存在しません");
+        v(&mut translations, "sp.mongo_join_warning",
+            "警告：MongoDB对复杂JOIN支持有限，建议使用聚合管道中的$lookup操作",
+            "Warning: MongoDB has limited support for complex JOINs, consider using $lookup in aggregation pipeline",
+            "警告：MongoDBは複雑なJOINのサポートが限られています。集約パイプラインの$lookupの使用を検討してください");
+        v(&mut translations, "sp.sql_no_mongo_pipeline",
+            "{db_type} 不支持MongoDB聚合管道，请使用传统字段映射和JOIN配置",
+            "{db_type} does not support MongoDB aggregation pipeline, please use traditional field mapping and JOIN configuration",
+            "{db_type} はMongoDB集約パイプラインをサポートしていません。従来のフィールドマッピングとJOIN設定を使用してください");
+        v(&mut translations, "sp.must_define_fields",
+            "{db_type} 存储过程必须定义字段映射",
+            "{db_type} stored procedure must define field mapping",
+            "{db_type} ストアドプロシージャはフィールドマッピングを定義する必要があります");
+
         // 注册所有翻译
         register_translations(translations);
     }
