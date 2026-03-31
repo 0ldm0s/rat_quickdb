@@ -1173,6 +1173,32 @@ impl ErrorMessageI18n {
             "{db_type} stored procedure must define field mapping",
             "{db_type} ストアドプロシージャはフィールドマッピングを定義する必要があります");
 
+        // ===== P12: 类型系统 types/ =====
+        v(&mut translations, "types.to_json_failed",
+            "DataValue 转换为 JSON 失败: {message}",
+            "DataValue to JSON conversion failed: {message}",
+            "DataValueからJSONへの変換に失敗しました: {message}");
+        v(&mut translations, "types.from_json_failed",
+            "JSON 解析为 DataValue 失败: {message}",
+            "JSON to DataValue parsing failed: {message}",
+            "JSONからDataValueへの解析に失敗しました: {message}");
+        v(&mut translations, "types.deserialize_failed",
+            "DataValue 反序列化失败: {message}",
+            "DataValue deserialization failed: {message}",
+            "DataValueのデシリアライズに失敗しました: {message}");
+        v(&mut translations, "types.expect_object",
+            "期望Object类型，但收到: {type_name}",
+            "Expected Object type, but received: {type_name}",
+            "Object型を期待しましたが、受信しました: {type_name}");
+        v(&mut translations, "types.parse_json_string_failed",
+            "无法解析JSON字符串: {message}",
+            "Cannot parse JSON string: {message}",
+            "JSON文字列を解析できません: {message}");
+        v(&mut translations, "types.expect_json_object_or_string",
+            "期望JSON对象或JSON字符串",
+            "Expected JSON object or JSON string",
+            "JSONオブジェクトまたはJSON文字列を期待しました");
+
         // 注册所有翻译
         register_translations(translations);
     }

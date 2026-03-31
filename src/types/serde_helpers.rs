@@ -40,9 +40,9 @@ pub mod hashmap_datavalue {
             // 如果是字符串，尝试解析为JSON
             serde_json::Value::String(s) => {
                 serde_json::from_str::<HashMap<String, serde_json::Value>>(&s)
-                    .map_err(|e| D::Error::custom(format!("无法解析JSON字符串: {}", e)))?
+                    .map_err(|e| D::Error::custom(crate::i18n::tf("types.parse_json_string_failed", &[("message", &e.to_string())])))?
             }
-            _ => return Err(D::Error::custom("期望JSON对象或JSON字符串")),
+            _ => return Err(D::Error::custom(crate::i18n::t("types.expect_json_object_or_string"))),
         };
 
         let mut result = HashMap::new();

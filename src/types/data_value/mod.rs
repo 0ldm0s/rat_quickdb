@@ -95,14 +95,14 @@ impl DataValue {
     /// 转换为 JSON 字符串
     pub fn to_json_string(&self) -> Result<String, crate::error::QuickDbError> {
         serde_json::to_string(self).map_err(|e| {
-            crate::quick_error!(serialization, format!("DataValue 转换为 JSON 失败: {}", e))
+            crate::quick_error!(serialization, crate::i18n::tf("types.to_json_failed", &[("message", &e.to_string())]))
         })
     }
 
     /// 从 JSON 字符串解析
     pub fn from_json_string(json: &str) -> Result<Self, crate::error::QuickDbError> {
         serde_json::from_str(json).map_err(|e| {
-            crate::quick_error!(serialization, format!("JSON 解析为 DataValue 失败: {}", e))
+            crate::quick_error!(serialization, crate::i18n::tf("types.from_json_failed", &[("message", &e.to_string())]))
         })
     }
 
@@ -217,7 +217,7 @@ impl DataValue {
         T: serde::de::DeserializeOwned,
     {
         serde_json::from_value(serde_json::to_value(self)?).map_err(|e| {
-            crate::quick_error!(serialization, format!("DataValue 反序列化失败: {}", e))
+            crate::quick_error!(serialization, crate::i18n::tf("types.deserialize_failed", &[("message", &e.to_string())]))
         })
     }
 
@@ -228,7 +228,7 @@ impl DataValue {
             other => Err(crate::quick_error!(
                 validation,
                 "data_type",
-                format!("期望Object类型，但收到: {}", other.type_name())
+                crate::i18n::tf("types.expect_object", &[("type_name", other.type_name())])
             )),
         }
     }

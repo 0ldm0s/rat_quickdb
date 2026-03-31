@@ -336,17 +336,17 @@
 
 ---
 
-## P12: 类型系统 — types/
+## P12: 类型系统 — types/ ✅
 
 ### types/data_value/mod.rs
-- [ ] `src/types/data_value/mod.rs:98` — `"DataValue 转换为 JSON 失败: {}"`
-- [ ] `src/types/data_value/mod.rs:105` — `"JSON 解析为 DataValue 失败: {}"`
-- [ ] `src/types/data_value/mod.rs:220` — `"DataValue 反序列化失败: {}"`
-- [ ] `src/types/data_value/mod.rs` — 各类型转换错误 (~10 条)
+- [x] `src/types/data_value/mod.rs:98` — `"DataValue 转换为 JSON 失败: {}"`
+- [x] `src/types/data_value/mod.rs:105` — `"JSON 解析为 DataValue 失败: {}"`
+- [x] `src/types/data_value/mod.rs:220` — `"DataValue 反序列化失败: {}"`
+- [x] `src/types/data_value/mod.rs:231` — `"期望Object类型，但收到: {}"`
 
 ### types/serde_helpers.rs
-- [ ] `src/types/serde_helpers.rs:43` — `"无法解析JSON字符串: {}"`
-- [ ] `src/types/serde_helpers.rs:45` — `"期望JSON对象或JSON字符串"`
+- [x] `src/types/serde_helpers.rs:43` — `"无法解析JSON字符串: {}"`
+- [x] `src/types/serde_helpers.rs:45` — `"期望JSON对象或JSON字符串"`
 
 ---
 
