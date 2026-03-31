@@ -143,7 +143,7 @@ impl PoolManager {
                 match default_alias.as_ref() {
                     Some(a) => a.clone(),
                     None => {
-                        return Err(crate::quick_error!(config, "没有配置默认数据库别名"));
+                        return Err(crate::quick_error!(config, crate::i18n::t("manager.no_default_alias")));
                     }
                 }
             }
@@ -218,7 +218,7 @@ impl PoolManager {
         } else {
             Err(crate::quick_error!(
                 config,
-                format!("数据库 {} 没有配置ID生成器", alias)
+                crate::i18n::tf("manager.no_id_generator", &[("alias", alias)])
             ))
         }
     }
@@ -233,7 +233,7 @@ impl PoolManager {
         } else {
             Err(crate::quick_error!(
                 config,
-                format!("数据库 {} 没有MongoDB自增ID生成器", alias)
+                crate::i18n::tf("manager.no_mongo_auto_increment", &[("alias", alias)])
             ))
         }
     }

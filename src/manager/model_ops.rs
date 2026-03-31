@@ -171,8 +171,8 @@ impl PoolManager {
             }
         } else {
             debug!(
-                "集合 {} 没有注册的模型元数据，跳过表和索引创建",
-                collection_name
+                "{}",
+                crate::i18n::tf("manager.no_model_metadata", &[("collection", collection_name)])
             );
         }
 

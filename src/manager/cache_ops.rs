@@ -24,7 +24,7 @@ impl PoolManager {
         } else {
             Err(crate::quick_error!(
                 config,
-                format!("数据库 {} 没有配置缓存管理器", alias)
+                crate::i18n::tf("manager.no_cache_manager", &[("alias", alias)])
             ))
         }
     }

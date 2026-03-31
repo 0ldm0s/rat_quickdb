@@ -91,7 +91,7 @@ impl PoolManager {
                     }),
                     Err(_) => json!({
                         "enabled": true,
-                        "error": "无法获取缓存统计信息"
+                        "error": crate::i18n::t("manager.cannot_get_cache_stats")
                     }),
                 }
             } else {

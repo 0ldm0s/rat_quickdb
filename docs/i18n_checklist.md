@@ -310,16 +310,16 @@
 
 ---
 
-## P10: 管理器层 — manager/
+## P10: 管理器层 — manager/ ✅
 
-- [ ] `src/manager/cache_ops.rs:27` — `"数据库 {} 没有配置缓存管理器"`
-- [ ] `src/manager/database_ops.rs:146` — `"没有配置默认数据库别名"`
-- [ ] `src/manager/database_ops.rs:221` — `"数据库 {} 没有配置ID生成器"`
-- [ ] `src/manager/database_ops.rs:236` — `"数据库 {} 没有MongoDB自增ID生成器"`
-- [ ] `src/manager/alias_type_map.rs:19` — `"数据库类型映射表锁被污染"`
-- [ ] `src/manager/mod.rs:42` — `"全局操作已锁定，禁止添加数据库！系统已开始执行查询操作..."` (panic)
-- [ ] `src/manager/maintenance.rs:94` — `"无法获取缓存统计信息"`
-- [ ] `src/manager/model_ops.rs:174` — `"集合 {} 没有注册的模型元数据，跳过表和索引创建"`
+- [x] `src/manager/cache_ops.rs:27` — `"数据库 {} 没有配置缓存管理器"`
+- [x] `src/manager/database_ops.rs:146` — `"没有配置默认数据库别名"`
+- [x] `src/manager/database_ops.rs:221` — `"数据库 {} 没有配置ID生成器"`
+- [x] `src/manager/database_ops.rs:236` — `"数据库 {} 没有MongoDB自增ID生成器"`
+- [x] `src/manager/alias_type_map.rs:19` — `"数据库类型映射表锁被污染"`
+- [x] `src/manager/mod.rs:42` — `"全局操作已锁定，禁止添加数据库！系统已开始执行查询操作..."` (panic)
+- [x] `src/manager/maintenance.rs:94` — `"无法获取缓存统计信息"`
+- [x] `src/manager/model_ops.rs:174` — `"集合 {} 没有注册的模型元数据，跳过表和索引创建"`
 
 ---
 

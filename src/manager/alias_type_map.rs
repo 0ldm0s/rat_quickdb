@@ -16,7 +16,7 @@ static DATABASE_TYPE_MAPPING: OnceLock<RwLock<HashMap<String, DatabaseType>>> = 
 pub fn register_database_alias(alias: String, db_type: DatabaseType) -> QuickDbResult<()> {
     let mapping = DATABASE_TYPE_MAPPING.get_or_init(|| RwLock::new(HashMap::new()));
     let mut map = mapping.write().map_err(|_| QuickDbError::PoolError {
-        message: "数据库类型映射表锁被污染".to_string(),
+        message: crate::i18n::t("manager.alias_type_map_lock_poisoned"),
     })?;
     map.insert(alias, db_type);
     Ok(())

@@ -1113,6 +1113,40 @@ impl ErrorMessageI18n {
         v(&mut translations, "model.key_access_error",
             "键访问错误", "Key access error", "キーアクセスエラー");
 
+        // ===== P10: 管理器层 manager/ =====
+        v(&mut translations, "manager.no_cache_manager",
+            "数据库 {alias} 没有配置缓存管理器",
+            "Database {alias} has no cache manager configured",
+            "データベース {alias} にキャッシュマネージャーが設定されていません");
+        v(&mut translations, "manager.no_default_alias",
+            "没有配置默认数据库别名",
+            "No default database alias configured",
+            "デフォルトデータベースエイリアスが設定されていません");
+        v(&mut translations, "manager.no_id_generator",
+            "数据库 {alias} 没有配置ID生成器",
+            "Database {alias} has no ID generator configured",
+            "データベース {alias} にIDジェネレーターが設定されていません");
+        v(&mut translations, "manager.no_mongo_auto_increment",
+            "数据库 {alias} 没有MongoDB自增ID生成器",
+            "Database {alias} has no MongoDB auto-increment ID generator",
+            "データベース {alias} にMongoDB自動インクリメントIDジェネレーターが設定されていません");
+        v(&mut translations, "manager.alias_type_map_lock_poisoned",
+            "数据库类型映射表锁被污染",
+            "Database type mapping table lock is poisoned",
+            "データベースタイプマッピングテーブルのロックが汚染されています");
+        v(&mut translations, "manager.global_ops_locked",
+            "全局操作已锁定，禁止添加数据库！系统已开始执行查询操作，不允许再添加数据库配置",
+            "Global operations are locked, adding databases is prohibited! The system has started executing queries, no more database configurations are allowed",
+            "グローバル操作がロックされています。データベースの追加は禁止されています！システムはすでにクエリを実行しており、これ以上のデータベース設定は許可されていません");
+        v(&mut translations, "manager.cannot_get_cache_stats",
+            "无法获取缓存统计信息",
+            "Cannot get cache statistics",
+            "キャッシュ統計情報を取得できません");
+        v(&mut translations, "manager.no_model_metadata",
+            "集合 {collection} 没有注册的模型元数据，跳过表和索引创建",
+            "Collection {collection} has no registered model metadata, skipping table and index creation",
+            "コレクション {collection} に登録されたモデルメタデータがありません。テーブルとインデックスの作成をスキップします");
+
         // 注册所有翻译
         register_translations(translations);
     }

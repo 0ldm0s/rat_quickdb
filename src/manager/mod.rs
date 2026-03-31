@@ -39,7 +39,7 @@ pub(crate) fn get_global_pool_manager() -> &'static PoolManager {
 pub async fn add_database(config: DatabaseConfig) -> QuickDbResult<()> {
     // 检查全局操作锁状态，如果已锁定则惊恐退出
     if crate::is_global_operations_locked() {
-        panic!("全局操作已锁定，禁止添加数据库！系统已开始执行查询操作，不允许再添加数据库配置");
+        panic!("{}", crate::i18n::t("manager.global_ops_locked"));
     }
 
     get_global_pool_manager().add_database(config).await
