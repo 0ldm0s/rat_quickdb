@@ -273,19 +273,83 @@ rat_quickdb = { version = "0.5.1", features = [
 
 #### 数据库版本要求
 
-**重要**：不同数据库对JSON操作的支持版本要求不同：
+**重要**：不同数据库对JSON操作和正则表达式的支持版本要求不同：
 
-| 数据库 | 最低版本要求 | JSON支持 | Contains操作符实现 | JsonContains操作符实现 |
-|--------|-------------|----------|-------------------|-------------------------|
-| **MySQL** | 5.7+ / MariaDB 10.2+ | ✅ 完整支持 | 字符串字段使用LIKE，JSON字段使用JSON_CONTAINS() | ❌ 暂时不支持 |
-| **PostgreSQL** | 9.2+ | ✅ 完整支持 | 字符串字段使用LIKE，JSON字段使用@>操作符 | ✅ 完全支持 |
-| **SQLite** | 3.38.0+ | ✅ 基础支持 | 仅字符串字段支持LIKE操作 | ❌ 不支持 |
-| **MongoDB** | 7.0+ | ✅ 原生支持 | 原生$regex操作符 | ✅ 完全支持 |
+| 数据库 | 最低版本要求 | JSON支持 | Contains操作符实现 | JsonContains操作符实现 | Regex操作符实现 |
+|--------|-------------|----------|-------------------|-------------------------|-----------------|
+| **MySQL** | 5.7+ / MariaDB 10.2+ | ✅ 完整支持 | 字符串字段使用LIKE，JSON字段使用JSON_CONTAINS() | ❌ 暂时不支持 | ✅ REGEXP 操作符 |
+| **PostgreSQL** | 9.2+ | ✅ 完整支持 | 字符串字段使用LIKE，JSON字段使用@>操作符 | ✅ 完全支持 | ✅ `~` 操作符 |
+| **SQLite** | 3.38.0+ | ✅ 基础支持 | 仅字符串字段支持LIKE操作 | ❌ 不支持 | ❌ 不支持 |
+| **MongoDB** | 7.0+ | ✅ 原生支持 | 原生$regex操作符 | ✅ 完全支持 | ✅ 原生 $regex 操作符 |
 
 ⚠️ **版本兼容性注意事项**：
 - MySQL 5.6及以下版本不支持JSON_CONTAINS函数，会导致运行时错误
 - PostgreSQL早期版本可能需要启用JSON扩展
 - SQLite JSON功能是可选的，需要在编译时启用
+
+#### 🔍 正则表达式查询（Regex）
+
+rat_quickdb 支持跨数据库的正则表达式查询，使用 `QueryOperator::Regex` 操作符：
+
+**数据库特定实现**：
+
+| 数据库 | 操作符 | 语法示例 | 状态 |
+|--------|--------|----------|------|
+| **PostgreSQL** | `~` | `WHERE field ~ 'pattern'` | ✅ 完全支持 |
+| **MySQL** | `REGEXP` | `WHERE field REGEXP 'pattern'` | ✅ 完全支持 |
+| **MongoDB** | `$regex` | `{ field: { $regex: 'pattern' } }` | ✅ 完全支持 |
+| **SQLite** | - | - | ❌ 不支持 |
+
+**使用示例**：
+
+```rust
+use rat_quickdb::*;
+
+// 正则表达式查询：匹配包含 "_wang" 或 "_chen" 的用户名
+let conditions = vec![QueryCondition {
+    field: "username".to_string(),
+    operator: QueryOperator::Regex,
+    value: DataValue::String(".*_wang|_chen.*".to_string()),
+}];
+
+let users = ModelManager::<User>::find(conditions, None).await?;
+```
+
+**运行正则表达式查询示例**：
+
+```bash
+# PostgreSQL 正则表达式查询
+cargo run --example string_fuzzy_search_pgsql --features postgres-support
+
+# MySQL 正则表达式查询
+cargo run --example string_fuzzy_search_mysql --features mysql-support
+
+# MongoDB 正则表达式查询
+cargo run --example string_fuzzy_search_mongodb --features mongodb-support
+
+# SQLite（不支持正则表达式）
+cargo run --example string_fuzzy_search_sqlite --features sqlite-support
+```
+
+**注意事项**：
+- ❌ **SQLite 不支持 REGEXP**：SQLite 不支持正则表达式查询
+- ✅ **PostgreSQL 使用 `~` 操作符**：框架已自动适配 PostgreSQL 的正则表达式语法
+- ✅ **MySQL 使用 `REGEXP` 函数**：框架已自动适配 MySQL 的正则表达式语法
+- ✅ **MongoDB 使用 `$regex` 操作符**：框架已自动适配 MongoDB 的正则表达式语法
+
+**⚠️ 跨数据库兼容性建议**：
+> **重要**：如果您的应用需要跨数据库支持（特别是需要支持 SQLite），**强烈建议不要使用正则表达式查询**。请改用以下替代方案：
+> - **Contains 操作符**：用于简单的包含匹配（`LIKE '%value%'`）
+> - **StartsWith 操作符**：用于前缀匹配（`LIKE 'value%'`）
+> - **EndsWith 操作符**：用于后缀匹配（`LIKE '%value'`）
+> - **多个 OR 条件**：用于复杂的模式匹配（例如：`field = 'value1' OR field = 'value2'`）
+>
+> 这些替代方案在所有数据库中都能正常工作，确保应用的跨数据库兼容性。
+
+**性能建议**：
+- 正则表达式查询比精确匹配和模糊匹配（LIKE）慢
+- 建议为常用正则查询字段创建索引
+- 复杂的正则表达式可能影响查询性能，请谨慎使用
 
 #### 按需启用特性
 

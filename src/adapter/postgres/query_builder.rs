@@ -819,7 +819,7 @@ impl SqlQueryBuilder {
             QueryOperator::Regex => {
                 new_index += 1;
                 (
-                    format!("{} REGEXP {}", safe_field, placeholder),
+                    format!("{} ~ {}", safe_field, placeholder),
                     vec![condition.value.clone()],
                 )
             }
@@ -1153,8 +1153,8 @@ impl SqlQueryBuilder {
                     param_index += 1;
                 }
                 QueryOperator::Regex => {
-                    // 不同数据库的正则表达式语法不同，这里使用通用的LIKE
-                    clauses.push(format!("{} REGEXP {}", condition.field, placeholder));
+                    // PostgreSQL 使用 ~ 操作符进行正则表达式匹配
+                    clauses.push(format!("{} ~ {}", condition.field, placeholder));
                     params.push(condition.value.clone());
                     param_index += 1;
                 }
