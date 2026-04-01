@@ -208,6 +208,28 @@ let pool_config = PoolConfig::builder()
     .build()?;
 ```
 
+⚠️ **重要な変更：ビルダーモードの強制**
+
+**v0.5.3+**では、`PoolConfig::builder()`を使用して接続プール設定を作成することが必須となり、**直接構造体を構築することは禁止**されます：
+
+```rust
+// ✅ 正しい：ビルダーモードを使用
+let pool_config = PoolConfig::builder()
+    .max_connections(10)
+    .min_connections(2)
+    .connection_timeout(30)
+    .build()?;
+
+// ❌ 錯誤：直接構造体を構築するとコンパイルエラーになります
+// let pool_config = PoolConfig {
+//     max_connections: 10,
+//     min_connections: 2,
+//     ...
+// };
+```
+
+**理由**：ビルダーモードはすべての設定パラメータが検証されることを保証し、無効な設定値の使用を回避します。
+
 **新機能：**
 - 🎯 **ストアドプロシージャ仮想テーブルシステム**：4つのデータベースにまたがる統一ストアドプロシージャAPI
 - 🔗 **マルチテーブルJOINサポート**：JOINステートメントと集約パイプラインの自動生成
@@ -248,6 +270,86 @@ rat_quickdb = { version = "0.5.1", features = [
 | `melange-storage` | 非推奨：L2キャッシュ機能はrat_memcacheに組み込まれました | ❌ |
 | `python-bindings` | Python APIバインディング | ❌ |
 | `full` | すべてのデータベースサポートを有効化 | ❌ |
+
+#### データベースバージョン要件
+
+**重要**：異なるデータベースではJSON操作と正規表現のサポートに対するバージョン要件が異なります：
+
+| データベース | 最低バージョン | JSONサポート | Contains演算子 | JsonContains演算子 | Regex演算子 |
+|-------------|-----------------|-------------|-----------------|-------------------|-------------|
+| **MySQL** | 5.7+ / MariaDB 10.2+ | ✅ 完整支持 | 文字列フィールドはLIKE、JSONフィールドはJSON_CONTAINS()を使用 | ❌ サポート外 | ✅ REGEXP 演算子 |
+| **PostgreSQL** | 9.2+ | ✅ 完整支持 | 文字列フィールドはLIKE、JSONフィールドは@>演算子を使用 | ✅ 完全サポート | ✅ `~` 演算子 |
+| **SQLite** | 3.38.0+ | ✅ 基礎サポート | 文字列フィールドのみLIKEをサポート | ❌ サポート外 | ❌ サポート外 |
+| **MongoDB** | 7.0+ | ✅ ネイティブサポート | ネイティブ$regex演算子 | ✅ 完全サポート | ✅ ネイティブ $regex 演算子 |
+
+⚠️ **バージョン互換性に関する注意**：
+- MySQL 5.6以下はJSON_CONTAINS関数をサポートせず、ランタイムエラーが発生します
+- PostgreSQLの早期バージョンはJSON拡張を有効にする必要がある場合があります
+- SQLite JSON機能はオプションで、コンパイル時に有効にする必要があります
+
+#### 🔍 正規表現クエリ（Regex）
+
+rat_quickdbは`QueryOperator::Regex`演算子を使用したクロスデータベース正規表現クエリをサポートしています：
+
+**データベース固有の実装**：
+
+| データベース | 演算子 | 構文例 | 状態 |
+|-------------|--------|--------|------|
+| **PostgreSQL** | `~` | `WHERE field ~ 'pattern'` | ✅ 完全サポート |
+| **MySQL** | `REGEXP` | `WHERE field REGEXP 'pattern'` | ✅ 完全サポート |
+| **MongoDB** | `$regex` | `{ field: { $regex: 'pattern' } }` | ✅ 完全サポート |
+| **SQLite** | - | - | ❌ サポート外 |
+
+**使用例**：
+
+```rust
+use rat_quickdb::*;
+
+// 正規表現クエリ： "_wang" または "_chen" を含むユーザーに一致
+let conditions = vec![QueryCondition {
+    field: "username".to_string(),
+    operator: QueryOperator::Regex,
+    value: DataValue::String(".*_wang|_chen.*".to_string()),
+}];
+
+let users = ModelManager::<User>::find(conditions, None).await?;
+```
+
+**正規表現クエリの例を実行**：
+
+```bash
+# PostgreSQL 正規表現クエリ
+cargo run --example string_fuzzy_search_pgsql --features postgres-support
+
+# MySQL 正規表現クエリ
+cargo run --example string_fuzzy_search_mysql --features mysql-support
+
+# MongoDB 正規表現クエリ
+cargo run --example string_fuzzy_search_mongodb --features mongodb-support
+
+# SQLite（正規表現不支持）
+cargo run --example string_fuzzy_search_sqlite --features sqlite-support
+```
+
+**注意事项**：
+- ❌ **SQLite は REGEXP をサポートしていません**：SQLite は正規表現クエリをサポートしていません
+- ✅ **PostgreSQL は `~` 演算子を使用**：フレームワークは PostgreSQL の正規表現構文に自動的に適応します
+- ✅ **MySQL は `REGEXP` 関数を使用**：フレームワークは MySQL の正規表現構文に自動的に適応します
+- ✅ **MongoDB は `$regex` 演算子を使用**：フレームワークは MongoDB の正規表現構文に自動的に適応します
+
+**⚠️ クロスデータベース互換性の推奨事項**：
+> **重要**：您的アプリケーションがクロスデータベースサポートを必要とする場合（特にSQLiteサポートが必要な場合）、**正規表現クエリを使用しないことを強く推奨します**。代わりに以下を使用してください：
+> - **Contains 演算子**：単純な包含マッチング用（`LIKE '%value%'`）
+> - **StartsWith 演算子**：プレフィックスマッチング用（`LIKE 'value%'`）
+> - **EndsWith 演算子**：サフィックスマッチング用（`LIKE '%value'`）
+> - **複数の OR 条件**：複雑なパターンマッチング用（例：`field = 'value1' OR field = 'value2'`）
+>
+> これらの代替案はすべてのデータベースで正常に動作し、アプリケーションのクロスデータベース互換性を確保します。
+
+**パフォーマンスの推奨事項**：
+- 正規表現クエリは正確マッチングとファジーマッチング（LIKE）よりも遅い
+- 常用的正規表現クエリフィールドにはインデックスを作成することを推奨
+- 複雑な正規表現はクエリパフォーマンスに影響を与える可能性があるため、慎重に使用してください
 
 #### 必要に応じて機能を有効化
 

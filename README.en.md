@@ -208,6 +208,28 @@ let pool_config = PoolConfig::builder()
     .build()?;
 ```
 
+⚠️ **Important Change: Mandatory Builder Mode**
+
+**v0.5.3+** requires using `PoolConfig::builder()` to create connection pool configuration, **direct struct construction is prohibited**:
+
+```rust
+// ✅ Correct: Use builder mode
+let pool_config = PoolConfig::builder()
+    .max_connections(10)
+    .min_connections(2)
+    .connection_timeout(30)
+    .build()?;
+
+// ❌ Error: Direct struct construction will cause compilation error
+// let pool_config = PoolConfig {
+//     max_connections: 10,
+//     min_connections: 2,
+//     ...
+// };
+```
+
+**Reason**: Builder mode ensures all configuration parameters are validated, avoiding invalid configuration values.
+
 **New Features:**
 - 🎯 **Stored Procedure Virtual Table System**: Cross-four-database unified stored procedure API
 - 🔗 **Multi-table JOIN Support**: Automatic JOIN statement and aggregation pipeline generation
@@ -248,6 +270,86 @@ rat_quickdb = { version = "0.5.1", features = [
 | `melange-storage` | Deprecated: L2 cache functionality is built into rat_memcache | ❌ |
 | `python-bindings` | Python API bindings | ❌ |
 | `full` | Enable all database support | ❌ |
+
+#### Database Version Requirements
+
+**Important**: Different databases have different version requirements for JSON operations and regex support:
+
+| Database | Minimum Version | JSON Support | Contains Operator | JsonContains Operator | Regex Operator |
+|----------|-----------------|---------------|-------------------|----------------------|----------------|
+| **MySQL** | 5.7+ / MariaDB 10.2+ | ✅ Full support | String fields use LIKE, JSON fields use JSON_CONTAINS() | ❌ Not supported | ✅ REGEXP operator |
+| **PostgreSQL** | 9.2+ | ✅ Full support | String fields use LIKE, JSON fields use @> operator | ✅ Full support | ✅ `~` operator |
+| **SQLite** | 3.38.0+ | ✅ Basic support | Only string fields support LIKE | ❌ Not supported | ❌ Not supported |
+| **MongoDB** | 7.0+ | ✅ Native support | Native $regex operator | ✅ Full support | ✅ Native $regex operator |
+
+⚠️ **Version Compatibility Notes**:
+- MySQL 5.6 and below does not support JSON_CONTAINS function, will cause runtime errors
+- Early PostgreSQL versions may need to enable JSON extension
+- SQLite JSON functionality is optional, needs to be enabled at compile time
+
+#### 🔍 Regular Expression Query (Regex)
+
+rat_quickdb supports cross-database regular expression queries using `QueryOperator::Regex` operator:
+
+**Database-specific Implementation**:
+
+| Database | Operator | Syntax Example | Status |
+|----------|----------|----------------|--------|
+| **PostgreSQL** | `~` | `WHERE field ~ 'pattern'` | ✅ Full support |
+| **MySQL** | `REGEXP` | `WHERE field REGEXP 'pattern'` | ✅ Full support |
+| **MongoDB** | `$regex` | `{ field: { $regex: 'pattern' } }` | ✅ Full support |
+| **SQLite** | - | - | ❌ Not supported |
+
+**Usage Example**:
+
+```rust
+use rat_quickdb::*;
+
+// Regex query: match usernames containing "_wang" or "_chen"
+let conditions = vec![QueryCondition {
+    field: "username".to_string(),
+    operator: QueryOperator::Regex,
+    value: DataValue::String(".*_wang|_chen.*".to_string()),
+}];
+
+let users = ModelManager::<User>::find(conditions, None).await?;
+```
+
+**Running Regex Query Examples**:
+
+```bash
+# PostgreSQL regex query
+cargo run --example string_fuzzy_search_pgsql --features postgres-support
+
+# MySQL regex query
+cargo run --example string_fuzzy_search_mysql --features mysql-support
+
+# MongoDB regex query
+cargo run --example string_fuzzy_search_mongodb --features mongodb-support
+
+# SQLite (does not support regex)
+cargo run --example string_fuzzy_search_sqlite --features sqlite-support
+```
+
+**Notes**:
+- ❌ **SQLite does not support REGEXP**: SQLite does not support regular expression queries
+- ✅ **PostgreSQL uses `~` operator**: The framework automatically adapts to PostgreSQL's regex syntax
+- ✅ **MySQL uses `REGEXP` function**: The framework automatically adapts to MySQL's regex syntax
+- ✅ **MongoDB uses `$regex` operator**: The framework automatically adapts to MongoDB's regex syntax
+
+**⚠️ Cross-Database Compatibility Recommendation**:
+> **Important**: If your application needs cross-database support (especially needing to support SQLite), **strongly recommend NOT using regular expression queries**. Please use these alternatives instead:
+> - **Contains Operator**: For simple contains matching (`LIKE '%value%'`)
+> - **StartsWith Operator**: For prefix matching (`LIKE 'value%'`)
+> - **EndsWith Operator**: For suffix matching (`LIKE '%value'`)
+> - **Multiple OR conditions**: For complex pattern matching (e.g., `field = 'value1' OR field = 'value2'`)
+>
+> These alternatives work properly across all databases, ensuring your application's cross-database compatibility.
+
+**Performance Recommendations**:
+- Regular expression queries are slower than exact matching and fuzzy matching (LIKE)
+- Recommended to create indexes for commonly queried regex fields
+- Complex regular expressions may affect query performance, please use with caution
 
 #### Enable Features as Needed
 
