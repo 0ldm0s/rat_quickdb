@@ -83,3 +83,6 @@ Thumbs.db
 /**/*.dylib
 /**/*.dll
 /test_cache
+# Claw Code artifacts
+.claw/
+.claw.json
