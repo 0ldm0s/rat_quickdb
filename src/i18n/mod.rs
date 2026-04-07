@@ -917,6 +917,8 @@ impl ErrorMessageI18n {
             "MongoDB更新失败: {error}", "MongoDB update failed: {error}", "MongoDB更新失敗: {error}");
         v(&mut translations, "adapter.mongo.delete_failed",
             "MongoDB删除失败: {error}", "MongoDB delete failed: {error}", "MongoDB削除失敗: {error}");
+        v(&mut translations, "adapter.mongo.upsert_failed",
+            "MongoDB Upsert失败: {error}", "MongoDB upsert failed: {error}", "MongoDB Upsert失敗: {error}");
         v(&mut translations, "adapter.mongo.update_empty",
             "更新操作不能为空", "Update operation cannot be empty", "更新操作は空にできません");
         v(&mut translations, "adapter.mongo.stored_proc_validate_failed",
