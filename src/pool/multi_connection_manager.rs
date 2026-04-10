@@ -83,15 +83,49 @@ impl MultiConnectionManager {
                         database,
                         username,
                         password,
-                        ssl_mode: _,
-                        tls_config: _,
+                        ssl_mode,
+                        tls_config,
                     } => {
                         // 对密码进行 URL 编码以处理特殊字符
                         let encoded_password = urlencoding::encode(password);
-                        format!(
+                        let mut base = format!(
                             "postgresql://{}:{}@{}:{}/{}",
                             username, encoded_password, host, port, database
-                        )
+                        );
+
+                        // 构建 SSL/TLS 查询参数
+                        let mut params = Vec::new();
+
+                        // 添加 sslmode 参数
+                        if let Some(mode) = ssl_mode {
+                            params.push(format!("sslmode={}", mode));
+                        } else if tls_config.as_ref().is_some_and(|tc| tc.enabled) {
+                            // 如果未显式指定 ssl_mode 但启用了 TLS，默认使用 require
+                            params.push("sslmode=require".to_string());
+                        }
+
+                        // 添加 TLS 证书路径参数
+                        if let Some(tc) = tls_config {
+                            if tc.enabled {
+                                if let Some(ca_path) = &tc.ca_cert_path {
+                                    params.push(format!("sslrootcert={}", ca_path));
+                                }
+                                if let Some(cert_path) = &tc.client_cert_path {
+                                    params.push(format!("sslcert={}", cert_path));
+                                }
+                                if let Some(key_path) = &tc.client_key_path {
+                                    params.push(format!("sslkey={}", key_path));
+                                }
+                                // 不验证服务器证书时使用 sslmode=no-verify（非标准）
+                                // 标准做法是用户自行设置 ssl_mode 为 disable/allow
+                            }
+                        }
+
+                        if !params.is_empty() {
+                            base = format!("{}?{}", base, params.join("&"));
+                        }
+
+                        base
                     }
                     _ => {
                         return Err(QuickDbError::ConfigError {
@@ -130,15 +164,57 @@ impl MultiConnectionManager {
                         database,
                         username,
                         password,
-                        ssl_opts: _,
-                        tls_config: _,
+                        ssl_opts,
+                        tls_config,
                     } => {
                         // 对密码进行 URL 编码以处理特殊字符
                         let encoded_password = urlencoding::encode(password);
-                        format!(
+                        let mut base = format!(
                             "mysql://{}:{}@{}:{}/{}",
                             username, encoded_password, host, port, database
-                        )
+                        );
+
+                        // 构建 SSL/TLS 查询参数
+                        let mut params = Vec::new();
+
+                        // 添加 ssl_opts 中的自定义 SSL 参数
+                        if let Some(opts) = ssl_opts {
+                            for (key, value) in opts {
+                                params.push(format!("{}={}", key, value));
+                            }
+                        }
+
+                        // 添加 TLS 证书路径参数
+                        if let Some(tc) = tls_config {
+                            if tc.enabled {
+                                // 如果未通过 ssl_opts 指定 ssl-mode，根据 tls_config 设置
+                                let has_ssl_mode = ssl_opts
+                                    .as_ref()
+                                    .is_some_and(|o| o.contains_key("ssl-mode"));
+                                if !has_ssl_mode {
+                                    if tc.verify_server_cert {
+                                        params.push("ssl-mode=VERIFY_CA".to_string());
+                                    } else {
+                                        params.push("ssl-mode=REQUIRED".to_string());
+                                    }
+                                }
+                                if let Some(ca_path) = &tc.ca_cert_path {
+                                    params.push(format!("ssl-ca={}", ca_path));
+                                }
+                                if let Some(cert_path) = &tc.client_cert_path {
+                                    params.push(format!("ssl-cert={}", cert_path));
+                                }
+                                if let Some(key_path) = &tc.client_key_path {
+                                    params.push(format!("ssl-key={}", key_path));
+                                }
+                            }
+                        }
+
+                        if !params.is_empty() {
+                            base = format!("{}?{}", base, params.join("&"));
+                        }
+
+                        base
                     }
                     _ => {
                         return Err(QuickDbError::ConfigError {
