@@ -8,6 +8,7 @@ use crate::error::{QuickDbError, QuickDbResult};
 use crate::manager;
 use crate::model::{FieldDefinition, FieldType};
 use crate::pool::DatabaseConnection;
+use crate::security::quote_identifier;
 use crate::types::*;
 use async_trait::async_trait;
 use rat_logger::debug;
@@ -421,16 +422,17 @@ impl DatabaseAdapter for PostgresAdapter {
             let mut params = Vec::new();
 
             for operation in operations {
+                let safe_field = quote_identifier(&operation.field, DatabaseType::PostgreSQL);
                 match &operation.operation {
                     crate::types::UpdateOperator::Set => {
-                        set_clauses.push(format!("{} = ${}", operation.field, params.len() + 1));
+                        set_clauses.push(format!("{} = ${}", safe_field, params.len() + 1));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::Increment => {
                         set_clauses.push(format!(
                             "{} = {} + ${}",
-                            operation.field,
-                            operation.field,
+                            safe_field,
+                            safe_field,
                             params.len() + 1
                         ));
                         params.push(operation.value.clone());
@@ -438,8 +440,8 @@ impl DatabaseAdapter for PostgresAdapter {
                     crate::types::UpdateOperator::Decrement => {
                         set_clauses.push(format!(
                             "{} = {} - ${}",
-                            operation.field,
-                            operation.field,
+                            safe_field,
+                            safe_field,
                             params.len() + 1
                         ));
                         params.push(operation.value.clone());
@@ -447,8 +449,8 @@ impl DatabaseAdapter for PostgresAdapter {
                     crate::types::UpdateOperator::Multiply => {
                         set_clauses.push(format!(
                             "{} = {} * ${}",
-                            operation.field,
-                            operation.field,
+                            safe_field,
+                            safe_field,
                             params.len() + 1
                         ));
                         params.push(operation.value.clone());
@@ -456,8 +458,8 @@ impl DatabaseAdapter for PostgresAdapter {
                     crate::types::UpdateOperator::Divide => {
                         set_clauses.push(format!(
                             "{} = {} / ${}",
-                            operation.field,
-                            operation.field,
+                            safe_field,
+                            safe_field,
                             params.len() + 1
                         ));
                         params.push(operation.value.clone());
@@ -465,8 +467,8 @@ impl DatabaseAdapter for PostgresAdapter {
                     crate::types::UpdateOperator::PercentIncrease => {
                         set_clauses.push(format!(
                             "{} = {} * (1.0 + ${}/100.0)",
-                            operation.field,
-                            operation.field,
+                            safe_field,
+                            safe_field,
                             params.len() + 1
                         ));
                         params.push(operation.value.clone());
@@ -474,8 +476,8 @@ impl DatabaseAdapter for PostgresAdapter {
                     crate::types::UpdateOperator::PercentDecrease => {
                         set_clauses.push(format!(
                             "{} = {} * (1.0 - ${}/100.0)",
-                            operation.field,
-                            operation.field,
+                            safe_field,
+                            safe_field,
                             params.len() + 1
                         ));
                         params.push(operation.value.clone());
@@ -490,7 +492,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 });
             }
 
-            let mut sql = format!("UPDATE {} SET {}", table, set_clauses.join(", "));
+            let safe_table = quote_identifier(table, DatabaseType::PostgreSQL);
+            let mut sql = format!("UPDATE {} SET {}", safe_table, set_clauses.join(", "));
 
             // 添加WHERE条件
             if !conditions.is_empty() {
@@ -640,13 +643,13 @@ impl DatabaseAdapter for PostgresAdapter {
                         "NULL"
                     };
                     debug!("🔍 字段 {} 定义: {} {}", name, sql_type, null_constraint);
-                    field_definitions.push(format!("{} {} {}", name, sql_type, null_constraint));
+                    field_definitions.push(format!("{} {} {}", quote_identifier(name, DatabaseType::PostgreSQL), sql_type, null_constraint));
                 }
             }
 
             let sql = format!(
                 "CREATE TABLE IF NOT EXISTS {} ({})",
-                table,
+                quote_identifier(table, DatabaseType::PostgreSQL),
                 field_definitions.join(", ")
             );
 
@@ -673,12 +676,16 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> QuickDbResult<()> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
             let unique_clause = if unique { "UNIQUE " } else { "" };
+            let safe_fields: Vec<String> = fields
+                .iter()
+                .map(|f| quote_identifier(f, DatabaseType::PostgreSQL))
+                .collect();
             let sql = format!(
                 "CREATE {}INDEX IF NOT EXISTS {} ON {} ({})",
                 unique_clause,
-                index_name,
-                table,
-                fields.join(", ")
+                quote_identifier(index_name, DatabaseType::PostgreSQL),
+                quote_identifier(table, DatabaseType::PostgreSQL),
+                safe_fields.join(", ")
             );
 
             debug!("执行PostgreSQL索引创建: {}", sql);
@@ -721,7 +728,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
     async fn drop_table(&self, connection: &DatabaseConnection, table: &str) -> QuickDbResult<()> {
         if let DatabaseConnection::PostgreSQL(pool) = connection {
-            let sql = format!("DROP TABLE IF EXISTS {} CASCADE", table);
+            let sql = format!("DROP TABLE IF EXISTS {} CASCADE", quote_identifier(table, DatabaseType::PostgreSQL));
 
             debug!("执行PostgreSQL删除表SQL: {}", sql);
 

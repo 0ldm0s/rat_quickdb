@@ -1,6 +1,7 @@
 //! DDL 生成器
 
 use crate::model::field_types::{FieldDefinition, FieldType, IndexDefinition, ModelMeta};
+use crate::security::quote_identifier;
 use crate::types::DatabaseType;
 
 /// 生成模型 DDL
@@ -18,11 +19,19 @@ pub fn generate_ddl(
 
 /// 生成 SQLite DDL
 fn generate_sqlite_ddl(model: &ModelMeta) -> String {
-    let mut ddl = format!("CREATE TABLE IF NOT EXISTS {} (\n", model.collection_name);
+    let db_type = DatabaseType::SQLite;
+    let mut ddl = format!(
+        "CREATE TABLE IF NOT EXISTS {} (\n",
+        quote_identifier(&model.collection_name, db_type)
+    );
 
     let fields: Vec<_> = model.fields.iter().collect();
     for (i, (name, def)) in fields.iter().enumerate() {
-        ddl.push_str(&format!("    {} {}", name, field_type_to_sqlite(def)));
+        ddl.push_str(&format!(
+            "    {} {}",
+            quote_identifier(name, db_type),
+            field_type_to_sqlite(def)
+        ));
 
         if def.required {
             ddl.push_str(" NOT NULL");
@@ -41,7 +50,10 @@ fn generate_sqlite_ddl(model: &ModelMeta) -> String {
     // 添加主键
     if let Some(id_field) = model.fields.get("id") {
         if matches!(id_field.field_type, FieldType::String { .. }) {
-            ddl.push_str("    ,PRIMARY KEY (id)\n");
+            ddl.push_str(&format!(
+                "    ,PRIMARY KEY ({})\n",
+                quote_identifier("id", db_type)
+            ));
         }
     }
 
@@ -52,12 +64,17 @@ fn generate_sqlite_ddl(model: &ModelMeta) -> String {
         let unique_str = if index.unique { " UNIQUE" } else { "" };
         let default_name = format!("idx_{}_{}", model.collection_name, index.fields.join("_"));
         let index_name = index.name.as_ref().unwrap_or(&default_name);
+        let quoted_index_fields: Vec<String> = index
+            .fields
+            .iter()
+            .map(|f| quote_identifier(f, db_type))
+            .collect();
         ddl.push_str(&format!(
             "CREATE{} INDEX IF NOT EXISTS {} ON {} ({});\n",
             unique_str,
-            index_name,
-            model.collection_name,
-            index.fields.join(", ")
+            quote_identifier(index_name, db_type),
+            quote_identifier(&model.collection_name, db_type),
+            quoted_index_fields.join(", ")
         ));
     }
 
@@ -66,11 +83,19 @@ fn generate_sqlite_ddl(model: &ModelMeta) -> String {
 
 /// 生成 PostgreSQL DDL
 fn generate_postgres_ddl(model: &ModelMeta) -> String {
-    let mut ddl = format!("CREATE TABLE IF NOT EXISTS {} (\n", model.collection_name);
+    let db_type = DatabaseType::PostgreSQL;
+    let mut ddl = format!(
+        "CREATE TABLE IF NOT EXISTS {} (\n",
+        quote_identifier(&model.collection_name, db_type)
+    );
 
     let fields: Vec<_> = model.fields.iter().collect();
     for (i, (name, def)) in fields.iter().enumerate() {
-        ddl.push_str(&format!("    {} {}", name, field_type_to_postgres(def)));
+        ddl.push_str(&format!(
+            "    {} {}",
+            quote_identifier(name, db_type),
+            field_type_to_postgres(def)
+        ));
 
         if def.required {
             ddl.push_str(" NOT NULL");
@@ -93,12 +118,17 @@ fn generate_postgres_ddl(model: &ModelMeta) -> String {
         let unique_str = if index.unique { " UNIQUE" } else { "" };
         let default_name = format!("idx_{}_{}", model.collection_name, index.fields.join("_"));
         let index_name = index.name.as_ref().unwrap_or(&default_name);
+        let quoted_index_fields: Vec<String> = index
+            .fields
+            .iter()
+            .map(|f| quote_identifier(f, db_type))
+            .collect();
         ddl.push_str(&format!(
             "CREATE{} INDEX IF NOT EXISTS {} ON {} ({});\n",
             unique_str,
-            index_name,
-            model.collection_name,
-            index.fields.join(", ")
+            quote_identifier(index_name, db_type),
+            quote_identifier(&model.collection_name, db_type),
+            quoted_index_fields.join(", ")
         ));
     }
 
@@ -107,11 +137,19 @@ fn generate_postgres_ddl(model: &ModelMeta) -> String {
 
 /// 生成 MySQL DDL
 fn generate_mysql_ddl(model: &ModelMeta) -> String {
-    let mut ddl = format!("CREATE TABLE IF NOT EXISTS {} (\n", model.collection_name);
+    let db_type = DatabaseType::MySQL;
+    let mut ddl = format!(
+        "CREATE TABLE IF NOT EXISTS {} (\n",
+        quote_identifier(&model.collection_name, db_type)
+    );
 
     let fields: Vec<_> = model.fields.iter().collect();
     for (i, (name, def)) in fields.iter().enumerate() {
-        ddl.push_str(&format!("    {} {}", name, field_type_to_mysql(def)));
+        ddl.push_str(&format!(
+            "    {} {}",
+            quote_identifier(name, db_type),
+            field_type_to_mysql(def)
+        ));
 
         if def.required {
             ddl.push_str(" NOT NULL");
@@ -134,12 +172,17 @@ fn generate_mysql_ddl(model: &ModelMeta) -> String {
         let unique_str = if index.unique { " UNIQUE" } else { "" };
         let default_name = format!("idx_{}_{}", model.collection_name, index.fields.join("_"));
         let index_name = index.name.as_ref().unwrap_or(&default_name);
+        let quoted_index_fields: Vec<String> = index
+            .fields
+            .iter()
+            .map(|f| quote_identifier(f, db_type))
+            .collect();
         ddl.push_str(&format!(
             "CREATE{} INDEX {} ON {} ({});\n",
             unique_str,
-            index_name,
-            model.collection_name,
-            index.fields.join(", ")
+            quote_identifier(index_name, db_type),
+            quote_identifier(&model.collection_name, db_type),
+            quoted_index_fields.join(", ")
         ));
     }
 
@@ -306,8 +349,8 @@ pub fn generate_diff_ddl(
             ddl.push_str(&format!(
                 "-- 新增字段: {}\nALTER TABLE {} ADD COLUMN {} {};\n",
                 name,
-                new_model.collection_name,
-                name,
+                quote_identifier(&new_model.collection_name, db_type),
+                quote_identifier(name, db_type),
                 type_str
             ));
         }
@@ -320,7 +363,7 @@ pub fn generate_diff_ddl(
 pub fn generate_downgrade_ddl(
     old_model: &ModelMeta,
     new_model: &ModelMeta,
-    _db_type: DatabaseType,
+    db_type: DatabaseType,
 ) -> String {
     let mut ddl = String::new();
 
@@ -330,8 +373,8 @@ pub fn generate_downgrade_ddl(
             ddl.push_str(&format!(
                 "-- 删除字段: {}\nALTER TABLE {} DROP COLUMN {};\n",
                 name,
-                new_model.collection_name,
-                name
+                quote_identifier(&new_model.collection_name, db_type),
+                quote_identifier(name, db_type)
             ));
         }
     }

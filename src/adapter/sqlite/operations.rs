@@ -3,6 +3,7 @@ use crate::adapter::DatabaseAdapter;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::model::{FieldDefinition, FieldType};
 use crate::pool::DatabaseConnection;
+use crate::security::quote_identifier;
 use crate::types::*;
 use async_trait::async_trait;
 use rat_logger::{debug, info, warn};
@@ -599,9 +600,10 @@ impl DatabaseAdapter for SqliteAdapter {
         let mut params = Vec::new();
 
         for operation in operations {
+            let safe_field = quote_identifier(&operation.field, DatabaseType::SQLite);
             match &operation.operation {
                 crate::types::UpdateOperator::Set => {
-                    set_clauses.push(format!("{} = ?", operation.field));
+                    set_clauses.push(format!("{} = ?", safe_field));
 
                     // 对字段值进行验证和转换，和普通update方法保持一致
                     let mut operation_data = std::collections::HashMap::new();
@@ -618,32 +620,32 @@ impl DatabaseAdapter for SqliteAdapter {
                     }
                 }
                 crate::types::UpdateOperator::Increment => {
-                    set_clauses.push(format!("{} = {} + ?", operation.field, operation.field));
+                    set_clauses.push(format!("{} = {} + ?", safe_field, safe_field));
                     params.push(operation.value.clone());
                 }
                 crate::types::UpdateOperator::Decrement => {
-                    set_clauses.push(format!("{} = {} - ?", operation.field, operation.field));
+                    set_clauses.push(format!("{} = {} - ?", safe_field, safe_field));
                     params.push(operation.value.clone());
                 }
                 crate::types::UpdateOperator::Multiply => {
-                    set_clauses.push(format!("{} = {} * ?", operation.field, operation.field));
+                    set_clauses.push(format!("{} = {} * ?", safe_field, safe_field));
                     params.push(operation.value.clone());
                 }
                 crate::types::UpdateOperator::Divide => {
-                    set_clauses.push(format!("{} = {} / ?", operation.field, operation.field));
+                    set_clauses.push(format!("{} = {} / ?", safe_field, safe_field));
                     params.push(operation.value.clone());
                 }
                 crate::types::UpdateOperator::PercentIncrease => {
                     set_clauses.push(format!(
                         "{} = {} * (1.0 + ?/100.0)",
-                        operation.field, operation.field
+                        safe_field, safe_field
                     ));
                     params.push(operation.value.clone());
                 }
                 crate::types::UpdateOperator::PercentDecrease => {
                     set_clauses.push(format!(
                         "{} = {} * (1.0 - ?/100.0)",
-                        operation.field, operation.field
+                        safe_field, safe_field
                     ));
                     params.push(operation.value.clone());
                 }
@@ -657,7 +659,8 @@ impl DatabaseAdapter for SqliteAdapter {
             });
         }
 
-        let mut sql = format!("UPDATE {} SET {}", table, set_clauses.join(", "));
+        let safe_table = quote_identifier(table, DatabaseType::SQLite);
+        let mut sql = format!("UPDATE {} SET {}", safe_table, set_clauses.join(", "));
 
         // 添加WHERE条件
         if !conditions.is_empty() {

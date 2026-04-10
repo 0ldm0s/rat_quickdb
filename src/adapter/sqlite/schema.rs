@@ -3,6 +3,7 @@ use crate::adapter::{DatabaseAdapter, SqliteAdapter};
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::model::{FieldDefinition, FieldType};
 use crate::pool::DatabaseConnection;
+use crate::security::quote_identifier;
 use crate::types::*;
 use async_trait::async_trait;
 use rat_logger::debug;
@@ -26,12 +27,14 @@ pub(crate) async fn create_table(
         }
     };
     {
-        let mut sql = format!("CREATE TABLE IF NOT EXISTS {} (", table);
+        let safe_table = quote_identifier(table, DatabaseType::SQLite);
+        let mut sql = format!("CREATE TABLE IF NOT EXISTS {} (", safe_table);
         let mut has_fields = false;
 
         // 检查是否已经有id字段，如果没有则添加默认的id主键
         if !fields.contains_key("id") {
-            sql.push_str("id INTEGER PRIMARY KEY AUTOINCREMENT");
+            let safe_id = quote_identifier("id", DatabaseType::SQLite);
+            sql.push_str(&format!("{} INTEGER PRIMARY KEY AUTOINCREMENT", safe_id));
             has_fields = true;
         }
 
@@ -78,10 +81,11 @@ pub(crate) async fn create_table(
                 ""
             };
 
+            let safe_field_name = quote_identifier(field_name, DatabaseType::SQLite);
             if field_name == "id" {
-                sql.push_str(&format!("{} {} PRIMARY KEY", field_name, sql_type));
+                sql.push_str(&format!("{} {} PRIMARY KEY", safe_field_name, sql_type));
             } else {
-                sql.push_str(&format!("{} {} {}", field_name, sql_type, null_constraint));
+                sql.push_str(&format!("{} {} {}", safe_field_name, sql_type, null_constraint));
             }
             has_fields = true;
         }
@@ -118,10 +122,16 @@ pub(crate) async fn create_index(
     };
     {
         let unique_keyword = if unique { "UNIQUE " } else { "" };
-        let fields_str = fields.join(", ");
+        let safe_index_name = quote_identifier(index_name, DatabaseType::SQLite);
+        let safe_table = quote_identifier(table, DatabaseType::SQLite);
+        let safe_fields: Vec<String> = fields
+            .iter()
+            .map(|f| quote_identifier(f, DatabaseType::SQLite))
+            .collect();
+        let fields_str = safe_fields.join(", ");
         let sql = format!(
             "CREATE {}INDEX IF NOT EXISTS {} ON {} ({})",
-            unique_keyword, index_name, table, fields_str
+            unique_keyword, safe_index_name, safe_table, fields_str
         );
 
         sqlx::query(&sql)
@@ -178,7 +188,8 @@ pub(crate) async fn drop_table(
         }
     };
 
-    let sql = format!("DROP TABLE IF EXISTS {}", table);
+    let safe_table = quote_identifier(table, DatabaseType::SQLite);
+    let sql = format!("DROP TABLE IF EXISTS {}", safe_table);
 
     debug!("执行SQLite删除表SQL: {}", sql);
 

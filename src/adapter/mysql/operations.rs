@@ -8,6 +8,7 @@ use crate::error::{QuickDbError, QuickDbResult};
 use crate::manager;
 use crate::model::{FieldDefinition, FieldType};
 use crate::pool::DatabaseConnection;
+use crate::security::quote_identifier;
 use crate::types::*;
 use async_trait::async_trait;
 use rat_logger::debug;
@@ -493,38 +494,39 @@ impl DatabaseAdapter for MysqlAdapter {
             let mut params = Vec::new();
 
             for operation in operations {
+                let safe_field = quote_identifier(&operation.field, DatabaseType::MySQL);
                 match &operation.operation {
                     crate::types::UpdateOperator::Set => {
-                        set_clauses.push(format!("{} = ?", operation.field));
+                        set_clauses.push(format!("{} = ?", safe_field));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::Increment => {
-                        set_clauses.push(format!("{} = {} + ?", operation.field, operation.field));
+                        set_clauses.push(format!("{} = {} + ?", safe_field, safe_field));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::Decrement => {
-                        set_clauses.push(format!("{} = {} - ?", operation.field, operation.field));
+                        set_clauses.push(format!("{} = {} - ?", safe_field, safe_field));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::Multiply => {
-                        set_clauses.push(format!("{} = {} * ?", operation.field, operation.field));
+                        set_clauses.push(format!("{} = {} * ?", safe_field, safe_field));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::Divide => {
-                        set_clauses.push(format!("{} = {} / ?", operation.field, operation.field));
+                        set_clauses.push(format!("{} = {} / ?", safe_field, safe_field));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::PercentIncrease => {
                         set_clauses.push(format!(
                             "{} = {} * (1.0 + ?/100.0)",
-                            operation.field, operation.field
+                            safe_field, safe_field
                         ));
                         params.push(operation.value.clone());
                     }
                     crate::types::UpdateOperator::PercentDecrease => {
                         set_clauses.push(format!(
                             "{} = {} * (1.0 - ?/100.0)",
-                            operation.field, operation.field
+                            safe_field, safe_field
                         ));
                         params.push(operation.value.clone());
                     }
@@ -538,7 +540,8 @@ impl DatabaseAdapter for MysqlAdapter {
                 });
             }
 
-            let mut sql = format!("UPDATE {} SET {}", table, set_clauses.join(", "));
+            let safe_table = quote_identifier(table, DatabaseType::MySQL);
+            let mut sql = format!("UPDATE {} SET {}", safe_table, set_clauses.join(", "));
 
             // 添加WHERE条件
             if !conditions.is_empty() {

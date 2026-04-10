@@ -157,72 +157,7 @@ impl DatabaseSecurityValidator {
             }
         }
 
-        // 检查是否为SQL关键字
-        let upper_name = field_name.to_uppercase();
-        let sql_keywords = [
-            "SELECT",
-            "FROM",
-            "WHERE",
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-            "CREATE",
-            "DROP",
-            "ALTER",
-            "TABLE",
-            "INDEX",
-            "AND",
-            "OR",
-            "NOT",
-            "NULL",
-            "IS",
-            "IN",
-            "EXISTS",
-            "BETWEEN",
-            "LIKE",
-            "REGEXP",
-            "UNION",
-            "JOIN",
-            "INNER",
-            "LEFT",
-            "RIGHT",
-            "OUTER",
-            "GROUP",
-            "BY",
-            "HAVING",
-            "ORDER",
-            "LIMIT",
-            "OFFSET",
-            "DISTINCT",
-            "COUNT",
-            "SUM",
-            "AVG",
-            "MIN",
-            "MAX",
-            "AS",
-            "ON",
-            "PRIMARY",
-            "KEY",
-            "FOREIGN",
-            "REFERENCES",
-            "CASE",
-            "WHEN",
-            "THEN",
-            "ELSE",
-            "END",
-            "IF",
-            "COALESCE",
-            "CAST",
-            "CONVERT",
-        ];
-
-        if sql_keywords.contains(&upper_name.as_str()) {
-            return Err(QuickDbError::ValidationError {
-                field: field_name.to_string(),
-                message: crate::i18n::tf("security.field_sql_keyword", &[("name", field_name)]),
-            });
-        }
-
+        // SQL关键字（如order、group、user等）允许使用，通过引号保护机制处理
         Ok(())
     }
 
@@ -297,47 +232,7 @@ impl DatabaseSecurityValidator {
             }
         }
 
-        // 检查是否为SQL关键字
-        let upper_name = table_name.to_uppercase();
-        let sql_keywords = [
-            "SELECT",
-            "FROM",
-            "WHERE",
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-            "CREATE",
-            "DROP",
-            "ALTER",
-            "TABLE",
-            "INDEX",
-            "DATABASE",
-            "SCHEMA",
-            "USER",
-            "ROLE",
-            "GRANT",
-            "REVOKE",
-            "COMMIT",
-            "ROLLBACK",
-            "TRANSACTION",
-            "VIEW",
-            "TRIGGER",
-            "PROCEDURE",
-            "FUNCTION",
-            "SEQUENCE",
-            "CONSTRAINT",
-            "PRIMARY",
-            "FOREIGN",
-            "REFERENCES",
-        ];
-
-        if sql_keywords.contains(&upper_name.as_str()) {
-            return Err(QuickDbError::ValidationError {
-                field: table_name.to_string(),
-                message: crate::i18n::tf("security.table_sql_keyword", &[("name", table_name)]),
-            });
-        }
-
+        // SQL关键字（如order、user、table等）允许使用，通过引号保护机制处理
         Ok(())
     }
 
@@ -373,6 +268,34 @@ impl DatabaseSecurityValidator {
     }
 }
 
+/// 按数据库类型给标识符加引号
+///
+/// 不做完整校验，用于 DDL 生成、存储过程 SQL 等场景。
+/// 对于 DML 查询，优先使用 `DatabaseSecurityValidator::get_safe_field_identifier()`。
+pub fn quote_identifier(name: &str, db_type: DatabaseType) -> String {
+    match db_type {
+        DatabaseType::PostgreSQL | DatabaseType::SQLite => format!("\"{}\"", name),
+        DatabaseType::MySQL => format!("`{}`", name),
+        DatabaseType::MongoDB => name.to_string(),
+    }
+}
+
+/// 对点分隔的标识符（如 "表名.字段名"）的每一段分别加引号
+///
+/// 用于存储过程 SQL 中 `local_field`/`foreign_field` 等 "表名.字段名" 格式的标识符。
+/// 如果不包含点号，则等同于 `quote_identifier`。
+pub fn quote_dotted_identifier(input: &str, db_type: DatabaseType) -> String {
+    if input.contains('.') {
+        input
+            .split('.')
+            .map(|part| quote_identifier(part, db_type))
+            .collect::<Vec<_>>()
+            .join(".")
+    } else {
+        quote_identifier(input, db_type)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -403,8 +326,12 @@ mod tests {
         assert!(validator.validate_field_name("123name").is_err());
         assert!(validator.validate_field_name("na-me").is_err());
         assert!(validator.validate_field_name("na me").is_err());
-        assert!(validator.validate_field_name("select").is_err());
-        assert!(validator.validate_field_name("WHERE").is_err());
+        // SQL关键词现在允许使用（通过引号保护机制处理）
+        assert!(validator.validate_field_name("select").is_ok());
+        assert!(validator.validate_field_name("WHERE").is_ok());
+        assert!(validator.validate_field_name("order").is_ok());
+        assert!(validator.validate_field_name("group").is_ok());
+        assert!(validator.validate_field_name("user").is_ok());
     }
 
     #[test]
@@ -437,8 +364,20 @@ mod tests {
             "`name`"
         );
 
-        // 测试非法字段名
-        assert!(pg_validator.get_safe_field_identifier("select").is_err());
+        // SQL关键词现在允许使用，返回带引号的标识符
+        assert_eq!(
+            pg_validator.get_safe_field_identifier("select").unwrap(),
+            "\"select\""
+        );
+        assert_eq!(
+            pg_validator.get_safe_field_identifier("order").unwrap(),
+            "\"order\""
+        );
+        assert_eq!(
+            mysql_validator.get_safe_field_identifier("order").unwrap(),
+            "`order`"
+        );
+        // 非法字符仍然拒绝
         assert!(
             mysql_validator
                 .get_safe_field_identifier("123name")
@@ -473,11 +412,12 @@ mod tests {
     }
 
     #[test]
-    fn test_sql_field_keyword_zh_cn() {
-        setup_i18n("zh-CN");
+    fn test_sql_field_keyword_now_allowed_zh_cn() {
+        // SQL关键词现在允许使用，通过引号保护
         let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
-        let err = v.validate_field_name("select").unwrap_err();
-        assert_eq!(validation_message(&err), "字段名不能使用SQL关键字: select");
+        assert!(v.validate_field_name("select").is_ok());
+        assert!(v.validate_field_name("order").is_ok());
+        assert!(v.validate_field_name("group").is_ok());
     }
 
     #[test]
@@ -497,11 +437,12 @@ mod tests {
     }
 
     #[test]
-    fn test_sql_table_keyword_zh_cn() {
-        setup_i18n("zh-CN");
+    fn test_sql_table_keyword_now_allowed_zh_cn() {
+        // SQL关键词作为表名现在允许使用，通过引号保护
         let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
-        let err = v.validate_table_name("select").unwrap_err();
-        assert_eq!(validation_message(&err), "表名不能使用SQL关键字: select");
+        assert!(v.validate_table_name("select").is_ok());
+        assert!(v.validate_table_name("order").is_ok());
+        assert!(v.validate_table_name("user").is_ok());
     }
 
     #[test]
@@ -539,11 +480,11 @@ mod tests {
     }
 
     #[test]
-    fn test_sql_field_keyword_en_us() {
-        setup_i18n("en-US");
+    fn test_sql_field_keyword_now_allowed_en_us() {
+        // SQL keywords are now allowed via quoting protection
         let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
-        let err = v.validate_field_name("select").unwrap_err();
-        assert_eq!(validation_message(&err), "Field name cannot use SQL keyword: select");
+        assert!(v.validate_field_name("select").is_ok());
+        assert!(v.validate_field_name("order").is_ok());
     }
 
     #[test]
@@ -587,11 +528,12 @@ mod tests {
     }
 
     #[test]
-    fn test_sql_table_keyword_en_us() {
-        setup_i18n("en-US");
+    fn test_sql_table_keyword_now_allowed_en_us() {
+        // SQL keywords as table names are now allowed via quoting protection
         let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
-        let err = v.validate_table_name("table").unwrap_err();
-        assert_eq!(validation_message(&err), "Table name cannot use SQL keyword: table");
+        assert!(v.validate_table_name("table").is_ok());
+        assert!(v.validate_table_name("order").is_ok());
+        assert!(v.validate_table_name("user").is_ok());
     }
 
     #[test]
@@ -629,10 +571,20 @@ mod tests {
     }
 
     #[test]
-    fn test_sql_field_keyword_ja_jp() {
-        setup_i18n("ja-JP");
+    fn test_sql_field_keyword_now_allowed_ja_jp() {
+        // SQL关键词现在允许使用，通过引号保护
         let v = DatabaseSecurityValidator::new(DatabaseType::PostgreSQL);
-        let err = v.validate_field_name("select").unwrap_err();
-        assert_eq!(validation_message(&err), "フィールド名にSQLキーワードは使用できません: select");
+        assert!(v.validate_field_name("select").is_ok());
+        assert!(v.validate_field_name("order").is_ok());
+    }
+
+    #[test]
+    fn test_quote_identifier() {
+        assert_eq!(quote_identifier("order", DatabaseType::PostgreSQL), "\"order\"");
+        assert_eq!(quote_identifier("order", DatabaseType::SQLite), "\"order\"");
+        assert_eq!(quote_identifier("order", DatabaseType::MySQL), "`order`");
+        assert_eq!(quote_identifier("order", DatabaseType::MongoDB), "order");
+        assert_eq!(quote_identifier("user_name", DatabaseType::PostgreSQL), "\"user_name\"");
+        assert_eq!(quote_identifier("table", DatabaseType::MySQL), "`table`");
     }
 }

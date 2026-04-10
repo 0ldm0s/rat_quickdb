@@ -196,10 +196,14 @@ impl SqlQueryBuilder {
         let fields = if self.fields.is_empty() {
             "*".to_string()
         } else {
-            self.fields.join(", ")
+            self.fields.iter()
+                .map(|f| self.security_validator.get_safe_field_identifier(f).unwrap_or_else(|_| f.clone()))
+                .collect::<Vec<String>>()
+                .join(", ")
         };
 
-        let mut sql = format!("SELECT {} FROM {}", fields, table);
+        let safe_table = self.security_validator.get_safe_table_identifier(table).unwrap_or_else(|_| format!("`{}`", table));
+        let mut sql = format!("SELECT {} FROM {}", fields, safe_table);
         let mut params = Vec::new();
 
         // 添加JOIN子句
@@ -231,7 +235,16 @@ impl SqlQueryBuilder {
 
         // 添加GROUP BY
         if !self.group_by.is_empty() {
-            sql.push_str(&format!(" GROUP BY {}", self.group_by.join(", ")));
+            let safe_group_by: Vec<String> = self
+                .group_by
+                .iter()
+                .map(|f| {
+                    self.security_validator
+                        .get_safe_field_identifier(f)
+                        .unwrap_or_else(|_| format!("`{}`", f))
+                })
+                .collect();
+            sql.push_str(&format!(" GROUP BY {}", safe_group_by.join(", ")));
         }
 
         // 添加HAVING
@@ -252,7 +265,11 @@ impl SqlQueryBuilder {
                         SortDirection::Asc => "ASC",
                         SortDirection::Desc => "DESC",
                     };
-                    format!("{} {}", o.field, direction)
+                    let safe_field = self
+                        .security_validator
+                        .get_safe_field_identifier(&o.field)
+                        .unwrap_or_else(|_| format!("`{}`", o.field));
+                    format!("{} {}", safe_field, direction)
                 })
                 .collect();
             sql.push_str(&format!(" ORDER BY {}", order_clauses.join(", ")));
@@ -298,19 +315,26 @@ impl SqlQueryBuilder {
         }
 
         let columns: Vec<String> = non_null_values.keys().cloned().collect();
+        let safe_columns: Vec<String> = columns.iter()
+            .map(|c| self.security_validator.get_safe_field_identifier(c).unwrap_or_else(|_| c.clone()))
+            .collect();
         let placeholders: Vec<String> = self.generate_placeholders(columns.len());
         let params: Vec<DataValue> = columns.iter().map(|k| non_null_values[k].clone()).collect();
 
+        let safe_table = self.security_validator.get_safe_table_identifier(table).unwrap_or_else(|_| format!("`{}`", table));
         let mut sql = format!(
             "INSERT INTO {} ({}) VALUES ({})",
-            table,
-            columns.join(", "),
+            safe_table,
+            safe_columns.join(", "),
             placeholders.join(", ")
         );
 
         // 添加RETURNING子句
         if !self.returning_fields.is_empty() {
-            sql.push_str(&format!(" RETURNING {}", self.returning_fields.join(", ")));
+            let safe_returning: Vec<String> = self.returning_fields.iter()
+                .map(|f| self.security_validator.get_safe_field_identifier(f).unwrap_or_else(|_| f.clone()))
+                .collect();
+            sql.push_str(&format!(" RETURNING {}", safe_returning.join(", ")));
         }
 
         Ok((sql, params))
@@ -348,14 +372,16 @@ impl SqlQueryBuilder {
         let set_clauses: Vec<String> = non_null_values
             .keys()
             .map(|k| {
+                let safe_field = self.security_validator.get_safe_field_identifier(k).unwrap_or_else(|_| format!("`{}`", k));
                 let placeholder = self.get_placeholder(param_index);
                 param_index += 1;
-                format!("{} = {}", k, placeholder)
+                format!("{} = {}", safe_field, placeholder)
             })
             .collect();
         let mut params: Vec<DataValue> = non_null_values.values().cloned().collect();
 
-        let mut sql = format!("UPDATE {} SET {}", table, set_clauses.join(", "));
+        let safe_table = self.security_validator.get_safe_table_identifier(table).unwrap_or_else(|_| format!("`{}`", table));
+        let mut sql = format!("UPDATE {} SET {}", safe_table, set_clauses.join(", "));
 
         // 添加WHERE条件
         if !self.conditions.is_empty() {
@@ -381,7 +407,8 @@ impl SqlQueryBuilder {
             });
         }
 
-        let mut sql = format!("DELETE FROM {}", table);
+        let safe_table = self.security_validator.get_safe_table_identifier(table).unwrap_or_else(|_| format!("`{}`", table));
+        let mut sql = format!("DELETE FROM {}", safe_table);
         let mut params = Vec::new();
 
         // 添加WHERE条件
@@ -1000,7 +1027,7 @@ impl SqlQueryBuilder {
                     param_index += 1;
                 }
                 QueryOperator::StartsWith => {
-                    clauses.push(format!("{} LIKE {}", condition.field, placeholder));
+                    clauses.push(format!("{} LIKE {}", safe_field, placeholder));
                     if let DataValue::String(s) = &condition.value {
                         params.push(DataValue::String(format!("{}%", s)));
                     } else {
@@ -1009,7 +1036,7 @@ impl SqlQueryBuilder {
                     param_index += 1;
                 }
                 QueryOperator::EndsWith => {
-                    clauses.push(format!("{} LIKE {}", condition.field, placeholder));
+                    clauses.push(format!("{} LIKE {}", safe_field, placeholder));
                     if let DataValue::String(s) = &condition.value {
                         params.push(DataValue::String(format!("%{}", s)));
                     } else {
@@ -1064,7 +1091,7 @@ impl SqlQueryBuilder {
                                                 .unwrap_or_else(|_| "\"\"".to_string()),
                                             _ => unreachable!(), // 已经检查过
                                         };
-                                    clauses.push(format!("JSON_CONTAINS({}, ?)", condition.field));
+                                    clauses.push(format!("JSON_CONTAINS({}, ?)", safe_field));
                                     params.push(DataValue::String(json_param));
                                     param_index += 1;
                                 } else {
@@ -1083,7 +1110,7 @@ impl SqlQueryBuilder {
                                                 .unwrap_or_else(|_| "\"\"".to_string()),
                                             _ => unreachable!(), // 已经检查过
                                         };
-                                        clauses.push(format!("JSON_CONTAINS({}, ?)", condition.field));
+                                        clauses.push(format!("JSON_CONTAINS({}, ?)", safe_field));
                                         params.push(DataValue::String(json_param));
                                         param_index += 1;
                                     }
@@ -1126,7 +1153,7 @@ impl SqlQueryBuilder {
                                 }
                                 clauses.push(format!(
                                     "{} IN ({})",
-                                    condition.field,
+                                    safe_field,
                                     placeholders.join(", ")
                                 ));
                                 params.extend(values.clone());
@@ -1169,7 +1196,7 @@ impl SqlQueryBuilder {
                             }
                             clauses.push(format!(
                                 "{} IN ({})",
-                                condition.field,
+                                safe_field,
                                 placeholders.join(", ")
                             ));
                             params.extend(values.clone());
@@ -1189,21 +1216,21 @@ impl SqlQueryBuilder {
                 }
                 QueryOperator::Regex => {
                     // 不同数据库的正则表达式语法不同，这里使用通用的LIKE
-                    clauses.push(format!("{} REGEXP {}", condition.field, placeholder));
+                    clauses.push(format!("{} REGEXP {}", safe_field, placeholder));
                     params.push(condition.value.clone());
                     param_index += 1;
                 }
                 QueryOperator::Exists => {
                     // 检查字段是否存在（主要用于NoSQL数据库）
-                    clauses.push(format!("{} IS NOT NULL", condition.field));
+                    clauses.push(format!("{} IS NOT NULL", safe_field));
                     // Exists操作符不需要参数值
                 }
                 QueryOperator::IsNull => {
-                    clauses.push(format!("{} IS NULL", condition.field));
+                    clauses.push(format!("{} IS NULL", safe_field));
                     // IsNull操作符不需要参数值
                 }
                 QueryOperator::IsNotNull => {
-                    clauses.push(format!("{} IS NOT NULL", condition.field));
+                    clauses.push(format!("{} IS NOT NULL", safe_field));
                     // IsNotNull操作符不需要参数值
                 }
                 QueryOperator::JsonContains => {

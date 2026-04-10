@@ -5,6 +5,7 @@ use crate::adapter::MysqlAdapter;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::model::{FieldDefinition, FieldType};
 use crate::pool::DatabaseConnection;
+use crate::security::quote_identifier;
 use crate::types::*;
 use rat_logger::debug;
 use std::collections::HashMap;
@@ -22,12 +23,13 @@ pub(crate) async fn create_table(
         let mut field_definitions = Vec::new();
 
         // 统一处理id字段，根据ID策略决定类型和属性
+        let safe_id = quote_identifier("id", DatabaseType::MySQL);
         let id_definition = match id_strategy {
-            IdStrategy::AutoIncrement => "id BIGINT AUTO_INCREMENT PRIMARY KEY".to_string(),
-            IdStrategy::ObjectId => "id VARCHAR(255) PRIMARY KEY".to_string(), // ObjectId存储为字符串
-            IdStrategy::Uuid => "id VARCHAR(36) PRIMARY KEY".to_string(),
-            IdStrategy::Snowflake { .. } => "id BIGINT PRIMARY KEY".to_string(),
-            IdStrategy::Custom(_) => "id VARCHAR(255) PRIMARY KEY".to_string(), // 自定义ID使用字符串
+            IdStrategy::AutoIncrement => format!("{} BIGINT AUTO_INCREMENT PRIMARY KEY", safe_id),
+            IdStrategy::ObjectId => format!("{} VARCHAR(255) PRIMARY KEY", safe_id), // ObjectId存储为字符串
+            IdStrategy::Uuid => format!("{} VARCHAR(36) PRIMARY KEY", safe_id),
+            IdStrategy::Snowflake { .. } => format!("{} BIGINT PRIMARY KEY", safe_id),
+            IdStrategy::Custom(_) => format!("{} VARCHAR(255) PRIMARY KEY", safe_id), // 自定义ID使用字符串
         };
         field_definitions.push(id_definition);
 
@@ -74,12 +76,14 @@ pub(crate) async fn create_table(
             } else {
                 "NULL"
             };
-            field_definitions.push(format!("{} {} {}", name, sql_type, null_constraint));
+            let safe_name = quote_identifier(name, DatabaseType::MySQL);
+            field_definitions.push(format!("{} {} {}", safe_name, sql_type, null_constraint));
         }
 
+        let safe_table = quote_identifier(table, DatabaseType::MySQL);
         let sql = format!(
             "CREATE TABLE IF NOT EXISTS {} ({})",
-            table,
+            safe_table,
             field_definitions.join(", ")
         );
 
@@ -104,12 +108,18 @@ pub(crate) async fn create_index(
 ) -> QuickDbResult<()> {
     if let DatabaseConnection::MySQL(pool) = connection {
         let unique_clause = if unique { "UNIQUE " } else { "" };
+        let safe_index_name = quote_identifier(index_name, DatabaseType::MySQL);
+        let safe_table = quote_identifier(table, DatabaseType::MySQL);
+        let safe_fields: Vec<String> = fields
+            .iter()
+            .map(|f| quote_identifier(f, DatabaseType::MySQL))
+            .collect();
         let sql = format!(
             "CREATE {}INDEX {} ON {} ({})",
             unique_clause,
-            index_name,
-            table,
-            fields.join(", ")
+            safe_index_name,
+            safe_table,
+            safe_fields.join(", ")
         );
 
         adapter.execute_update(pool, &sql, &[], table).await?;
@@ -148,7 +158,8 @@ pub(crate) async fn drop_table(
     table: &str,
 ) -> QuickDbResult<()> {
     if let DatabaseConnection::MySQL(pool) = connection {
-        let sql = format!("DROP TABLE IF EXISTS {}", table);
+        let safe_table = quote_identifier(table, DatabaseType::MySQL);
+        let sql = format!("DROP TABLE IF EXISTS {}", safe_table);
 
         debug!("执行MySQL删除表SQL: {}", sql);
 

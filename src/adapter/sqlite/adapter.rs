@@ -53,9 +53,11 @@ impl SqliteAdapter {
         &self,
         config: &crate::stored_procedure::StoredProcedureConfig,
     ) -> crate::error::QuickDbResult<String> {
+        use crate::security::{quote_dotted_identifier, quote_identifier};
         use crate::stored_procedure::JoinType;
+        let db_type = crate::types::DatabaseType::SQLite;
 
-        // 1. 构建SELECT字段列表
+        // 1. 构建SELECT字段列表（expr 是 SQL 表达式不加引号，alias 作为列别名加引号）
         let fields: Vec<String> = config
             .fields
             .iter()
@@ -63,7 +65,11 @@ impl SqliteAdapter {
                 if alias == expr {
                     expr.clone()
                 } else {
-                    format!("{} AS {}", expr, alias)
+                    format!(
+                        "{} AS {}",
+                        expr,
+                        quote_identifier(alias, db_type)
+                    )
                 }
             })
             .collect();
@@ -88,10 +94,13 @@ impl SqliteAdapter {
                 JoinType::Full => "FULL OUTER JOIN",
             };
 
-            // 直接使用local_field和foreign_field，因为它们已经包含了表名
+            // 对表名和字段名加引号保护
             joins.push(format!(
                 " {} {} ON {} = {}",
-                join_str, join.table, join.local_field, join.foreign_field
+                join_str,
+                quote_identifier(&join.table, db_type),
+                quote_dotted_identifier(&join.local_field, db_type),
+                quote_dotted_identifier(&join.foreign_field, db_type),
             ));
         }
 
@@ -99,7 +108,7 @@ impl SqliteAdapter {
         let sql_template = format!(
             "SELECT {SELECT_FIELDS} FROM {BASE_TABLE}{JOINS}{WHERE}{GROUP_BY}{HAVING}{ORDER_BY}{LIMIT}{OFFSET}",
             SELECT_FIELDS = fields.join(", "),
-            BASE_TABLE = base_table,
+            BASE_TABLE = quote_identifier(base_table, db_type),
             JOINS = if joins.is_empty() {
                 "".to_string()
             } else {

@@ -4,6 +4,7 @@ use crate::adapter::postgres::PostgresAdapter;
 use crate::error::{QuickDbError, QuickDbResult};
 use crate::model::{FieldDefinition, FieldType};
 use crate::pool::DatabaseConnection;
+use crate::security::quote_identifier;
 use crate::types::*;
 use rat_logger::debug;
 use sqlx::Row;
@@ -23,12 +24,13 @@ pub(crate) async fn create_table(
 
         // 根据ID策略创建ID字段
         if !fields.contains_key("id") {
+            let safe_id = quote_identifier("id", DatabaseType::PostgreSQL);
             let id_definition = match id_strategy {
-                IdStrategy::AutoIncrement => "id SERIAL PRIMARY KEY".to_string(),
-                IdStrategy::Uuid => "id UUID PRIMARY KEY".to_string(), // 使用原生UUID类型，返回时转换为字符串
-                IdStrategy::Snowflake { .. } => "id BIGINT PRIMARY KEY".to_string(),
-                IdStrategy::ObjectId => "id TEXT PRIMARY KEY".to_string(),
-                IdStrategy::Custom(_) => "id TEXT PRIMARY KEY".to_string(), // 自定义策略使用TEXT
+                IdStrategy::AutoIncrement => format!("{} SERIAL PRIMARY KEY", safe_id),
+                IdStrategy::Uuid => format!("{} UUID PRIMARY KEY", safe_id), // 使用原生UUID类型，返回时转换为字符串
+                IdStrategy::Snowflake { .. } => format!("{} BIGINT PRIMARY KEY", safe_id),
+                IdStrategy::ObjectId => format!("{} TEXT PRIMARY KEY", safe_id),
+                IdStrategy::Custom(_) => format!("{} TEXT PRIMARY KEY", safe_id), // 自定义策略使用TEXT
             };
             field_definitions.push(id_definition);
         }
@@ -83,15 +85,17 @@ pub(crate) async fn create_table(
 
             // 如果是id字段，根据ID策略创建正确的字段类型
             if name == "id" {
+                let safe_id = quote_identifier("id", DatabaseType::PostgreSQL);
                 let id_definition = match id_strategy {
-                    IdStrategy::AutoIncrement => "id SERIAL PRIMARY KEY".to_string(),
-                    IdStrategy::Uuid => "id UUID PRIMARY KEY".to_string(), // 使用原生UUID类型
-                    IdStrategy::Snowflake { .. } => "id BIGINT PRIMARY KEY".to_string(),
-                    IdStrategy::ObjectId => "id TEXT PRIMARY KEY".to_string(),
-                    IdStrategy::Custom(_) => "id TEXT PRIMARY KEY".to_string(), // 自定义策略使用TEXT
+                    IdStrategy::AutoIncrement => format!("{} SERIAL PRIMARY KEY", safe_id),
+                    IdStrategy::Uuid => format!("{} UUID PRIMARY KEY", safe_id), // 使用原生UUID类型
+                    IdStrategy::Snowflake { .. } => format!("{} BIGINT PRIMARY KEY", safe_id),
+                    IdStrategy::ObjectId => format!("{} TEXT PRIMARY KEY", safe_id),
+                    IdStrategy::Custom(_) => format!("{} TEXT PRIMARY KEY", safe_id), // 自定义策略使用TEXT
                 };
                 field_definitions.push(id_definition);
             } else {
+                let safe_name = quote_identifier(name, DatabaseType::PostgreSQL);
                 // 添加NULL或NOT NULL约束
                 let null_constraint = if field_definition.required {
                     "NOT NULL"
@@ -99,13 +103,14 @@ pub(crate) async fn create_table(
                     "NULL"
                 };
                 debug!("🔍 字段 {} 定义: {} {}", name, sql_type, null_constraint);
-                field_definitions.push(format!("{} {} {}", name, sql_type, null_constraint));
+                field_definitions.push(format!("{} {} {}", safe_name, sql_type, null_constraint));
             }
         }
 
+        let safe_table = quote_identifier(table, DatabaseType::PostgreSQL);
         let sql = format!(
             "CREATE TABLE IF NOT EXISTS {} ({})",
-            table,
+            safe_table,
             field_definitions.join(", ")
         );
 
@@ -133,12 +138,18 @@ pub(crate) async fn create_index(
 ) -> QuickDbResult<()> {
     if let DatabaseConnection::PostgreSQL(pool) = connection {
         let unique_clause = if unique { "UNIQUE " } else { "" };
+        let safe_index_name = quote_identifier(index_name, DatabaseType::PostgreSQL);
+        let safe_table = quote_identifier(table, DatabaseType::PostgreSQL);
+        let safe_fields: Vec<String> = fields
+            .iter()
+            .map(|f| quote_identifier(f, DatabaseType::PostgreSQL))
+            .collect();
         let sql = format!(
             "CREATE {}INDEX IF NOT EXISTS {} ON {} ({})",
             unique_clause,
-            index_name,
-            table,
-            fields.join(", ")
+            safe_index_name,
+            safe_table,
+            safe_fields.join(", ")
         );
 
         debug!("执行PostgreSQL索引创建: {}", sql);
@@ -187,7 +198,8 @@ pub(crate) async fn drop_table(
     table: &str,
 ) -> QuickDbResult<()> {
     if let DatabaseConnection::PostgreSQL(pool) = connection {
-        let sql = format!("DROP TABLE IF EXISTS {} CASCADE", table);
+        let safe_table = quote_identifier(table, DatabaseType::PostgreSQL);
+        let sql = format!("DROP TABLE IF EXISTS {} CASCADE", safe_table);
 
         debug!("执行PostgreSQL删除表SQL: {}", sql);
 
