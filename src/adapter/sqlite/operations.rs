@@ -201,7 +201,9 @@ impl DatabaseAdapter for SqliteAdapter {
             }
         };
         {
-            let sql = format!("SELECT * FROM {} WHERE id = ? LIMIT 1", table);
+            let safe_table = quote_identifier(table, DatabaseType::SQLite);
+            let safe_id = quote_identifier("id", DatabaseType::SQLite);
+            let sql = format!("SELECT * FROM {} WHERE {} = ? LIMIT 1", safe_table, safe_id);
 
             let mut query = sqlx::query(&sql);
             match id {

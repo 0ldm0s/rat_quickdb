@@ -203,9 +203,13 @@ impl SqlQueryBuilder {
             self.fields
                 .iter()
                 .map(|f| {
-                    self.security_validator
-                        .get_safe_field_identifier(f)
-                        .unwrap_or_else(|_| format!("\"{}\"", f))
+                    if f == "*" {
+                        "*".to_string()
+                    } else {
+                        self.security_validator
+                            .get_safe_field_identifier(f)
+                            .unwrap_or_else(|_| format!("\"{}\"", f))
+                    }
                 })
                 .collect::<Vec<_>>()
                 .join(", ")
