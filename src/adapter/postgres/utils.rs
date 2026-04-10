@@ -274,6 +274,13 @@ pub(crate) async fn execute_query(
                             message: format!("PostgreSQL表 '{}' 不存在", table),
                         };
                     }
+                    // 42P07 是 PostgreSQL "duplicate table" 的标准错误码（也用于索引）
+                    if code.as_ref() == "42P07" {
+                        return QuickDbError::IndexExistsError {
+                            index: table.to_string(),
+                            message: format!("PostgreSQL索引已存在: {}", db_err.message()),
+                        };
+                    }
                 }
             }
             QuickDbError::QueryError {
@@ -359,6 +366,13 @@ pub(crate) async fn execute_update(
                         return QuickDbError::TableNotExistError {
                             table: table.to_string(),
                             message: format!("PostgreSQL表 '{}' 不存在", table),
+                        };
+                    }
+                    // 42P07 是 PostgreSQL "duplicate table" 的标准错误码（也用于索引）
+                    if code.as_ref() == "42P07" {
+                        return QuickDbError::IndexExistsError {
+                            index: table.to_string(),
+                            message: format!("PostgreSQL索引已存在: {}", db_err.message()),
                         };
                     }
                 }

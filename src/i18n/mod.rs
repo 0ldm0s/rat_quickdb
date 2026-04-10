@@ -615,6 +615,13 @@ impl ErrorMessageI18n {
         table_not_exist_errors.insert("ja-JP".to_string(), "テーブルまたはコレクション '{table}' が存在しません: {message}".to_string());
         translations.insert("error.table_not_exist".to_string(), table_not_exist_errors);
 
+        // 索引已存在错误
+        let mut index_exists_errors = HashMap::new();
+        index_exists_errors.insert("zh-CN".to_string(), "索引 '{index}' 已存在: {message}".to_string());
+        index_exists_errors.insert("en-US".to_string(), "Index '{index}' already exists: {message}".to_string());
+        index_exists_errors.insert("ja-JP".to_string(), "インデックス '{index}' は既に存在します: {message}".to_string());
+        translations.insert("error.index_exists".to_string(), index_exists_errors);
+
         // 版本管理错误
         let mut version_errors = HashMap::new();
         version_errors.insert("zh-CN".to_string(), "版本管理操作失败: {message}".to_string());

@@ -141,8 +141,26 @@ impl SqliteAdapter {
         let result = query
             .execute(pool)
             .await
-            .map_err(|e| QuickDbError::QueryError {
-                message: format!("SQLite更新失败: {}", e),
+            .map_err(|e| {
+                // SQLite 错误码检测
+                if let Some(db_err) = e.as_database_error() {
+                    if let Some(code) = db_err.code() {
+                        // SQLite 错误码 1 = SQLITE_ERROR，需结合消息判断
+                        if code.as_ref() == "1" {
+                            let msg = db_err.message().to_lowercase();
+                            // 索引已存在：消息含 "already exists" 且含 "index"
+                            if msg.contains("already exists") && msg.contains("index") {
+                                return QuickDbError::IndexExistsError {
+                                    index: String::new(),
+                                    message: format!("SQLite索引已存在: {}", db_err.message()),
+                                };
+                            }
+                        }
+                    }
+                }
+                QuickDbError::QueryError {
+                    message: format!("SQLite更新失败: {}", e),
+                }
             })?;
 
         Ok(result.rows_affected())

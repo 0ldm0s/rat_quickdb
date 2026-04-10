@@ -149,17 +149,14 @@ impl PoolManager {
                         .create_index(&collection_name, index_name, &index.fields, index.unique)
                         .await
                     {
-                        // 如果是索引已存在的错误，忽略它
-                        let error_msg = e.to_string().to_lowercase();
-                        if error_msg.contains("duplicate")
-                            || error_msg.contains("already exists")
-                            || error_msg.contains("already exist")
-                            || error_msg.contains("already")
-                            || error_msg.contains("exists")
-                        {
-                            debug!("索引 {} 已存在，跳过创建", index_name);
-                        } else {
-                            warn!("创建索引失败: {} (错误: {})", index_name, e);
+                        // 使用错误码检测的 IndexExistsError 替代字符串匹配
+                        match &e {
+                            QuickDbError::IndexExistsError { .. } => {
+                                debug!("索引 {} 已存在，跳过创建", index_name);
+                            }
+                            _ => {
+                                warn!("创建索引失败: {} (错误: {})", index_name, e);
+                            }
                         }
                     } else {
                     }

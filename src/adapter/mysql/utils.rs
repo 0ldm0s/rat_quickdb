@@ -557,6 +557,15 @@ impl MysqlAdapter {
                                 message: format!("MySQL表 '{}' 不存在", table),
                             };
                         }
+                        // 42000: MySQL 1061 Duplicate key name
+                        if code.as_ref() == "42000"
+                            && db_err.message().contains("Duplicate key name")
+                        {
+                            return QuickDbError::IndexExistsError {
+                                index: table.to_string(),
+                                message: format!("MySQL索引已存在: {}", db_err.message()),
+                            };
+                        }
                     }
                 }
                 QuickDbError::QueryError {
@@ -666,13 +675,22 @@ impl MysqlAdapter {
                 // 使用错误码检测表不存在，避免受语言影响
                 // 42S02 是 MySQL/MariaDB 中 "base table or view not found" 的标准错误码
                 if let Some(db_err) = e.as_database_error() {
-                    if let Some(code) = db_err.code() {
-                        if code.as_ref() == "42S02" {
+                    let code_str = db_err.code().map(|c| c.to_string()).unwrap_or_default();
+                    match code_str.as_str() {
+                        "42S02" => {
                             return QuickDbError::TableNotExistError {
                                 table: table.to_string(),
                                 message: format!("MySQL表 '{}' 不存在", table),
                             };
                         }
+                        // 42000: MySQL 1061 Duplicate key name
+                        "42000" if db_err.message().contains("Duplicate key name") => {
+                            return QuickDbError::IndexExistsError {
+                                index: table.to_string(),
+                                message: format!("MySQL索引已存在: {}", db_err.message()),
+                            };
+                        }
+                        _ => {}
                     }
                 }
                 QuickDbError::QueryError {

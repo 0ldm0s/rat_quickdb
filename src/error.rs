@@ -50,6 +50,9 @@ pub enum QuickDbError {
     /// 表或集合不存在错误
     TableNotExistError { table: String, message: String },
 
+    /// 索引已存在错误
+    IndexExistsError { index: String, message: String },
+
     /// 版本管理错误
     VersionError { message: String },
 
@@ -134,6 +137,11 @@ impl std::fmt::Display for QuickDbError {
                 f,
                 "{}",
                 crate::i18n::tf("error.table_not_exist", &[("table", table), ("message", message)])
+            ),
+            Self::IndexExistsError { index, message } => write!(
+                f,
+                "{}",
+                crate::i18n::tf("error.index_exists", &[("index", index), ("message", message)])
             ),
             Self::VersionError { message } => write!(
                 f,
@@ -264,6 +272,14 @@ impl ErrorBuilder {
             message: message.into(),
         }
     }
+
+    /// 创建索引已存在错误
+    pub fn index_exists_error(index: impl Into<String>, message: impl Into<String>) -> QuickDbError {
+        QuickDbError::IndexExistsError {
+            index: index.into(),
+            message: message.into(),
+        }
+    }
 }
 
 /// 便捷宏 - 快速创建错误
@@ -298,6 +314,9 @@ macro_rules! quick_error {
     };
     (table_not_exist, $table:expr, $msg:expr) => {
         $crate::error::ErrorBuilder::table_not_exist_error($table, $msg)
+    };
+    (index_exists, $index:expr, $msg:expr) => {
+        $crate::error::ErrorBuilder::index_exists_error($index, $msg)
     };
 }
 
