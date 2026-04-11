@@ -76,7 +76,7 @@ impl MultiConnectionManager {
         match &self.db_config.db_type {
             #[cfg(feature = "postgres-support")]
             DatabaseType::PostgreSQL => {
-                let connection_string = match &self.db_config.connection {
+                let pg_opts = match &self.db_config.connection {
                     crate::types::ConnectionConfig::PostgreSQL {
                         host,
                         port,
@@ -86,46 +86,50 @@ impl MultiConnectionManager {
                         ssl_mode,
                         tls_config,
                     } => {
-                        // 对密码进行 URL 编码以处理特殊字符
-                        let encoded_password = urlencoding::encode(password);
-                        let mut base = format!(
-                            "postgresql://{}:{}@{}:{}/{}",
-                            username, encoded_password, host, port, database
-                        );
+                        let mut opts = sqlx::postgres::PgConnectOptions::new()
+                            .host(host)
+                            .port(*port)
+                            .username(username)
+                            .password(password);
 
-                        // 构建 SSL/TLS 查询参数
-                        let mut params = Vec::new();
-
-                        // 添加 sslmode 参数
-                        if let Some(mode) = ssl_mode {
-                            params.push(format!("sslmode={}", mode));
-                        } else if tls_config.as_ref().is_some_and(|tc| tc.enabled) {
-                            // 如果未显式指定 ssl_mode 但启用了 TLS，默认使用 require
-                            params.push("sslmode=require".to_string());
+                        if !database.is_empty() {
+                            opts = opts.database(database);
                         }
 
-                        // 添加 TLS 证书路径参数
+                        // 设置 ssl_mode
+                        if let Some(mode) = ssl_mode {
+                            opts = match mode.as_str() {
+                                "disable" => opts.ssl_mode(sqlx::postgres::PgSslMode::Disable),
+                                "allow" => opts.ssl_mode(sqlx::postgres::PgSslMode::Allow),
+                                "prefer" => opts.ssl_mode(sqlx::postgres::PgSslMode::Prefer),
+                                "require" => opts.ssl_mode(sqlx::postgres::PgSslMode::Require),
+                                "verify-ca" => opts.ssl_mode(sqlx::postgres::PgSslMode::VerifyCa),
+                                "verify-full" => {
+                                    opts.ssl_mode(sqlx::postgres::PgSslMode::VerifyFull)
+                                }
+                                _ => opts,
+                            };
+                        } else if tls_config.as_ref().is_some_and(|tc| tc.enabled) {
+                            // 如果未显式指定 ssl_mode 但启用了 TLS，默认使用 require
+                            opts = opts.ssl_mode(sqlx::postgres::PgSslMode::Require);
+                        }
+
+                        // 设置 TLS 证书路径
                         if let Some(tc) = tls_config {
                             if tc.enabled {
                                 if let Some(ca_path) = &tc.ca_cert_path {
-                                    params.push(format!("sslrootcert={}", ca_path));
+                                    opts = opts.ssl_root_cert(ca_path);
                                 }
                                 if let Some(cert_path) = &tc.client_cert_path {
-                                    params.push(format!("sslcert={}", cert_path));
+                                    opts = opts.ssl_client_cert(cert_path);
                                 }
                                 if let Some(key_path) = &tc.client_key_path {
-                                    params.push(format!("sslkey={}", key_path));
+                                    opts = opts.ssl_client_key(key_path);
                                 }
-                                // 不验证服务器证书时使用 sslmode=no-verify（非标准）
-                                // 标准做法是用户自行设置 ssl_mode 为 disable/allow
                             }
                         }
 
-                        if !params.is_empty() {
-                            base = format!("{}?{}", base, params.join("&"));
-                        }
-
-                        base
+                        opts
                     }
                     _ => {
                         return Err(QuickDbError::ConfigError {
@@ -134,7 +138,7 @@ impl MultiConnectionManager {
                     }
                 };
 
-                // 使用PgPoolOptions创建连接池 - 使用配置值
+                // 使用 PgConnectOptions 创建连接池
                 let pool = sqlx::postgres::PgPoolOptions::new()
                     .max_connections(self.config.base.max_connections)
                     .min_connections(self.config.base.min_connections)
@@ -147,7 +151,7 @@ impl MultiConnectionManager {
                     .acquire_timeout(std::time::Duration::from_millis(
                         self.config.base.connection_timeout,
                     ))
-                    .connect(&connection_string)
+                    .connect_with(pg_opts)
                     .await
                     .map_err(|e| QuickDbError::ConnectionError {
                         message: format!("PostgreSQL连接池创建失败: {}", e),
@@ -157,7 +161,7 @@ impl MultiConnectionManager {
             }
             #[cfg(feature = "mysql-support")]
             DatabaseType::MySQL => {
-                let connection_string = match &self.db_config.connection {
+                let mysql_opts = match &self.db_config.connection {
                     crate::types::ConnectionConfig::MySQL {
                         host,
                         port,
@@ -167,54 +171,60 @@ impl MultiConnectionManager {
                         ssl_opts,
                         tls_config,
                     } => {
-                        // 对密码进行 URL 编码以处理特殊字符
-                        let encoded_password = urlencoding::encode(password);
-                        let mut base = format!(
-                            "mysql://{}:{}@{}:{}/{}",
-                            username, encoded_password, host, port, database
-                        );
+                        let mut opts = sqlx::mysql::MySqlConnectOptions::new()
+                            .host(host)
+                            .port(*port)
+                            .username(username)
+                            .password(password);
 
-                        // 构建 SSL/TLS 查询参数
-                        let mut params = Vec::new();
+                        if !database.is_empty() {
+                            opts = opts.database(database);
+                        }
 
-                        // 添加 ssl_opts 中的自定义 SSL 参数
-                        if let Some(opts) = ssl_opts {
-                            for (key, value) in opts {
-                                params.push(format!("{}={}", key, value));
+                        // 设置 SSL 模式
+                        // 优先使用 ssl_opts 中的 ssl-mode，其次根据 tls_config 推断
+                        let ssl_mode_value = ssl_opts
+                            .as_ref()
+                            .and_then(|o| o.get("ssl-mode"))
+                            .map(|s| s.to_ascii_lowercase());
+
+                        if let Some(mode_str) = &ssl_mode_value {
+                            opts = match mode_str.as_str() {
+                                "disabled" => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled),
+                                "preferred" => {
+                                    opts.ssl_mode(sqlx::mysql::MySqlSslMode::Preferred)
+                                }
+                                "required" => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Required),
+                                "verify_ca" => opts.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyCa),
+                                "verify_identity" => {
+                                    opts.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyIdentity)
+                                }
+                                _ => opts,
+                            };
+                        } else if tls_config.as_ref().is_some_and(|tc| tc.enabled) {
+                            if tls_config.as_ref().is_some_and(|tc| tc.verify_server_cert) {
+                                opts = opts.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyCa);
+                            } else {
+                                opts = opts.ssl_mode(sqlx::mysql::MySqlSslMode::Required);
                             }
                         }
 
-                        // 添加 TLS 证书路径参数
+                        // 设置 TLS 证书路径
                         if let Some(tc) = tls_config {
                             if tc.enabled {
-                                // 如果未通过 ssl_opts 指定 ssl-mode，根据 tls_config 设置
-                                let has_ssl_mode = ssl_opts
-                                    .as_ref()
-                                    .is_some_and(|o| o.contains_key("ssl-mode"));
-                                if !has_ssl_mode {
-                                    if tc.verify_server_cert {
-                                        params.push("ssl-mode=VERIFY_CA".to_string());
-                                    } else {
-                                        params.push("ssl-mode=REQUIRED".to_string());
-                                    }
-                                }
                                 if let Some(ca_path) = &tc.ca_cert_path {
-                                    params.push(format!("ssl-ca={}", ca_path));
+                                    opts = opts.ssl_ca(ca_path);
                                 }
                                 if let Some(cert_path) = &tc.client_cert_path {
-                                    params.push(format!("ssl-cert={}", cert_path));
+                                    opts = opts.ssl_client_cert(cert_path);
                                 }
                                 if let Some(key_path) = &tc.client_key_path {
-                                    params.push(format!("ssl-key={}", key_path));
+                                    opts = opts.ssl_client_key(key_path);
                                 }
                             }
                         }
 
-                        if !params.is_empty() {
-                            base = format!("{}?{}", base, params.join("&"));
-                        }
-
-                        base
+                        opts
                     }
                     _ => {
                         return Err(QuickDbError::ConfigError {
@@ -223,20 +233,20 @@ impl MultiConnectionManager {
                     }
                 };
 
-                // 创建带有连接池配置的MySQL连接池
+                // 使用 MySqlConnectOptions 创建连接池
                 let mysql_pool = sqlx::mysql::MySqlPoolOptions::new()
                     .min_connections(self.config.base.min_connections)
                     .max_connections(self.config.base.max_connections)
                     .acquire_timeout(std::time::Duration::from_millis(
                         self.config.base.connection_timeout,
                     ))
-                    .idle_timeout(std::time::Duration::from_millis(
+                    .idle_timeout(std::time::Duration::from_secs(
                         self.config.base.idle_timeout,
                     ))
                     .max_lifetime(std::time::Duration::from_millis(
                         self.config.base.max_lifetime,
                     ))
-                    .connect(&connection_string)
+                    .connect_with(mysql_opts)
                     .await
                     .map_err(|e| QuickDbError::ConnectionError {
                         message: format!("MySQL连接池创建失败: {}", e),
@@ -353,7 +363,7 @@ impl MultiConnectionManager {
 
         // 创建初始连接
         if let Err(e) = self.create_initial_connections().await {
-            error!("创建初始连接失败: {}", e);
+            error!("创建初始连接失败: {:?}", e);
             return;
         }
 
