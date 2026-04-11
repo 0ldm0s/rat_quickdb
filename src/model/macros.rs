@@ -284,6 +284,19 @@ macro_rules! define_model {
                 }
             }
 
+            /// 保存模型到数据库，并将生成的 ID 写回对象
+            ///
+            /// 与 `save()` 的区别：
+            /// - `save()` 返回 ID 字符串，不修改对象
+            /// - `save_mut()` 返回 ID 字符串，**同时将 ID 写回对象的 `id` 字段**
+            ///
+            /// 适用于需要后续操作（如 upsert）时复用同一对象的场景
+            pub async fn save_mut(&mut self) -> $crate::error::QuickDbResult<String> {
+                let id = self.save().await?;
+                self.id = id.clone();
+                Ok(id)
+            }
+
             /// 更新模型
             pub async fn update(&self, updates: std::collections::HashMap<String, $crate::types::DataValue>) -> $crate::error::QuickDbResult<bool> {
                 // 尝试从模型中获取ID字段，兼容 MongoDB 的 _id 和 SQL 的 id
@@ -322,6 +335,68 @@ macro_rules! define_model {
                 let database_alias = Self::database_alias();
 
                 $crate::odm::update_by_id(&collection_name, &id_str, updates, database_alias.as_deref()).await
+            }
+
+            /// Upsert模型到数据库 - 如果记录存在则更新，否则插入
+            pub async fn upsert(&self, conflict_columns: Vec<String>) -> $crate::error::QuickDbResult<String> {
+                self.validate()?;
+                let data = self.to_data_map()?;
+                let collection_name = Self::collection_name();
+                let database_alias = Self::database_alias();
+
+                // 确保表和索引存在（静默处理，这是预期行为）
+                let alias = database_alias.as_deref().unwrap_or("default");
+                let _ = $crate::manager::ensure_table_and_indexes(&collection_name, alias).await;
+
+                // 调用ODM upsert
+                let result = $crate::odm::upsert(
+                    &collection_name,
+                    data,
+                    conflict_columns,
+                    database_alias.as_deref(),
+                ).await?;
+
+                // 将 DataValue 转换为 String（通常是 ID）
+                match result {
+                    $crate::types::DataValue::String(id) => Ok(id),
+                    $crate::types::DataValue::Int(id) => Ok(id.to_string()),
+                    $crate::types::DataValue::Uuid(id) => Ok(id.to_string()),
+                    $crate::types::DataValue::Object(obj) => {
+                        // 如果返回的是对象，尝试提取_id字段（MongoDB）或id字段（SQL）
+                        if let Some(id_value) = obj.get("_id").or_else(|| obj.get("id")) {
+                            match id_value {
+                                $crate::types::DataValue::String(id) => Ok(id.clone()),
+                                $crate::types::DataValue::Int(id) => Ok(id.to_string()),
+                                $crate::types::DataValue::Uuid(id) => Ok(id.to_string()),
+                                _ => Ok(format!("{:?}", id_value))
+                            }
+                        } else {
+                            // 如果对象中没有id字段，序列化整个对象
+                            match serde_json::to_string(&obj) {
+                                Ok(json_str) => Ok(json_str),
+                                Err(_) => Ok(format!("{:?}", obj))
+                            }
+                        }
+                    },
+                    other => {
+                        // 如果返回的不是简单的 ID 类型，尝试序列化为 JSON
+                        match serde_json::to_string(&other) {
+                            Ok(json_str) => Ok(json_str),
+                            Err(_) => Ok(format!("{:?}", other))
+                        }
+                    }
+                }
+            }
+
+            /// Upsert模型到数据库，并将生成的 ID 写回对象
+            ///
+            /// 与 `upsert()` 的区别：
+            /// - `upsert()` 返回 ID 字符串，不修改对象
+            /// - `upsert_mut()` 返回 ID 字符串，**同时将 ID 写回对象的 `id` 字段**
+            pub async fn upsert_mut(&mut self, conflict_columns: Vec<String>) -> $crate::error::QuickDbResult<String> {
+                let id = self.upsert(conflict_columns).await?;
+                self.id = id.clone();
+                Ok(id)
             }
 
             /// 删除模型

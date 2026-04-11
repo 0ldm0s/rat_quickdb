@@ -333,6 +333,32 @@ impl DatabaseAdapter for CachedDatabaseAdapter {
         result
     }
 
+    /// Upsert记录 - Upsert成功后智能清理相关缓存
+    async fn upsert(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        data: &HashMap<String, DataValue>,
+        id_strategy: &IdStrategy,
+        conflict_columns: &[String],
+        alias: &str,
+    ) -> QuickDbResult<DataValue> {
+        let result = self
+            .inner
+            .upsert(connection, table, data, id_strategy, conflict_columns, alias)
+            .await;
+
+        // Upsert成功后清理查询缓存
+        if result.is_ok() {
+            if let Err(e) = self.cache_manager.clear_table_query_cache(table).await {
+                warn!("清理表查询缓存失败: {}", e);
+            }
+            debug!("已清理表查询缓存(upsert): table={}", table);
+        }
+
+        result
+    }
+
     /// 删除记录 - 删除成功后智能清理相关缓存
     async fn delete(
         &self,

@@ -23,6 +23,8 @@ pub struct SqlQueryBuilder {
     offset: Option<u64>,
     values: HashMap<String, DataValue>,
     returning_fields: Vec<String>,
+    /// Upsert冲突检测列
+    conflict_columns: Vec<String>,
     security_validator: DatabaseSecurityValidator,
 }
 
@@ -32,6 +34,7 @@ pub enum QueryType {
     Insert,
     Update,
     Delete,
+    Upsert,
 }
 
 #[derive(Debug, Clone)]
@@ -71,6 +74,7 @@ impl SqlQueryBuilder {
             offset: None,
             values: HashMap::new(),
             returning_fields: Vec::new(),
+            conflict_columns: Vec::new(),
             security_validator: DatabaseSecurityValidator::new(DatabaseType::SQLite),
         }
     }
@@ -99,6 +103,19 @@ impl SqlQueryBuilder {
     /// 设置查询类型为DELETE
     pub fn delete(mut self) -> Self {
         self.query_type = QueryType::Delete;
+        self
+    }
+
+    /// 设置查询类型为UPSERT（存在则更新，不存在则插入）
+    pub fn upsert(mut self, values: HashMap<String, DataValue>) -> Self {
+        self.query_type = QueryType::Upsert;
+        self.values = values;
+        self
+    }
+
+    /// 设置冲突检测列（用于UPSERT）
+    pub fn on_conflict(mut self, columns: &[&str]) -> Self {
+        self.conflict_columns = columns.iter().map(|s| s.to_string()).collect();
         self
     }
 
@@ -179,6 +196,7 @@ impl SqlQueryBuilder {
             QueryType::Insert => self.build_insert(table, alias),
             QueryType::Update => self.build_update(table, alias),
             QueryType::Delete => self.build_delete(table, alias),
+            QueryType::Upsert => self.build_upsert(table, alias),
         };
 
         result
@@ -439,6 +457,81 @@ impl SqlQueryBuilder {
                 })
                 .collect();
             sql.push_str(&format!(" RETURNING {}", safe_returning.join(", ")));
+        }
+
+        Ok((sql, params))
+    }
+
+    /// 构建UPSERT语句（INSERT ... ON CONFLICT ... DO UPDATE SET ...）
+    fn build_upsert(&self, table: &str, alias: &str) -> QuickDbResult<(String, Vec<DataValue>)> {
+        if table.is_empty() {
+            return Err(QuickDbError::QueryError {
+                message: "表名不能为空".to_string(),
+            });
+        }
+
+        if self.values.is_empty() {
+            return Err(QuickDbError::QueryError {
+                message: "插入值不能为空".to_string(),
+            });
+        }
+
+        // 过滤掉 NULL 值，让数据库使用默认值或 NULL
+        let non_null_values: HashMap<String, DataValue> = self
+            .values
+            .iter()
+            .filter(|(_, value)| !matches!(value, DataValue::Null))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        if non_null_values.is_empty() {
+            return Err(QuickDbError::QueryError {
+                message: "所有插入值都是 NULL，无法插入".to_string(),
+            });
+        }
+
+        // 冲突列默认为 id
+        let conflict_cols = if self.conflict_columns.is_empty() {
+            vec!["id".to_string()]
+        } else {
+            self.conflict_columns.clone()
+        };
+
+        let columns: Vec<String> = non_null_values.keys().cloned().collect();
+        let placeholders: Vec<String> = self.generate_placeholders(columns.len());
+        let params: Vec<DataValue> = columns.iter().map(|k| non_null_values[k].clone()).collect();
+
+        // INSERT 部分
+        let mut sql = format!(
+            "INSERT INTO {} ({}) VALUES ({})",
+            table,
+            columns.join(", "),
+            placeholders.join(", ")
+        );
+
+        // ON CONFLICT ... DO UPDATE SET ... 部分
+        // 排除冲突列，不更新用于冲突检测的列
+        let update_set_clauses: Vec<String> = columns
+            .iter()
+            .filter(|col| !conflict_cols.contains(col))
+            .map(|col| format!("{} = EXCLUDED.{}", col, col))
+            .collect();
+
+        if update_set_clauses.is_empty() {
+            return Err(QuickDbError::QueryError {
+                message: "排除冲突列后没有需要更新的字段".to_string(),
+            });
+        }
+
+        sql.push_str(&format!(
+            " ON CONFLICT ({}) DO UPDATE SET {}",
+            conflict_cols.join(", "),
+            update_set_clauses.join(", ")
+        ));
+
+        // 添加RETURNING子句
+        if !self.returning_fields.is_empty() {
+            sql.push_str(&format!(" RETURNING {}", self.returning_fields.join(", ")));
         }
 
         Ok((sql, params))

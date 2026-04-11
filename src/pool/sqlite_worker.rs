@@ -401,6 +401,28 @@ impl SqliteWorker {
                 let _ = response.send(result);
                 Ok(())
             }
+            DatabaseOperation::Upsert {
+                table,
+                data,
+                id_strategy,
+                conflict_columns,
+                alias,
+                response,
+            } => {
+                let result = self
+                    .adapter
+                    .upsert(
+                        &self.connection,
+                        &table,
+                        &data,
+                        &id_strategy,
+                        &conflict_columns,
+                        &alias,
+                    )
+                    .await;
+                let _ = response.send(result);
+                Ok(())
+            }
             DatabaseOperation::Delete {
                 table,
                 conditions,

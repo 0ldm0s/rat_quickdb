@@ -151,6 +151,140 @@ impl DatabaseAdapter for PostgresAdapter {
         }
     }
 
+    async fn upsert(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        data: &HashMap<String, DataValue>,
+        id_strategy: &IdStrategy,
+        conflict_columns: &[String],
+        alias: &str,
+    ) -> QuickDbResult<DataValue> {
+        if let DatabaseConnection::PostgreSQL(pool) = connection {
+            // 自动建表逻辑：检查表是否存在，如果不存在则创建
+            if !postgres_schema::table_exists(self, connection, table).await? {
+                // 获取表创建锁，防止重复创建
+                let _lock = self.acquire_table_lock(table).await;
+
+                // 再次检查表是否存在（双重检查锁定模式）
+                if !postgres_schema::table_exists(self, connection, table).await? {
+                    // 尝试从模型管理器获取预定义的元数据
+                    if let Some(model_meta) = crate::manager::get_model_with_alias(table, alias) {
+                        debug!("表 {} 不存在，使用预定义模型元数据创建", table);
+
+                        // 使用模型元数据创建表
+                        postgres_schema::create_table(
+                            self,
+                            connection,
+                            table,
+                            &model_meta.fields,
+                            id_strategy,
+                            alias,
+                        )
+                        .await?;
+
+                        // 等待100ms确保数据库事务完全提交
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        debug!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
+                    } else {
+                        return Err(QuickDbError::ValidationError {
+                            field: "table_creation".to_string(),
+                            message: format!(
+                                "表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。",
+                                table
+                            ),
+                        });
+                    }
+                } else {
+                    debug!("表 {} 已存在，跳过创建", table);
+                }
+
+                // 锁会在这里自动释放（当 _lock 超出作用域时）
+            }
+
+            // 表已存在，检查是否有SERIAL类型的id字段
+            let mut has_auto_increment_id = false;
+            let check_serial_sql = "SELECT column_default FROM information_schema.columns WHERE table_name = $1 AND column_name = 'id'";
+            let rows = sqlx::query(check_serial_sql)
+                .bind(table)
+                .fetch_all(pool)
+                .await
+                .map_err(|e| QuickDbError::QueryError {
+                    message: format!("检查表结构失败: {}", e),
+                })?;
+
+            if let Some(row) = rows.first() {
+                if let Ok(Some(default_value)) = row.try_get::<Option<String>, _>("column_default")
+                {
+                    has_auto_increment_id = default_value.starts_with("nextval");
+                }
+            }
+
+            // 准备插入数据
+            // 如果数据中没有id字段，说明期望使用自增ID，不需要在INSERT中包含id字段
+            // 如果数据中有id字段但表使用SERIAL自增，也要移除id字段让PostgreSQL自动生成
+            let mut insert_data = data.clone();
+            let data_has_id = insert_data.contains_key("id");
+
+            if !data_has_id || (data_has_id && has_auto_increment_id) {
+                insert_data.remove("id");
+                debug!("使用PostgreSQL SERIAL自增，不在INSERT中包含id字段");
+            } else if data_has_id {
+                // 如果有ID字段且指定了ID策略，可能需要转换数据类型
+                match id_strategy {
+                    IdStrategy::Snowflake { .. } => {
+                        // 雪花ID需要转换为整数
+                        if let Some(id_value) = insert_data.get("id").cloned() {
+                            if let DataValue::String(s) = id_value {
+                                if let Ok(num) = s.parse::<i64>() {
+                                    insert_data.insert("id".to_string(), DataValue::Int(num));
+                                    debug!("将雪花ID从字符串转换为整数: {} -> {}", s, num);
+                                }
+                            }
+                        }
+                    }
+                    IdStrategy::Uuid => {
+                        // UUID需要转换为UUID类型
+                        if let Some(id_value) = insert_data.get("id").cloned() {
+                            if let DataValue::String(s) = id_value {
+                                if let Ok(uuid) = s.parse::<uuid::Uuid>() {
+                                    insert_data.insert("id".to_string(), DataValue::Uuid(uuid));
+                                    debug!("将UUID从字符串转换为UUID类型: {}", s);
+                                }
+                            }
+                        }
+                    }
+                    _ => {} // 其他策略不需要转换
+                }
+            }
+
+            let conflict_columns_str: Vec<&str> = conflict_columns.iter().map(|s| s.as_str()).collect();
+
+            let (sql, params) = SqlQueryBuilder::new()
+                .upsert(insert_data)
+                .on_conflict(&conflict_columns_str)
+                .returning(&["id"])
+                .build(table, alias)?;
+
+            debug!("执行PostgreSQL Upsert: {}", sql);
+
+            let results = super::utils::execute_query(self, pool, &sql, &params, table).await?;
+
+            if let Some(result) = results.first() {
+                Ok(result.clone())
+            } else {
+                // 创建一个表示成功操作的DataValue
+                let mut success_map = HashMap::new();
+                success_map.insert("affected_rows".to_string(), DataValue::Int(1));
+                Ok(DataValue::Object(success_map))
+            }
+        } else {
+            Err(QuickDbError::ConnectionError {
+                message: "连接类型不匹配，期望PostgreSQL连接".to_string(),
+            })
+        }
+    }
+
     async fn find_by_id(
         &self,
         connection: &DatabaseConnection,

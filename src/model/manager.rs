@@ -236,6 +236,14 @@ impl<T: Model> ModelOperations<T> for ModelManager<T> {
         })
     }
 
+    async fn upsert(&self, _conflict_columns: Vec<String>) -> QuickDbResult<String> {
+        // 这个方法需要模型实例，应该在具体的模型实现中调用
+        Err(QuickDbError::ValidationError {
+            field: "upsert".to_string(),
+            message: "upsert方法需要在模型实例上调用".to_string(),
+        })
+    }
+
     async fn delete(&self) -> QuickDbResult<bool> {
         // 这个方法需要模型实例，应该在具体的模型实现中调用
         Err(QuickDbError::ValidationError {

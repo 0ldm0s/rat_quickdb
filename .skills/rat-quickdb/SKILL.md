@@ -129,7 +129,30 @@ define_model! {
    - `User::create_table()`, `User::find_with_groups()`
    - `User::create_stored_procedure()`, `User::execute_stored_procedure()`
 
-### 可用字段类型
+### 函数式字段定义（当前项目使用）
+
+**【注意】`string_field` 参数顺序是 `(max_length, min_length, regex)`，max 在前 min 在后！**
+
+```rust
+use rat_quickdb::{string_field, integer_field, boolean_field, datetime_field, uuid_field, array_field, field_types, json_field};
+
+// string_field(max_length, min_length, regex) — 注意 max 在前！
+name: string_field(Some(200), Some(1), None).required(),          // 最大200，最少1
+description: string_field(None, None, None),                       // 无限制
+scope: string_field(Some(50), None, None).required(),              // 最大50
+
+// integer_field(min_value, max_value) — 注意 min 在前！
+count: integer_field(None, None),
+score: integer_field(Some(0), Some(100)),
+
+// 其他字段
+id: uuid_field().unique(),
+is_active: boolean_field(),
+tags: array_field(field_types!(string), Some(10), None),
+metadata: json_field(),
+```
+
+### 宏式字段定义（旧版）
 
 ```rust
 string_field!("name", max_length)           // String
@@ -555,7 +578,9 @@ cargo run --release --example simple_concurrent_test --features sqlite-support
 
 ## 关键限制（CRITICAL）
 
-1. **必须调用 `init()`** — 所有数据库操作前
+1. **`string_field` 参数顺序是 `(max_length, min_length, regex)`** — max 在前 min 在后，和直觉相反！
+2. **`integer_field` 参数顺序是 `(min_value, max_value)`** — 和 `string_field` 相反！
+3. **必须调用 `init()`** — 所有数据库操作前
 2. **必须使用 `define_model!`** — 禁止手动定义模型结构体
 3. **禁止直接访问适配器/连接池** — 所有操作通过 ODM 层
 4. **必须启用对应 feature** — 运行示例或测试时

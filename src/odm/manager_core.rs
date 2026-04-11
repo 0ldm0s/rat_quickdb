@@ -147,6 +147,17 @@ impl AsyncOdmManager {
                     let result = Self::handle_update_by_id(&collection, &id, updates, alias).await;
                     let _ = response.send(result);
                 }
+                OdmRequest::Upsert {
+                    collection,
+                    data,
+                    conflict_columns,
+                    alias,
+                    response,
+                } => {
+                    let result =
+                        Self::handle_upsert(&collection, data, conflict_columns, alias).await;
+                    let _ = response.send(result);
+                }
                 OdmRequest::Delete {
                     collection,
                     conditions,

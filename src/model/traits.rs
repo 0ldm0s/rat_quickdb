@@ -397,6 +397,21 @@ pub trait ModelOperations<T: Model> {
     /// - 如果需要插入新记录，请使用 `save()` 方法
     async fn update(&self, updates: HashMap<String, DataValue>) -> QuickDbResult<bool>;
 
+    /// Upsert记录 - 如果记录存在则更新，否则插入新记录
+    ///
+    /// # 行为说明
+    /// - 根据指定的冲突列判断记录是否已存在
+    /// - 如果冲突列值匹配已存在记录，则更新该记录的所有字段
+    /// - 如果冲突列值不匹配任何记录，则插入新记录
+    /// - ID处理逻辑与save()相同：AutoIncrement策略移除id字段，其他策略自动生成或保留
+    ///
+    /// # 参数
+    /// - `conflict_columns`: 冲突检测列名列表，默认为 `["id"]`（主键）
+    ///
+    /// # 返回值
+    /// 返回记录的ID字符串
+    async fn upsert(&self, conflict_columns: Vec<String>) -> QuickDbResult<String>;
+
     /// 删除记录
     async fn delete(&self) -> QuickDbResult<bool>;
 

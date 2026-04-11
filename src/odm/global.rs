@@ -162,6 +162,26 @@ pub async fn update_by_id(
     manager.update_by_id(collection, id, updates, alias).await
 }
 
+/// 便捷函数：Upsert记录 - 如果记录存在则更新，否则插入新记录
+///
+/// 【注意】这是一个内部函数，建议通过模型的upsert方法进行操作
+/// 除非您明确知道自己在做什么，否则不要直接调用此函数
+#[doc(hidden)]
+pub async fn upsert(
+    collection: &str,
+    data: HashMap<String, DataValue>,
+    conflict_columns: Vec<String>,
+    alias: Option<&str>,
+) -> QuickDbResult<DataValue> {
+    // 锁定全局操作
+    crate::lock_global_operations();
+
+    let manager = get_odm_manager().await;
+    manager
+        .upsert(collection, data, conflict_columns, alias)
+        .await
+}
+
 /// 便捷函数：使用操作数组更新记录
 ///
 /// 【注意】这是一个内部函数，建议通过ModelManager或模型的update_many_with_operations方法进行操作

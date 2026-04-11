@@ -200,6 +200,189 @@ impl DatabaseAdapter for MysqlAdapter {
         }
     }
 
+    async fn upsert(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        data: &HashMap<String, DataValue>,
+        id_strategy: &IdStrategy,
+        conflict_columns: &[String],
+        alias: &str,
+    ) -> QuickDbResult<DataValue> {
+        if let DatabaseConnection::MySQL(pool) = connection {
+            // 自动建表逻辑：检查表是否存在，如果不存在则创建
+            if !self.table_exists(connection, table).await? {
+                // 获取表创建锁，防止重复创建
+                let _lock = self.acquire_table_lock(table).await;
+                // 再次检查表是否存在（双重检查锁定模式）
+                if !self.table_exists(connection, table).await? {
+                    // 尝试从模型管理器获取预定义的元数据
+                    if let Some(model_meta) = manager::get_model_with_alias(table, alias) {
+                        debug!("表 {} 不存在，使用预定义模型元数据创建", table);
+
+                        // 使用模型元数据创建表
+                        self.create_table(
+                            connection,
+                            table,
+                            &model_meta.fields,
+                            id_strategy,
+                            alias,
+                        )
+                        .await?;
+                        // 等待100ms确保数据库事务完全提交
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        debug!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
+                    } else {
+                        return Err(QuickDbError::ValidationError {
+                            field: "table_creation".to_string(),
+                            message: format!(
+                                "表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。",
+                                table
+                            ),
+                        });
+                    }
+                } else {
+                    debug!("表 {} 已存在，跳过创建", table);
+                }
+                // 锁会在这里自动释放（当 _lock 超出作用域时）
+            }
+
+            let conflict_columns_str: Vec<&str> = conflict_columns.iter().map(|s| s.as_str()).collect();
+
+            let (sql, params) = SqlQueryBuilder::new()
+                .upsert(data.clone())
+                .on_conflict(&conflict_columns_str)
+                .build(table, alias)?;
+
+            debug!("生成的UPSERT SQL: {}", sql);
+            debug!("绑定参数: {:?}", params);
+
+            // 使用事务确保upsert和获取ID在同一个连接中
+            let mut tx = pool.begin().await.map_err(|e| QuickDbError::QueryError {
+                message: format!("开始事务失败: {}", e),
+            })?;
+
+            let affected_rows = {
+                let mut query = sqlx::query::<sqlx::MySql>(&sql);
+                // 绑定参数
+                for param in &params {
+                    query = match param {
+                        DataValue::String(s) => query.bind(s),
+                        DataValue::Int(i) => query.bind(i),
+                        DataValue::UInt(u) => {
+                            if *u <= i64::MAX as u64 {
+                                query.bind(*u as i64)
+                            } else {
+                                query.bind(u.to_string())
+                            }
+                        }
+                        DataValue::Float(f) => query.bind(f),
+                        DataValue::Bool(b) => query.bind(b),
+                        DataValue::DateTime(dt) => query.bind(dt.naive_utc().and_utc()),
+                        DataValue::DateTimeUTC(dt) => query.bind(dt.naive_utc()),
+                        DataValue::Uuid(uuid) => query.bind(uuid),
+                        DataValue::Json(json) => query.bind(json.to_string()),
+                        DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
+                        DataValue::Null => query.bind(Option::<String>::None),
+                        DataValue::Array(arr) => {
+                            let json_values: Vec<serde_json::Value> =
+                                arr.iter().map(|v| v.to_json_value()).collect();
+                            query.bind(serde_json::to_string(&json_values).unwrap_or_default())
+                        }
+                        DataValue::Object(obj) => {
+                            let json_map: serde_json::Map<String, serde_json::Value> = obj
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.to_json_value()))
+                                .collect();
+                            query.bind(serde_json::to_string(&json_map).unwrap_or_default())
+                        }
+                    };
+                }
+
+                let execute_result = query.execute(&mut *tx).await;
+                match execute_result {
+                    Ok(result) => {
+                        let rows = result.rows_affected();
+                        debug!("✅ SQL执行成功，影响的行数: {}", rows);
+                        rows
+                    }
+                    Err(e) => {
+                        debug!("❌ SQL执行失败: {}", e);
+                        return Err(QuickDbError::QueryError {
+                            message: format!("执行upsert失败: {}", e),
+                        });
+                    }
+                }
+            };
+
+            debug!("upsert操作最终影响的行数: {}", affected_rows);
+
+            // 根据ID策略获取返回的ID
+            let id_value = match id_strategy {
+                IdStrategy::AutoIncrement => {
+                    // AutoIncrement策略：获取MySQL自动生成的ID
+                    let last_id_row = sqlx::query::<sqlx::MySql>("SELECT LAST_INSERT_ID()")
+                        .fetch_one(&mut *tx)
+                        .await
+                        .map_err(|e| QuickDbError::QueryError {
+                            message: format!("获取LAST_INSERT_ID失败: {}", e),
+                        })?;
+
+                    let last_id: u64 =
+                        last_id_row
+                            .try_get(0)
+                            .map_err(|e| QuickDbError::QueryError {
+                                message: format!("解析LAST_INSERT_ID失败: {}", e),
+                            })?;
+
+                    debug!("在事务中获取到的LAST_INSERT_ID: {}", last_id);
+                    DataValue::Int(last_id as i64)
+                }
+                _ => {
+                    // 其他策略：使用数据中的ID字段
+                    if let Some(id_data) = data.get("id") {
+                        debug!("使用数据中的ID字段: {:?}", id_data);
+                        id_data.clone()
+                    } else {
+                        debug!("数据中没有ID字段，返回默认值0");
+                        DataValue::Int(0)
+                    }
+                }
+            };
+
+            // 提交事务
+            let commit_result = tx.commit().await;
+            match commit_result {
+                Ok(_) => debug!("✅ 事务提交成功"),
+                Err(e) => {
+                    debug!("❌ 事务提交失败: {}", e);
+                    return Err(QuickDbError::QueryError {
+                        message: format!("提交事务失败: {}", e),
+                    });
+                }
+            }
+
+            // 构造返回的DataValue
+            let mut result_map = std::collections::HashMap::new();
+
+            result_map.insert("id".to_string(), id_value.clone());
+            result_map.insert(
+                "affected_rows".to_string(),
+                DataValue::Int(affected_rows as i64),
+            );
+
+            debug!(
+                "upsert最终返回的DataValue: {:?}",
+                DataValue::Object(result_map.clone())
+            );
+            Ok(DataValue::Object(result_map))
+        } else {
+            Err(QuickDbError::ConnectionError {
+                message: "连接类型不匹配，期望MySQL连接".to_string(),
+            })
+        }
+    }
+
     async fn find_by_id(
         &self,
         connection: &DatabaseConnection,

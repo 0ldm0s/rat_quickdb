@@ -11,6 +11,7 @@ use crate::pool::DatabaseConnection;
 use crate::types::*;
 use async_trait::async_trait;
 use mongodb::bson::{Bson, Document, doc};
+use mongodb::options::UpdateOptions;
 use rat_logger::debug;
 use serde_json::json;
 use std::collections::HashMap;
@@ -204,6 +205,106 @@ impl DatabaseAdapter for MongoAdapter {
                 result_map.insert("id".to_string(), DataValue::String(id_str));
                 Ok(DataValue::Object(result_map))
             }
+        } else {
+            Err(QuickDbError::ConnectionError {
+                message: crate::i18n::t("adapter.mongo.connection_mismatch"),
+            })
+        }
+    }
+
+    async fn upsert(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        data: &HashMap<String, DataValue>,
+        id_strategy: &IdStrategy,
+        conflict_columns: &[String],
+        alias: &str,
+    ) -> QuickDbResult<DataValue> {
+        if let DatabaseConnection::MongoDB(db) = connection {
+            // 自动建表逻辑：检查集合是否存在，如果不存在则创建
+            if !mongodb_schema::table_exists(self, connection, table).await? {
+                // 获取表创建锁，防止并发创建
+                let _lock = self.acquire_table_lock(table).await;
+
+                // 双重检查：再次确认集合不存在
+                if !mongodb_schema::table_exists(self, connection, table).await? {
+                    // 尝试从模型管理器获取预定义的元数据
+                    if let Some(model_meta) = crate::manager::get_model_with_alias(table, alias) {
+                        debug!("集合 {} 不存在，使用预定义模型元数据创建", table);
+
+                        // MongoDB不需要预创建表结构，集合是无模式的
+                    } else {
+                        return Err(QuickDbError::ValidationError {
+                            field: "collection_creation".to_string(),
+                            message: crate::i18n::tf("adapter.mongo.collection_no_metadata", &[("collection", table)]),
+                        });
+                    }
+
+                    // 等待一小段时间确保数据库事务完成
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                }
+            }
+
+            let collection = mongodb_utils::get_collection(self, db, table);
+
+            // 映射字段名（id -> _id）
+            let mapped_data = mongodb_utils::map_data_fields(self, data);
+
+            // 构建过滤文档：从conflict_columns的值中构建
+            let mut filter = Document::new();
+            for col in conflict_columns {
+                let bson_col = if col == "id" { "_id" } else { col.as_str() };
+                if let Some(value) = mapped_data.get(bson_col) {
+                    if let Ok(bson_value) = mongodb_utils::data_value_to_bson(self, value) {
+                        filter.insert(bson_col, bson_value);
+                    }
+                }
+            }
+
+            // 构建更新文档：使用$set设置所有非_id字段
+            let update = mongodb_utils::build_update_document(self, data)?;
+
+            debug!(
+                "执行MongoDB Upsert: 集合={}, filter={:?}, update={:?}",
+                table, filter, update
+            );
+
+            let result = collection
+                .update_one(
+                    filter,
+                    update,
+                    UpdateOptions::builder().upsert(true).build(),
+                )
+                .await
+                .map_err(|e| QuickDbError::QueryError {
+                    message: crate::i18n::tf("adapter.mongo.upsert_failed", &[("error", &e.to_string())]),
+                })?;
+
+            let mut result_map = HashMap::new();
+
+            // 提取ID：优先使用upserted_id（新插入时），否则使用冲突列的值
+            let id_value = if let Some(upserted_id) = result.upserted_id {
+                // 新插入的文档，使用MongoDB生成的ID
+                let id_str = match upserted_id {
+                    Bson::ObjectId(oid) => oid.to_hex(),
+                    _ => upserted_id.to_string(),
+                };
+                DataValue::String(id_str)
+            } else {
+                // 更新了已存在的文档，使用数据中的ID字段
+                if let Some(id_data) = data.get("id") {
+                    id_data.clone()
+                } else if let Some(id_data) = mapped_data.get("_id") {
+                    // 将_id映射回id
+                    id_data.clone()
+                } else {
+                    DataValue::String(String::new())
+                }
+            };
+
+            result_map.insert("id".to_string(), id_value);
+            Ok(DataValue::Object(result_map))
         } else {
             Err(QuickDbError::ConnectionError {
                 message: crate::i18n::t("adapter.mongo.connection_mismatch"),

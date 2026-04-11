@@ -571,6 +571,28 @@ impl MultiConnectionManager {
                 let _ = response.send(result);
                 Ok(())
             }
+            DatabaseOperation::Upsert {
+                table,
+                data,
+                id_strategy,
+                conflict_columns,
+                alias,
+                response,
+            } => {
+                let result = worker
+                    .adapter
+                    .upsert(
+                        &worker.connection,
+                        &table,
+                        &data,
+                        &id_strategy,
+                        &conflict_columns,
+                        &alias,
+                    )
+                    .await;
+                let _ = response.send(result);
+                Ok(())
+            }
             DatabaseOperation::Delete {
                 table,
                 conditions,

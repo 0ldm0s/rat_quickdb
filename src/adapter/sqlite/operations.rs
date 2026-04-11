@@ -185,6 +185,179 @@ impl DatabaseAdapter for SqliteAdapter {
         }
     }
 
+    async fn upsert(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        data: &HashMap<String, DataValue>,
+        id_strategy: &IdStrategy,
+        conflict_columns: &[String],
+        alias: &str,
+    ) -> QuickDbResult<DataValue> {
+        let pool = match connection {
+            DatabaseConnection::SQLite(pool) => pool,
+            _ => {
+                return Err(QuickDbError::ConnectionError {
+                    message: "Invalid connection type for SQLite".to_string(),
+                });
+            }
+        };
+
+        // 自动建表逻辑：检查表是否存在，如果不存在则创建
+        if !self.table_exists(connection, table).await? {
+            // 获取表创建锁，防止重复创建
+            let _lock = self.acquire_table_lock(table).await;
+            // 再次检查表是否存在（双重检查锁定模式）
+            if !self.table_exists(connection, table).await? {
+                // 尝试从模型管理器获取预定义的元数据
+                if let Some(model_meta) = crate::manager::get_model_with_alias(table, alias) {
+                    debug!("表 {} 不存在，使用预定义模型元数据创建", table);
+
+                    // 使用模型元数据创建表
+                    self.create_table(connection, table, &model_meta.fields, id_strategy, alias)
+                        .await?;
+                    // 等待100ms确保数据库事务完全提交
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    debug!("⏱️ 等待100ms确保表 '{}' 创建完成", table);
+                } else {
+                    return Err(QuickDbError::ValidationError {
+                        field: "table_creation".to_string(),
+                        message: format!(
+                            "表 '{}' 不存在，且没有预定义的模型元数据。请先定义模型并使用 define_model! 宏明确指定字段类型。",
+                            table
+                        ),
+                    });
+                }
+            } else {
+                debug!("表 {} 已存在，跳过创建", table);
+            }
+            // 锁会在这里自动释放（当 _lock 超出作用域时）
+        }
+
+        // 将 conflict_columns: &[String] 转换为 &[&str] 供查询构建器使用
+        let conflict_columns_str: Vec<&str> =
+            conflict_columns.iter().map(|s| s.as_str()).collect();
+
+        let (sql, params) = SqlQueryBuilder::new()
+            .upsert(data.clone())
+            .on_conflict(&conflict_columns_str)
+            .returning(&["id"])
+            .build(table, alias)?;
+
+        // 构建参数化查询，使用正确的参数顺序
+        let mut query = sqlx::query(&sql);
+        for param in &params {
+            match param {
+                DataValue::String(s) => {
+                    query = query.bind(s);
+                }
+                DataValue::Int(i) => {
+                    query = query.bind(i);
+                }
+                DataValue::UInt(u) => {
+                    // SQLite 不支持 u64 编码，转换为 i64 或字符串
+                    if *u <= i64::MAX as u64 {
+                        query = query.bind(*u as i64);
+                    } else {
+                        query = query.bind(u.to_string());
+                    }
+                }
+                DataValue::Float(f) => {
+                    query = query.bind(f);
+                }
+                DataValue::Bool(b) => {
+                    query = query.bind(b);
+                }
+                DataValue::Bytes(bytes) => {
+                    query = query.bind(bytes);
+                }
+                DataValue::DateTime(dt) => {
+                    query = query.bind(dt.timestamp());
+                }
+                DataValue::DateTimeUTC(dt) => {
+                    query = query.bind(dt.timestamp());
+                }
+                DataValue::Uuid(uuid) => {
+                    query = query.bind(uuid.to_string());
+                }
+                DataValue::Json(json) => {
+                    query = query.bind(json.to_string());
+                }
+                DataValue::Array(arr) => {
+                    // Array字段统一转为字符串数组存储
+                    let string_array: Result<Vec<String>, QuickDbError> = arr.iter().map(|item| {
+                            Ok(match item {
+                                DataValue::String(s) => s.clone(),
+                                DataValue::Int(i) => i.to_string(),
+                                DataValue::Float(f) => f.to_string(),
+                                DataValue::Uuid(uuid) => uuid.to_string(),
+                                _ => {
+                                    return Err(QuickDbError::ValidationError {
+                                        field: "array_field".to_string(),
+                                        message: format!("Array字段不支持该类型: {:?}，只支持String、Int、Float、Uuid类型", item),
+                                    });
+                                }
+                            })
+                        }).collect();
+                    let string_array = string_array?;
+                    let json = serde_json::to_string(&string_array).unwrap_or_default();
+                    query = query.bind(json);
+                }
+                DataValue::Object(_) => {
+                    let json = param.to_json_value().to_string();
+                    query = query.bind(json);
+                }
+                DataValue::Null => {
+                    query = query.bind(Option::<String>::None);
+                }
+            }
+        }
+
+        let row = query
+            .fetch_one(pool)
+            .await
+            .map_err(|e| QuickDbError::QueryError {
+                message: format!("执行SQLite upsert失败: {}", e),
+            })?;
+
+        // 根据插入的数据返回相应的ID
+        // 优先使用数据中的 ID 字段
+        if let Some(id_value) = data.get("id") {
+            return Ok(id_value.clone());
+        }
+        if let Some(id_value) = data.get("_id") {
+            return Ok(id_value.clone());
+        }
+
+        // 尝试从 RETURNING 结果中提取 id
+        // 首先尝试作为字符串（UUID 策略），然后尝试作为整数（AutoIncrement 策略）
+        let id_value = if let Ok(id_str) = row.try_get::<String, _>("id") {
+            if !id_str.is_empty() {
+                DataValue::String(id_str)
+            } else {
+                DataValue::Null
+            }
+        } else if let Ok(id_int) = row.try_get::<i64, _>("id") {
+            if id_int > 0 {
+                DataValue::Int(id_int)
+            } else {
+                DataValue::Null
+            }
+        } else {
+            DataValue::Null
+        };
+
+        match id_value {
+            DataValue::Null => {
+                // 如果没有有效ID，返回包含详细信息的对象
+                let mut result_map = HashMap::new();
+                result_map.insert("id".to_string(), DataValue::Null);
+                Ok(DataValue::Object(result_map))
+            }
+            other => Ok(other),
+        }
+    }
+
     async fn find_by_id(
         &self,
         connection: &DatabaseConnection,

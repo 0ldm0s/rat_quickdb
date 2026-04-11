@@ -71,6 +71,14 @@ pub enum OdmRequest {
         alias: Option<String>,
         response: oneshot::Sender<QuickDbResult<bool>>,
     },
+    /// Upsert记录 - 如果记录存在则更新，否则插入
+    Upsert {
+        collection: String,
+        data: HashMap<String, DataValue>,
+        conflict_columns: Vec<String>,
+        alias: Option<String>,
+        response: oneshot::Sender<QuickDbResult<DataValue>>,
+    },
     Delete {
         collection: String,
         conditions: Vec<QueryConditionWithConfig>,

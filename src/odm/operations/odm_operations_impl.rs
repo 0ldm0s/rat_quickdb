@@ -253,6 +253,34 @@ impl OdmOperations for AsyncOdmManager {
         })?
     }
 
+    async fn upsert(
+        &self,
+        collection: &str,
+        data: HashMap<String, DataValue>,
+        conflict_columns: Vec<String>,
+        alias: Option<&str>,
+    ) -> QuickDbResult<DataValue> {
+        let (sender, receiver) = oneshot::channel();
+
+        let request = OdmRequest::Upsert {
+            collection: collection.to_string(),
+            data,
+            conflict_columns,
+            alias: alias.map(|s| s.to_string()),
+            response: sender,
+        };
+
+        self.request_sender
+            .send(request)
+            .map_err(|_| QuickDbError::ConnectionError {
+                message: crate::i18n::t("odm.task_stopped"),
+            })?;
+
+        receiver.await.map_err(|_| QuickDbError::ConnectionError {
+            message: crate::i18n::t("odm.request_failed"),
+        })?
+    }
+
     async fn delete(
         &self,
         collection: &str,

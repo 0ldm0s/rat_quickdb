@@ -121,6 +121,15 @@ pub trait OdmOperations {
         alias: Option<&str>,
     ) -> QuickDbResult<bool>;
 
+    /// Upsert记录 - 如果记录存在则更新，否则插入新记录
+    async fn upsert(
+        &self,
+        collection: &str,
+        data: HashMap<String, DataValue>,
+        conflict_columns: Vec<String>,
+        alias: Option<&str>,
+    ) -> QuickDbResult<DataValue>;
+
     /// 删除记录
     async fn delete(
         &self,

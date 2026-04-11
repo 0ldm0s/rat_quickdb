@@ -7,6 +7,7 @@ pub mod delete_handler;
 pub mod read_handler;
 pub mod stored_procedure_handler;
 pub mod update_handler;
+pub mod upsert_handler;
 
 // 重新导出所有处理器以保持API兼容性
 pub use create_handler::*;
@@ -14,3 +15,4 @@ pub use delete_handler::*;
 pub use read_handler::*;
 pub use stored_procedure_handler::*;
 pub use update_handler::*;
+pub use upsert_handler::*;

@@ -163,6 +163,17 @@ pub trait DatabaseAdapter: Send + Sync {
         alias: &str,
     ) -> QuickDbResult<bool>;
 
+    /// Upsert记录 - 如果记录存在则更新，否则插入新记录
+    async fn upsert(
+        &self,
+        connection: &DatabaseConnection,
+        table: &str,
+        data: &HashMap<String, DataValue>,
+        id_strategy: &IdStrategy,
+        conflict_columns: &[String],
+        alias: &str,
+    ) -> QuickDbResult<DataValue>;
+
     /// 删除记录
     async fn delete(
         &self,

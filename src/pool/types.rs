@@ -97,6 +97,15 @@ pub enum DatabaseOperation {
         alias: String,
         response: oneshot::Sender<QuickDbResult<bool>>,
     },
+    /// Upsert记录 - 如果记录存在则更新，否则插入
+    Upsert {
+        table: String,
+        data: HashMap<String, DataValue>,
+        id_strategy: IdStrategy,
+        conflict_columns: Vec<String>,
+        alias: String,
+        response: oneshot::Sender<QuickDbResult<DataValue>>,
+    },
     /// 删除记录
     Delete {
         table: String,
