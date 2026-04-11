@@ -1,7 +1,7 @@
 # Rust
 /target
 /Cargo.lock
-/not_git
+/references/
 
 # Database files
 /**/*.db
