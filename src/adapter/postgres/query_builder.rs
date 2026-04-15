@@ -457,23 +457,32 @@ impl SqlQueryBuilder {
         };
 
         let columns: Vec<String> = non_null_values.keys().cloned().collect();
-        let placeholders: Vec<String> = self.generate_placeholders(columns.len());
+        let safe_columns: Vec<String> = columns.iter()
+            .map(|c| self.security_validator.get_safe_field_identifier(c).unwrap_or_else(|_| c.clone()))
+            .collect();
+        let placeholders: Vec<String> = self.generate_placeholders(safe_columns.len());
         let params: Vec<DataValue> = columns.iter().map(|k| non_null_values[k].clone()).collect();
+
+        let safe_table = self.security_validator.get_safe_table_identifier(table).unwrap_or_else(|_| format!("\"{}\"", table));
 
         // INSERT 部分
         let mut sql = format!(
             "INSERT INTO {} ({}) VALUES ({})",
-            table,
-            columns.join(", "),
+            safe_table,
+            safe_columns.join(", "),
             placeholders.join(", ")
         );
 
         // ON CONFLICT ... DO UPDATE SET ... 部分
         // 排除冲突列，不更新用于冲突检测的列
-        let update_set_clauses: Vec<String> = columns
+        let safe_conflict_cols: Vec<String> = conflict_cols.iter()
+            .map(|c| self.security_validator.get_safe_field_identifier(c).unwrap_or_else(|_| c.clone()))
+            .collect();
+        let update_set_clauses: Vec<String> = safe_columns
             .iter()
-            .filter(|col| !conflict_cols.contains(col))
-            .map(|col| format!("{} = EXCLUDED.{}", col, col))
+            .zip(columns.iter())
+            .filter(|(_, raw)| !conflict_cols.contains(raw))
+            .map(|(safe_col, _)| format!("{} = EXCLUDED.{}", safe_col, safe_col))
             .collect();
 
         if update_set_clauses.is_empty() {
@@ -484,13 +493,16 @@ impl SqlQueryBuilder {
 
         sql.push_str(&format!(
             " ON CONFLICT ({}) DO UPDATE SET {}",
-            conflict_cols.join(", "),
+            safe_conflict_cols.join(", "),
             update_set_clauses.join(", ")
         ));
 
         // 添加RETURNING子句
         if !self.returning_fields.is_empty() {
-            sql.push_str(&format!(" RETURNING {}", self.returning_fields.join(", ")));
+            let safe_returning: Vec<String> = self.returning_fields.iter()
+                .map(|f| self.security_validator.get_safe_field_identifier(f).unwrap_or_else(|_| f.clone()))
+                .collect();
+            sql.push_str(&format!(" RETURNING {}", safe_returning.join(", ")));
         }
 
         Ok((sql, params))

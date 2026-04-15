@@ -56,7 +56,7 @@ impl AsyncOdmManager {
         let id_strategy = connection_pool.db_config.id_strategy.clone();
 
         // 根据ID策略处理ID字段（与create_handler逻辑一致）
-        let mut processed_data = data.clone();
+        let mut processed_data = data;
 
         if let Ok(id_generator) = manager.get_id_generator(&actual_alias) {
             match id_generator.strategy() {
@@ -75,14 +75,14 @@ impl AsyncOdmManager {
                         Some(_) => true,
                         None => false,
                     };
-                    let _id_is_valid = match processed_data.get("_id") {
+                    let alt_id_is_valid = match processed_data.get("_id") {
                         Some(crate::types::DataValue::String(s)) => !s.is_empty(),
                         Some(crate::types::DataValue::Int(i)) => *i > 0,
                         Some(crate::types::DataValue::Null) => false,
                         Some(_) => true,
                         None => false,
                     };
-                    let has_valid_id = id_is_valid || _id_is_valid;
+                    let has_valid_id = id_is_valid || alt_id_is_valid;
 
                     if !has_valid_id {
                         debug!("数据中没有有效ID字段，使用IdGenerator生成ID");
