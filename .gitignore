@@ -73,11 +73,13 @@ Thumbs.db
 *.txt
 !README*.txt
 
-# Markdown files (except README, docs folder and skills)
+# Markdown files (except README, docs folder, skills, eva docs and CLAUDE.md)
 *.md
 !README*.md
 !docs/**/*.md
 !.skills/**/*.md
+!.eva/**/*.md
+!CLAUDE.md
 
 # Shared libraries
 /**/*.so
