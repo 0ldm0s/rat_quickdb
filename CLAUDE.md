@@ -185,6 +185,11 @@ just run --example field_versioning_sqlite --features sqlite-support
 @.eva/docs/types.md
 @.eva/docs/adapter.md
 @.eva/docs/odm.md
+@.eva/docs/model.md
+@.eva/docs/cache.md
+@.eva/docs/pool.md
+@.eva/docs/config.md
+@.eva/docs/other.md
 
 refine-tags
 type: code
