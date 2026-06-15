@@ -473,12 +473,17 @@ impl DatabaseAdapter for SqliteAdapter {
             }
         };
         {
-            let (sql, params) = SqlQueryBuilder::new()
-                .select(&["*"])
-                .where_condition_groups(condition_groups)
-                .limit(options.pagination.as_ref().map(|p| p.limit).unwrap_or(1000))
-                .offset(options.pagination.as_ref().map(|p| p.skip).unwrap_or(0))
-                .build(table, alias)?;
+            let (sql, params) = {
+                let mut builder = SqlQueryBuilder::new()
+                    .select(&["*"])
+                    .where_condition_groups(condition_groups)
+                    .limit(options.pagination.as_ref().map(|p| p.limit).unwrap_or(1000))
+                    .offset(options.pagination.as_ref().map(|p| p.skip).unwrap_or(0));
+                for sort in &options.sort {
+                    builder = builder.order_by(&sort.field, sort.direction.clone());
+                }
+                builder.build(table, alias)?
+            };
 
             debug!("执行SQLite条件组合查询: {}", sql);
 
