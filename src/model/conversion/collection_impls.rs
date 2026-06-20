@@ -34,6 +34,13 @@ impl ToDataValue for Vec<i64> {
     }
 }
 
+// Vec<f32> 实现（映射到 Vector 类型，用于 pgvector 向量搜索）
+impl ToDataValue for Vec<f32> {
+    fn to_data_value(&self) -> DataValue {
+        DataValue::Vector(self.clone())
+    }
+}
+
 // Vec<f64> 实现
 impl ToDataValue for Vec<f64> {
     fn to_data_value(&self) -> DataValue {
