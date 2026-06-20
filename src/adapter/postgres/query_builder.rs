@@ -26,6 +26,8 @@ pub struct SqlQueryBuilder {
     conflict_columns: Vec<String>,
     /// 向量排序配置（用于 pgvector 向量搜索）
     vector_sort: Option<crate::types::query::VectorSortConfig>,
+    /// 全文搜索配置（用于 PostgreSQL tsvector 全文搜索）
+    fulltext_search: Option<crate::types::query::FullTextSearchConfig>,
     security_validator: DatabaseSecurityValidator,
 }
 
@@ -77,6 +79,7 @@ impl SqlQueryBuilder {
             returning_fields: Vec::new(),
             conflict_columns: Vec::new(),
             vector_sort: None,
+            fulltext_search: None,
             security_validator: DatabaseSecurityValidator::new(DatabaseType::PostgreSQL),
         }
     }
@@ -164,6 +167,12 @@ impl SqlQueryBuilder {
     /// 设置向量排序（用于 pgvector 向量搜索，优先于普通 ORDER BY）
     pub fn vector_order_by(mut self, config: crate::types::query::VectorSortConfig) -> Self {
         self.vector_sort = Some(config);
+        self
+    }
+
+    /// 设置全文搜索（用于 PostgreSQL tsvector 全文搜索）
+    pub fn fulltext_search(mut self, config: crate::types::query::FullTextSearchConfig) -> Self {
+        self.fulltext_search = Some(config);
         self
     }
 
@@ -264,6 +273,33 @@ impl SqlQueryBuilder {
             params.extend(where_params);
         }
 
+        // 全文搜索条件（追加到 WHERE 子句）
+        if let Some(ft) = &self.fulltext_search {
+            // 验证搜索配置名（只允许字母、数字、下划线）
+            if !ft.search_config.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                return Err(QuickDbError::QueryError {
+                    message: format!("无效的全文搜索配置名: {}", ft.search_config),
+                });
+            }
+            let safe_field = self
+                .security_validator
+                .get_safe_field_identifier(&ft.field)
+                .unwrap_or_else(|_| format!("\"{}\"", ft.field));
+
+            let param_idx = params.len() + 1;
+            let ft_condition = format!(
+                "to_tsvector('{}', {}) @@ plainto_tsquery('{}', ${})",
+                ft.search_config, safe_field, ft.search_config, param_idx
+            );
+
+            if sql.contains(" WHERE ") {
+                sql.push_str(&format!(" AND {}", ft_condition));
+            } else {
+                sql.push_str(&format!(" WHERE {}", ft_condition));
+            }
+            params.push(DataValue::String(ft.query_text.clone()));
+        }
+
         // 添加GROUP BY
         if !self.group_by.is_empty() {
             let safe_group_by: Vec<String> = self
@@ -304,6 +340,27 @@ impl SqlQueryBuilder {
                 })
                 .collect();
             sql.push_str(&format!(" ORDER BY {}", order_clauses.join(", ")));
+        }
+
+        // 全文搜索排序（ts_rank DESC，追加到 ORDER BY）
+        if let Some(ft) = &self.fulltext_search {
+            let safe_field = self
+                .security_validator
+                .get_safe_field_identifier(&ft.field)
+                .unwrap_or_else(|_| format!("\"{}\"", ft.field));
+
+            let param_idx = params.len() + 1;
+            let rank_expr = format!(
+                "ts_rank(to_tsvector('{}', {}), plainto_tsquery('{}', ${})) DESC",
+                ft.search_config, safe_field, ft.search_config, param_idx
+            );
+
+            if sql.contains(" ORDER BY") {
+                sql.push_str(&format!(", {}", rank_expr));
+            } else {
+                sql.push_str(&format!(" ORDER BY {}", rank_expr));
+            }
+            params.push(DataValue::String(ft.query_text.clone()));
         }
 
         // 添加LIMIT和OFFSET

@@ -227,6 +227,17 @@ impl VectorSortConfig {
     }
 }
 
+/// 全文搜索配置（PostgreSQL tsvector 全文搜索）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FullTextSearchConfig {
+    /// 搜索配置名称（如 "chinese_zh"、"english"、"simple"）
+    pub search_config: String,
+    /// 搜索字段名
+    pub field: String,
+    /// 搜索查询文本（原始文本，由数据库 to_tsquery 解析）
+    pub query_text: String,
+}
+
 /// 查询选项
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct QueryOptions {
@@ -240,6 +251,8 @@ pub struct QueryOptions {
     pub fields: Vec<String>,
     /// 向量排序配置（用于 pgvector 向量搜索，优先于 sort）
     pub vector_sort: Option<VectorSortConfig>,
+    /// 全文搜索配置（用于 PostgreSQL tsvector 全文搜索）
+    pub fulltext_search: Option<FullTextSearchConfig>,
 }
 
 impl QueryOptions {
@@ -275,6 +288,12 @@ impl QueryOptions {
     /// 设置向量排序（用于 pgvector 向量搜索）
     pub fn with_vector_sort(mut self, vector_sort: VectorSortConfig) -> Self {
         self.vector_sort = Some(vector_sort);
+        self
+    }
+
+    /// 设置全文搜索（用于 PostgreSQL tsvector 全文搜索）
+    pub fn with_fulltext_search(mut self, fulltext_search: FullTextSearchConfig) -> Self {
+        self.fulltext_search = Some(fulltext_search);
         self
     }
 }

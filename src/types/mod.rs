@@ -23,7 +23,7 @@ pub use database_config::{
 pub use id_types::{IdStrategy, IdType};
 pub use mongo_builder::MongoDbConnectionBuilder;
 pub use query::{
-    LogicalOperator, PaginationConfig, QueryCondition, QueryConditionGroup, QueryConditionGroupWithConfig,
+    FullTextSearchConfig, LogicalOperator, PaginationConfig, QueryCondition, QueryConditionGroup, QueryConditionGroupWithConfig,
     QueryConditionWithConfig, QueryOperator,
     QueryOptions, SortConfig, SortDirection,
 };

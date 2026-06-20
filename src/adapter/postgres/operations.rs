@@ -364,6 +364,11 @@ impl DatabaseAdapter for PostgresAdapter {
                 builder = builder.vector_order_by(vs.clone());
             }
 
+            // 添加全文搜索
+            if let Some(ft) = &options.fulltext_search {
+                builder = builder.fulltext_search(ft.clone());
+            }
+
             // 添加排序
             if !options.sort.is_empty() {
                 for sort_field in &options.sort {
