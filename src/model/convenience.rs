@@ -95,6 +95,14 @@ pub fn json_field() -> FieldDefinition {
     FieldDefinition::new(FieldType::Json)
 }
 
+/// 创建向量字段定义（用于 pgvector 向量搜索）
+///
+/// # 参数
+/// * `dimension` - 向量维度（如 512、768、1536 等）
+pub fn vector_field(dimension: usize) -> FieldDefinition {
+    FieldDefinition::new(FieldType::Vector { dimension })
+}
+
 /// 便捷函数：创建字典字段（基于Object类型）
 ///
 /// # 废弃说明

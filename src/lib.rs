@@ -52,7 +52,7 @@ pub use manager::{clear_all_caches, clear_cache, get_cache_manager, get_cache_st
 pub use model::{
     FieldDefinition, FieldType, IndexDefinition, Model, ModelManager, ModelMeta, ModelOperations,
     array_field, bigint_field, boolean_field, datetime_field, datetime_with_tz_field, dict_field,
-    float_field, integer_field, json_field, list_field, reference_field, string_field, uuid_field,
+    float_field, integer_field, json_field, list_field, reference_field, string_field, uuid_field, vector_field,
 };
 pub use odm::{AsyncOdmManager, OdmOperations, get_odm_manager, get_odm_manager_mut};
 

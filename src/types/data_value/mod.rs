@@ -32,6 +32,8 @@ pub enum DataValue {
     Array(Vec<DataValue>),
     /// 对象/文档
     Object(HashMap<String, DataValue>),
+    /// 向量（浮点数数组，用于 pgvector）
+    Vector(Vec<f32>),
 }
 
 impl std::fmt::Display for DataValue {
@@ -55,6 +57,9 @@ impl std::fmt::Display for DataValue {
             DataValue::Object(obj) => {
                 let json_str = serde_json::to_string(obj).unwrap_or_default();
                 write!(f, "{}", json_str)
+            }
+            DataValue::Vector(vec) => {
+                write!(f, "[{}]", vec.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","))
             }
         }
     }
@@ -84,6 +89,7 @@ impl DataValue {
             DataValue::Json(_) => "json",
             DataValue::Array(_) => "array",
             DataValue::Object(_) => "object",
+            DataValue::Vector(_) => "vector",
         }
     }
 
@@ -192,6 +198,17 @@ impl DataValue {
                     .map(|(k, v)| (k.clone(), v.to_json_value()))
                     .collect();
                 serde_json::Value::Object(json_object)
+            }
+            DataValue::Vector(vec) => {
+                let json_array: Vec<serde_json::Value> = vec
+                    .iter()
+                    .map(|v| {
+                        serde_json::Number::from_f64(*v as f64)
+                            .map(serde_json::Value::Number)
+                            .unwrap_or(serde_json::Value::Null)
+                    })
+                    .collect();
+                serde_json::Value::Array(json_array)
             }
         }
     }
@@ -555,6 +572,18 @@ pub fn convert_to_postgresql_jsonb_value(
             }
             // 转换为base64字符串
             Ok(DataValue::String(format!("\"{}\"", base64::encode(bytes))))
+        }
+        // 向量数据：序列化为JSON数组字符串
+        DataValue::Vector(vec) => {
+            let json_str = serde_json::to_string(vec).unwrap_or_else(|_| "[]".to_string());
+            if json_str.len() > MAX_JSONB_LENGTH {
+                return Err(crate::quick_error!(
+                    validation,
+                    "jsonb_value_too_long",
+                    format!("JSONB查询值过长，最大允许{}字节", MAX_JSONB_LENGTH)
+                ));
+            }
+            Ok(DataValue::String(json_str))
         }
     }
 }

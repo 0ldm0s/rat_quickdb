@@ -359,6 +359,11 @@ impl DatabaseAdapter for PostgresAdapter {
                 .select(&["*"])
                 .where_condition_groups(condition_groups);
 
+            // 添加向量排序（优先于普通排序）
+            if let Some(vs) = &options.vector_sort {
+                builder = builder.vector_order_by(vs.clone());
+            }
+
             // 添加排序
             if !options.sort.is_empty() {
                 for sort_field in &options.sort {
@@ -757,6 +762,9 @@ impl DatabaseAdapter for PostgresAdapter {
                     FieldType::Reference {
                         target_collection: _,
                     } => "TEXT".to_string(),
+                    FieldType::Vector { dimension } => {
+                        format!("vector({})", dimension)
+                    }
                 };
 
                 // 如果是id字段，根据ID策略创建正确的字段类型

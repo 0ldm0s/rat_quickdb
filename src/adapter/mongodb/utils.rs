@@ -127,6 +127,10 @@ pub(crate) fn data_value_to_bson(adapter: &MongoAdapter, value: &DataValue) -> Q
             bytes: bytes.clone(),
             subtype: mongodb::bson::spec::BinarySubtype::Generic,
         })),
+        DataValue::Vector(vec) => {
+            let bson_array: Vec<Bson> = vec.iter().map(|v| Bson::Double(*v as f64)).collect();
+            Ok(Bson::Array(bson_array))
+        }
     }
 }
 

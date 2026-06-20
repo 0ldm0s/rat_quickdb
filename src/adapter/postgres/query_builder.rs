@@ -24,6 +24,8 @@ pub struct SqlQueryBuilder {
     returning_fields: Vec<String>,
     /// Upsert冲突检测列
     conflict_columns: Vec<String>,
+    /// 向量排序配置（用于 pgvector 向量搜索）
+    vector_sort: Option<crate::types::query::VectorSortConfig>,
     security_validator: DatabaseSecurityValidator,
 }
 
@@ -74,6 +76,7 @@ impl SqlQueryBuilder {
             values: HashMap::new(),
             returning_fields: Vec::new(),
             conflict_columns: Vec::new(),
+            vector_sort: None,
             security_validator: DatabaseSecurityValidator::new(DatabaseType::PostgreSQL),
         }
     }
@@ -155,6 +158,12 @@ impl SqlQueryBuilder {
             field: field.to_string(),
             direction,
         });
+        self
+    }
+
+    /// 设置向量排序（用于 pgvector 向量搜索，优先于普通 ORDER BY）
+    pub fn vector_order_by(mut self, config: crate::types::query::VectorSortConfig) -> Self {
+        self.vector_sort = Some(config);
         self
     }
 

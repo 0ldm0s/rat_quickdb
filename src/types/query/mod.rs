@@ -185,6 +185,48 @@ pub struct PaginationConfig {
     pub limit: u64,
 }
 
+/// 向量距离度量方式（用于 pgvector 向量搜索）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum VectorMetric {
+    /// 余弦距离（最常用，取值范围 0~2，越小越相似）
+    Cosine,
+    /// L2 欧几里得距离（越小越相似）
+    L2,
+    /// 负内积（越小越相似）
+    InnerProduct,
+}
+
+/// 向量排序配置（用于 pgvector 向量搜索）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VectorSortConfig {
+    /// 向量字段名
+    pub field: String,
+    /// 查询向量
+    pub query_vector: Vec<f32>,
+    /// 距离度量（默认余弦）
+    pub metric: VectorMetric,
+}
+
+impl VectorSortConfig {
+    /// 创建余弦距离排序配置
+    pub fn cosine(field: &str, query_vector: Vec<f32>) -> Self {
+        Self {
+            field: field.to_string(),
+            query_vector,
+            metric: VectorMetric::Cosine,
+        }
+    }
+
+    /// 创建 L2 距离排序配置
+    pub fn l2(field: &str, query_vector: Vec<f32>) -> Self {
+        Self {
+            field: field.to_string(),
+            query_vector,
+            metric: VectorMetric::L2,
+        }
+    }
+}
+
 /// 查询选项
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct QueryOptions {
@@ -196,6 +238,8 @@ pub struct QueryOptions {
     pub pagination: Option<PaginationConfig>,
     /// 选择的字段（空表示选择所有字段）
     pub fields: Vec<String>,
+    /// 向量排序配置（用于 pgvector 向量搜索，优先于 sort）
+    pub vector_sort: Option<VectorSortConfig>,
 }
 
 impl QueryOptions {
@@ -225,6 +269,12 @@ impl QueryOptions {
     /// 设置字段选择
     pub fn with_fields(mut self, fields: Vec<String>) -> Self {
         self.fields = fields;
+        self
+    }
+
+    /// 设置向量排序（用于 pgvector 向量搜索）
+    pub fn with_vector_sort(mut self, vector_sort: VectorSortConfig) -> Self {
+        self.vector_sort = Some(vector_sort);
         self
     }
 }

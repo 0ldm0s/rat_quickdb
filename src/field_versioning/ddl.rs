@@ -237,6 +237,7 @@ fn field_type_to_sqlite(def: &FieldDefinition) -> String {
         FieldType::Array { .. } => "TEXT".to_string(), // SQLite 用 JSON 文本存储数组
         FieldType::Object { .. } => "TEXT".to_string(), // SQLite 用 JSON 文本存储对象
         FieldType::Reference { .. } => "TEXT".to_string(),
+        FieldType::Vector { .. } => "BLOB".to_string(), // SQLite 不支持向量，用 BLOB
     }
 }
 
@@ -273,6 +274,7 @@ fn field_type_to_postgres(def: &FieldDefinition) -> String {
         FieldType::Reference { target_collection } => {
             format!("VARCHAR(255)  -- 引用: {}", target_collection)
         }
+        FieldType::Vector { dimension } => format!("vector({})", dimension),
     }
 }
 
@@ -305,6 +307,7 @@ fn field_type_to_mysql(def: &FieldDefinition) -> String {
         FieldType::Array { .. } => "JSON".to_string(),
         FieldType::Object { .. } => "JSON".to_string(),
         FieldType::Reference { .. } => "VARCHAR(255)".to_string(),
+        FieldType::Vector { .. } => "JSON".to_string(), // MySQL 不支持向量，用 JSON
     }
 }
 

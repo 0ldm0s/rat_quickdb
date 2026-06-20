@@ -65,6 +65,8 @@ pub enum FieldType {
     },
     /// 引用类型（外键）
     Reference { target_collection: String },
+    /// 向量类型（用于 pgvector 向量搜索）
+    Vector { dimension: usize },
 }
 
 /// 字段定义
@@ -576,6 +578,31 @@ impl FieldDefinition {
                         field: "type_mismatch".to_string(),
                         message: crate::i18n::t("validation.type_decimal"),
                     });
+                }
+            }
+            FieldType::Vector { dimension } => {
+                match value {
+                    DataValue::Vector(vec) => {
+                        if vec.len() != *dimension {
+                            return Err(QuickDbError::ValidationError {
+                                field: "vector_dimension".to_string(),
+                                message: format!(
+                                    "向量维度不匹配，期望 {} 维，实际 {} 维",
+                                    dimension,
+                                    vec.len()
+                                ),
+                            });
+                        }
+                    }
+                    DataValue::Null => {
+                        // 允许空值（非必填向量字段）
+                    }
+                    _ => {
+                        return Err(QuickDbError::ValidationError {
+                            field: "type_mismatch".to_string(),
+                            message: "字段类型不匹配，期望向量类型".to_string(),
+                        });
+                    }
                 }
             }
         }

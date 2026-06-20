@@ -264,6 +264,11 @@ impl<'a, 'de> serde::de::Deserializer<'de> for DataValueSingleDeserializer<'a> {
                 let json_str = serde_json::to_string(json).unwrap_or_else(|_| "{}".to_string());
                 visitor.visit_str(&json_str)
             }
+            DataValue::Vector(vec) => {
+                // 将向量序列化为JSON数组字符串
+                let json_str = serde_json::to_string(vec).unwrap_or_else(|_| "[]".to_string());
+                visitor.visit_str(&json_str)
+            }
         }
     }
 

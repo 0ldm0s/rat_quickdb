@@ -542,6 +542,10 @@ impl MongoQueryBuilder {
                 bytes: bytes.clone(),
                 subtype: mongodb::bson::spec::BinarySubtype::Generic,
             }),
+            DataValue::Vector(vec) => {
+                let bson_array: Vec<Bson> = vec.iter().map(|v| Bson::Double(*v as f64)).collect();
+                Bson::Array(bson_array)
+            }
         }
     }
 

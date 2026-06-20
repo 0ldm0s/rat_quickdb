@@ -71,6 +71,7 @@ pub(crate) async fn create_table(
                 FieldType::Array { .. } => "TEXT".to_string(), // 存储为JSON
                 FieldType::Object { .. } => "TEXT".to_string(), // 存储为JSON
                 FieldType::Reference { .. } => "TEXT".to_string(), // 存储引用ID
+                FieldType::Vector { .. } => "BLOB".to_string(), // SQLite 不支持原生向量，用 BLOB 存储
             };
 
             // 如果是id字段，添加主键约束

@@ -149,6 +149,7 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                         FieldType::Array { .. } => "Array",
                         FieldType::Object { .. } => "Object",
                         FieldType::Reference { .. } => "String",
+                        FieldType::Vector { .. } => "Vector",
                     };
 
                     // 直接创建带类型标签的 JsonValue，避免嵌套
@@ -199,6 +200,8 @@ pub trait Model: Serialize + for<'de> Deserialize<'de> + Send + Sync {
                                     FieldType::Array { .. } => "Array",
                                     FieldType::Object { .. } => "Object",
                                     FieldType::Reference { .. } => "String",
+                                    FieldType::Vector { .. } => "Vector",
+                        FieldType::Vector { .. } => "Vector",
                                 };
 
                                 let processed_array: Vec<JsonValue> = arr

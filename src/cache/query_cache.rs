@@ -86,6 +86,13 @@ impl CacheManager {
                         }).collect();
                         serde_json::Value::Array(json_array)
                     }
+                    DataValue::Vector(vec) => {
+                        serde_json::Value::Array(vec.iter().map(|v| {
+                            serde_json::Number::from_f64(*v as f64)
+                                .map(serde_json::Value::Number)
+                                .unwrap_or(serde_json::Value::Null)
+                        }).collect())
+                    }
                     DataValue::Object(obj) => {
                         let mut json_obj = serde_json::Map::new();
                         for (key, value) in obj {
@@ -216,6 +223,13 @@ impl CacheManager {
                             }
                         }).collect();
                         serde_json::Value::Array(json_array)
+                    }
+                    DataValue::Vector(vec) => {
+                        serde_json::Value::Array(vec.iter().map(|v| {
+                            serde_json::Number::from_f64(*v as f64)
+                                .map(serde_json::Value::Number)
+                                .unwrap_or(serde_json::Value::Null)
+                        }).collect())
                     }
                     DataValue::Object(obj) => {
                         let mut json_obj = serde_json::Map::new();
@@ -412,6 +426,13 @@ impl CacheManager {
                             }
                         }).collect();
                         serde_json::Value::Array(json_array)
+                    }
+                    DataValue::Vector(vec) => {
+                        serde_json::Value::Array(vec.iter().map(|v| {
+                            serde_json::Number::from_f64(*v as f64)
+                                .map(serde_json::Value::Number)
+                                .unwrap_or(serde_json::Value::Null)
+                        }).collect())
                     }
                     DataValue::Object(obj) => {
                         let mut json_obj = serde_json::Map::new();

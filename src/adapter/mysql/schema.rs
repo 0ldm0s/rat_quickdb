@@ -68,6 +68,7 @@ pub(crate) async fn create_table(
                 FieldType::Array { .. } => "JSON".to_string(),
                 FieldType::Object { .. } => "JSON".to_string(),
                 FieldType::Reference { .. } => "VARCHAR(255)".to_string(),
+                FieldType::Vector { .. } => "JSON".to_string(), // MySQL 不支持原生向量，用 JSON 存储
             };
 
             // 添加NULL或NOT NULL约束

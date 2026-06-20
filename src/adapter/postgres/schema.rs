@@ -81,6 +81,9 @@ pub(crate) async fn create_table(
                 FieldType::Reference {
                     target_collection: _,
                 } => "TEXT".to_string(),
+                FieldType::Vector { dimension } => {
+                    format!("vector({})", dimension)
+                }
             };
 
             // 如果是id字段，根据ID策略创建正确的字段类型

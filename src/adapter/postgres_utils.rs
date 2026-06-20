@@ -336,6 +336,17 @@ pub fn convert_to_jsonb_value(value: &DataValue) -> QuickDbResult<DataValue> {
             // 转换为base64字符串
             Ok(DataValue::String(format!("\"{}\"", base64::encode(bytes))))
         }
+        // 向量数据：序列化为JSON数组字符串
+        DataValue::Vector(vec) => {
+            let json_str = serde_json::to_string(vec).unwrap_or_else(|_| "[]".to_string());
+            if json_str.len() > MAX_JSONB_LENGTH {
+                return Err(QuickDbError::ValidationError {
+                    field: "jsonb_vector".to_string(),
+                    message: format!("JSONB查询值过长，最大允许{}字节", MAX_JSONB_LENGTH),
+                });
+            }
+            Ok(DataValue::String(json_str))
+        }
     }
 }
 

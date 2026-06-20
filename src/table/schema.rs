@@ -432,6 +432,7 @@ impl TableSchema {
             DataValue::Json(_) => ColumnType::Json,
             DataValue::Array(_) => ColumnType::Json, // 数组存储为JSON
             DataValue::Object(_) => ColumnType::Json, // 对象存储为JSON
+            DataValue::Vector(_) => ColumnType::Blob, // 向量存储为BLOB
         }
     }
 }

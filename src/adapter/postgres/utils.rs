@@ -172,6 +172,26 @@ pub(crate) fn row_to_data_map(
                     DataValue::Null
                 }
             }
+            "vector" => {
+                // pgvector 的 vector 类型：通过 text 转换读取
+                // PG 返回格式如 "[1.0,2.0,3.0]"
+                if let Ok(val) = row.try_get::<Option<String>, _>(column_name) {
+                    match val {
+                        Some(s) => {
+                            // 解析 pgvector 字符串格式 "[1.0,2.0,3.0]" → Vec<f32>
+                            let trimmed = s.trim_start_matches('[').trim_end_matches(']');
+                            let floats: Vec<f32> = trimmed
+                                .split(',')
+                                .filter_map(|v| v.trim().parse::<f32>().ok())
+                                .collect();
+                            DataValue::Vector(floats)
+                        }
+                        None => DataValue::Null,
+                    }
+                } else {
+                    DataValue::Null
+                }
+            }
             _ => {
                 // 对于未知类型，尝试作为字符串获取
                 if let Ok(val) = row.try_get::<Option<String>, _>(column_name) {
@@ -256,6 +276,11 @@ pub(crate) async fn execute_query(
                 // 使用 to_json_value() 避免序列化时包含类型标签
                 let json_object = DataValue::Object(obj.clone()).to_json_value();
                 query.bind(json_object)
+            }
+            DataValue::Vector(vec) => {
+                // pgvector 格式字符串: "[1.0,2.0,3.0]"
+                let pg_str = format!("[{}]", vec.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","));
+                query.bind(pg_str)
             }
         };
     }
@@ -351,6 +376,11 @@ pub(crate) async fn execute_update(
             DataValue::Null => query.bind(Option::<String>::None),
             DataValue::Array(arr) => query.bind(serde_json::to_value(arr).unwrap_or_default()),
             DataValue::Object(obj) => query.bind(serde_json::to_value(obj).unwrap_or_default()),
+            DataValue::Vector(vec) => {
+                // pgvector 格式字符串: "[1.0,2.0,3.0]"
+                let pg_str = format!("[{}]", vec.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","));
+                query.bind(pg_str)
+            }
         };
     }
 
