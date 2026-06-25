@@ -268,9 +268,29 @@ pub(crate) async fn execute_query(
             DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
             DataValue::Null => query.bind(Option::<String>::None),
             DataValue::Array(arr) => {
-                // 使用 to_json_value() 避免序列化时包含类型标签
-                let json_array = DataValue::Array(arr.clone()).to_json_value();
-                query.bind(json_array)
+                // 根据元素类型选择 PostgreSQL 绑定方式（同 execute_update 逻辑）
+                if arr.is_empty() {
+                    query.bind(Vec::<String>::new())
+                } else {
+                    match &arr[0] {
+                        DataValue::String(_) => {
+                            let vec: Vec<String> = arr.iter().filter_map(|v| {
+                                if let DataValue::String(s) = v { Some(s.clone()) } else { None }
+                            }).collect();
+                            query.bind(vec)
+                        }
+                        DataValue::Int(_) => {
+                            let vec: Vec<i64> = arr.iter().filter_map(|v| {
+                                if let DataValue::Int(i) = v { Some(*i) } else { None }
+                            }).collect();
+                            query.bind(vec)
+                        }
+                        _ => {
+                            let json_array = DataValue::Array(arr.clone()).to_json_value();
+                            query.bind(json_array)
+                        }
+                    }
+                }
             }
             DataValue::Object(obj) => {
                 // 使用 to_json_value() 避免序列化时包含类型标签
@@ -374,7 +394,29 @@ pub(crate) async fn execute_update(
             DataValue::Json(json) => query.bind(json),
             DataValue::Bytes(bytes) => query.bind(bytes.as_slice()),
             DataValue::Null => query.bind(Option::<String>::None),
-            DataValue::Array(arr) => query.bind(serde_json::to_value(arr).unwrap_or_default()),
+            DataValue::Array(arr) => {
+                // 根据元素类型选择 PostgreSQL 绑定方式
+                // text[] → Vec<String>, bigint[] → Vec<i64>, 否则 fallback jsonb
+                if arr.is_empty() {
+                    query.bind(Vec::<String>::new())
+                } else {
+                    match &arr[0] {
+                        DataValue::String(_) => {
+                            let vec: Vec<String> = arr.iter().filter_map(|v| {
+                                if let DataValue::String(s) = v { Some(s.clone()) } else { None }
+                            }).collect();
+                            query.bind(vec)
+                        }
+                        DataValue::Int(_) => {
+                            let vec: Vec<i64> = arr.iter().filter_map(|v| {
+                                if let DataValue::Int(i) = v { Some(*i) } else { None }
+                            }).collect();
+                            query.bind(vec)
+                        }
+                        _ => query.bind(serde_json::to_value(arr).unwrap_or_default()),
+                    }
+                }
+            }
             DataValue::Object(obj) => query.bind(serde_json::to_value(obj).unwrap_or_default()),
             DataValue::Vector(vec) => {
                 // pgvector 格式字符串: "[1.0,2.0,3.0]"
