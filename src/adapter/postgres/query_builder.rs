@@ -932,6 +932,7 @@ impl SqlQueryBuilder {
                             for i in 0..values.len() {
                                 placeholders.push(self.get_placeholder(new_index + i));
                             }
+                            new_index += values.len();
                             let params = values.clone();
                             (
                                 format!("{} IN ({})", safe_field, placeholders.join(", ")),
@@ -973,6 +974,7 @@ impl SqlQueryBuilder {
                         for i in 0..values.len() {
                             placeholders.push(self.get_placeholder(new_index + i));
                         }
+                        new_index += values.len();
                         let params = values.clone();
                         (
                             format!("{} IN ({})", safe_field, placeholders.join(", ")),
