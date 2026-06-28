@@ -73,10 +73,21 @@ pub(crate) async fn create_table(
                     format!("DECIMAL({},{})", precision, scale)
                 }
                 FieldType::Array {
-                    item_type: _,
+                    item_type,
                     max_items: _,
                     min_items: _,
-                } => "JSONB".to_string(),
+                } => {
+                    // 根据元素类型映射到 PostgreSQL 原生数组类型
+                    match **item_type {
+                        FieldType::String { .. } | FieldType::Text | FieldType::Uuid => "TEXT[]".to_string(),
+                        FieldType::Integer { .. } => "INTEGER[]".to_string(),
+                        FieldType::BigInteger => "BIGINT[]".to_string(),
+                        FieldType::Float { .. } => "REAL[]".to_string(),
+                        FieldType::Double => "DOUBLE PRECISION[]".to_string(),
+                        FieldType::Boolean => "BOOLEAN[]".to_string(),
+                        _ => "JSONB".to_string(),
+                    }
+                }
                 FieldType::Object { .. } => "JSONB".to_string(),
                 FieldType::Reference {
                     target_collection: _,
