@@ -407,7 +407,12 @@ impl SqlQueryBuilder {
             .map(|c| self.security_validator.get_safe_field_identifier(c).unwrap_or_else(|_| c.clone()))
             .collect();
         let placeholders: Vec<String> = self.generate_placeholders(columns.len());
-        let params: Vec<DataValue> = columns.iter().map(|k| non_null_values[k].clone()).collect();
+        let mut params: Vec<DataValue> = Vec::with_capacity(columns.len());
+        for k in &columns {
+            let raw = &non_null_values[k];
+            let converted = self.convert_uuid_value_for_postgres(table, k, raw, alias)?;
+            params.push(converted);
+        }
 
         let safe_table = self.security_validator.get_safe_table_identifier(table).unwrap_or_else(|_| format!("\"{}\"", table));
         let mut sql = format!(
@@ -457,8 +462,9 @@ impl SqlQueryBuilder {
         }
 
         let mut param_index = 1;
-        let set_clauses: Vec<String> = non_null_values
-            .keys()
+        let keys: Vec<String> = non_null_values.keys().cloned().collect();
+        let set_clauses: Vec<String> = keys
+            .iter()
             .map(|k| {
                 let safe_field = self.security_validator.get_safe_field_identifier(k).unwrap_or_else(|_| format!("\"{}\"", k));
                 let placeholder = self.get_placeholder(param_index);
@@ -466,7 +472,12 @@ impl SqlQueryBuilder {
                 format!("{} = {}", safe_field, placeholder)
             })
             .collect();
-        let mut params: Vec<DataValue> = non_null_values.values().cloned().collect();
+        let mut params: Vec<DataValue> = Vec::with_capacity(keys.len());
+        for k in &keys {
+            let raw = &non_null_values[k];
+            let converted = self.convert_uuid_value_for_postgres(table, k, raw, alias)?;
+            params.push(converted);
+        }
 
         let safe_table = self.security_validator.get_safe_table_identifier(table).unwrap_or_else(|_| format!("\"{}\"", table));
         let mut sql = format!("UPDATE {} SET {}", safe_table, set_clauses.join(", "));
@@ -1421,7 +1432,8 @@ impl SqlQueryBuilder {
         alias: &str,
     ) -> QuickDbResult<DataValue> {
         // 检查字段类型是否为UUID
-        if let Some(field_type) = get_field_type(table_name, alias, field_name) {
+        let field_type_opt = get_field_type(table_name, alias, field_name);
+        if let Some(field_type) = field_type_opt {
             if matches!(field_type, crate::model::FieldType::Uuid) {
                 // 对于UUID字段，如果是字符串值，尝试转换为UUID
                 if let DataValue::String(uuid_str) = value {

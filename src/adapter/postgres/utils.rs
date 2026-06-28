@@ -240,11 +240,7 @@ pub(crate) async fn execute_query(
     for param in params {
         query = match param {
             DataValue::String(s) => {
-                // 尝试判断是否为UUID格式，如果是则转换为UUID类型
-                match s.parse::<uuid::Uuid>() {
-                    Ok(uuid) => query.bind(uuid), // 绑定为UUID类型
-                    Err(_) => query.bind(s),      // 不是UUID格式，绑定为字符串
-                }
+                query.bind(s)
             }
             DataValue::Int(i) => query.bind(*i),
             DataValue::UInt(u) => {
@@ -358,20 +354,7 @@ pub(crate) async fn execute_update(
         rat_logger::debug!("🔍 PostgreSQL execute_update: 参数[{}] = {:?}", i, param);
         query = match param {
             DataValue::String(s) => {
-                // 尝试判断是否为UUID格式，如果是则转换为UUID类型
-                match s.parse::<uuid::Uuid>() {
-                    Ok(uuid) => {
-                        rat_logger::debug!("🔍 PostgreSQL: 字符串 '{}' 成功解析为UUID", s);
-                        query.bind(uuid) // 绑定为UUID类型
-                    }
-                    Err(_) => {
-                        rat_logger::debug!(
-                            "🔍 PostgreSQL: 字符串 '{}' 不是有效UUID，作为字符串处理",
-                            s
-                        );
-                        query.bind(s) // 不是UUID格式，绑定为字符串
-                    }
-                }
+                query.bind(s)
             }
             DataValue::Int(i) => query.bind(*i),
             DataValue::UInt(u) => {
