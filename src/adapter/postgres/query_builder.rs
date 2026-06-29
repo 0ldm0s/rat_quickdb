@@ -772,37 +772,42 @@ impl SqlQueryBuilder {
             }
             QueryOperator::Ne => {
                 new_index += 1;
+                let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
                 (
                     format!("{} != {}", safe_field, placeholder),
-                    vec![condition.value.clone()],
+                    vec![value],
                 )
             }
             QueryOperator::Gt => {
                 new_index += 1;
+                let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
                 (
                     format!("{} > {}", safe_field, placeholder),
-                    vec![condition.value.clone()],
+                    vec![value],
                 )
             }
             QueryOperator::Gte => {
                 new_index += 1;
+                let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
                 (
                     format!("{} >= {}", safe_field, placeholder),
-                    vec![condition.value.clone()],
+                    vec![value],
                 )
             }
             QueryOperator::Lt => {
                 new_index += 1;
+                let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
                 (
                     format!("{} < {}", safe_field, placeholder),
-                    vec![condition.value.clone()],
+                    vec![value],
                 )
             }
             QueryOperator::Lte => {
                 new_index += 1;
+                let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
                 (
                     format!("{} <= {}", safe_field, placeholder),
-                    vec![condition.value.clone()],
+                    vec![value],
                 )
             }
             QueryOperator::Contains => {
@@ -944,7 +949,10 @@ impl SqlQueryBuilder {
                                 placeholders.push(self.get_placeholder(new_index + i));
                             }
                             new_index += values.len();
-                            let params = values.clone();
+                            let mut params = Vec::with_capacity(values.len());
+                            for v in values {
+                                params.push(self.convert_uuid_value_for_postgres(table, &condition.field, v, alias)?);
+                            }
                             (
                                 format!("{} IN ({})", safe_field, placeholders.join(", ")),
                                 params,
@@ -986,7 +994,10 @@ impl SqlQueryBuilder {
                             placeholders.push(self.get_placeholder(new_index + i));
                         }
                         new_index += values.len();
-                        let params = values.clone();
+                        let mut params = Vec::with_capacity(values.len());
+                        for v in values {
+                            params.push(self.convert_uuid_value_for_postgres(table, &condition.field, v, alias)?);
+                        }
                         (
                             format!("{} IN ({})", safe_field, placeholders.join(", ")),
                             params,
@@ -1001,13 +1012,15 @@ impl SqlQueryBuilder {
             QueryOperator::NotIn => {
                 if let DataValue::Array(values) = &condition.value {
                     let mut placeholders = Vec::new();
-                    for _ in 0..values.len() {
+                    let mut params = Vec::with_capacity(values.len());
+                    for v in values {
                         placeholders.push(self.get_placeholder(new_index));
+                        params.push(self.convert_uuid_value_for_postgres(table, &condition.field, v, alias)?);
                         new_index += 1;
                     }
                     (
                         format!("{} NOT IN ({})", safe_field, placeholders.join(", ")),
-                        values.clone(),
+                        params,
                     )
                 } else {
                     return Err(QuickDbError::QueryError {
@@ -1113,28 +1126,33 @@ impl SqlQueryBuilder {
                     }
                 }
                 QueryOperator::Ne => {
+                    let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
                     clauses.push(format!("{} != {}", safe_field, placeholder));
-                    params.push(condition.value.clone());
+                    params.push(value);
                     param_index += 1;
                 }
                 QueryOperator::Gt => {
+                    let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
                     clauses.push(format!("{} > {}", safe_field, placeholder));
-                    params.push(condition.value.clone());
+                    params.push(value);
                     param_index += 1;
                 }
                 QueryOperator::Gte => {
+                    let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
                     clauses.push(format!("{} >= {}", safe_field, placeholder));
-                    params.push(condition.value.clone());
+                    params.push(value);
                     param_index += 1;
                 }
                 QueryOperator::Lt => {
+                    let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
                     clauses.push(format!("{} < {}", safe_field, placeholder));
-                    params.push(condition.value.clone());
+                    params.push(value);
                     param_index += 1;
                 }
                 QueryOperator::Lte => {
+                    let value = self.convert_uuid_value_for_postgres(table, &condition.field, &condition.value, alias)?;
                     clauses.push(format!("{} <= {}", safe_field, placeholder));
-                    params.push(condition.value.clone());
+                    params.push(value);
                     param_index += 1;
                 }
                 QueryOperator::Contains => {
@@ -1278,12 +1296,14 @@ impl SqlQueryBuilder {
                                     placeholders.push(self.get_placeholder(param_index));
                                     param_index += 1;
                                 }
+                                for v in values {
+                                    params.push(self.convert_uuid_value_for_postgres(table, &condition.field, v, alias)?);
+                                }
                                 clauses.push(format!(
                                     "{} IN ({})",
                                     safe_field,
                                     placeholders.join(", ")
                                 ));
-                                params.extend(values.clone());
                             }
                         } else {
                             // 无法确定字段类型，默认使用传统 IN 查询
@@ -1321,12 +1341,14 @@ impl SqlQueryBuilder {
                                 placeholders.push(self.get_placeholder(param_index));
                                 param_index += 1;
                             }
+                            for v in values {
+                                params.push(self.convert_uuid_value_for_postgres(table, &condition.field, v, alias)?);
+                            }
                             clauses.push(format!(
                                 "{} IN ({})",
                                 safe_field,
                                 placeholders.join(", ")
                             ));
-                            params.extend(values.clone());
                         }
                     } else {
                         return Err(QuickDbError::QueryError {
@@ -1341,12 +1363,14 @@ impl SqlQueryBuilder {
                             placeholders.push(self.get_placeholder(param_index));
                             param_index += 1;
                         }
+                        for v in values {
+                            params.push(self.convert_uuid_value_for_postgres(table, &condition.field, v, alias)?);
+                        }
                         clauses.push(format!(
                             "{} NOT IN ({})",
                             safe_field,
                             placeholders.join(", ")
                         ));
-                        params.extend(values.clone());
                     } else {
                         return Err(QuickDbError::QueryError {
                             message: "NOT IN 操作符需要数组类型的值".to_string(),
